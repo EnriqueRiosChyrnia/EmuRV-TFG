@@ -248,6 +248,87 @@ html, body {
   font-size: 12.5px;
 }
 
+/* ---------- ayuda (overlay modal) ---------- */
+#ayuda-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.ayuda-caja {
+  width: min(680px, 88vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo-panel);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+}
+
+.ayuda-caja header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.ayuda-caja h2 { margin: 0; font-size: 16px; }
+
+.ayuda-cerrar {
+  background: none;
+  border: none;
+  color: var(--texto-suave);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.ayuda-cerrar:hover { color: var(--texto); }
+
+.ayuda-cuerpo {
+  overflow: auto;
+  padding: 6px 18px 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.ayuda-cuerpo h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--acento);
+  margin: 18px 0 6px;
+}
+
+.ayuda-cuerpo table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.ayuda-cuerpo th, .ayuda-cuerpo td {
+  text-align: left;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.ayuda-cuerpo th { color: var(--texto-suave); }
+
+.ayuda-ejemplo {
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  margin: 10px 0 0;
+}
+
 /* ---------- barra de estado ---------- */
 #estado {
   grid-area: estado;

@@ -12,6 +12,7 @@ import {
   setExecLine,
 } from "./editor";
 import { t } from "./i18n";
+import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
@@ -38,6 +39,7 @@ class App {
   private consola: Consola;
   private registros: Registros;
   private memoria: Memoria;
+  private ayuda: Ayuda;
   private programa: AssembleOk | null = null;
   private reinicioPedido = false;
 
@@ -54,6 +56,7 @@ class App {
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
+    this.ayuda = new Ayuda();
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
       this.setModo("corriendo", t("estado.corriendo"));
@@ -117,9 +120,8 @@ class App {
     const espacio = document.createElement("span");
     espacio.className = "espacio";
     bar.appendChild(espacio);
-    // Exportar ELF y Ayuda se habilitan en la fase F5.
-    boton("exportar", "toolbar.exportar").disabled = true;
-    boton("ayuda", "toolbar.ayuda").disabled = true;
+    boton("exportar", "toolbar.exportar").onclick = () => void this.exportarElf();
+    boton("ayuda", "toolbar.ayuda").onclick = () => this.ayuda.abrir();
   }
 
   private sep(): HTMLElement {
@@ -246,6 +248,25 @@ class App {
     await api.reset();
   }
 
+  /** Exporta el programa ensamblado como ELF32 RISC-V (RF-08). */
+  private async exportarElf(): Promise<void> {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({
+      title: t("exportar.titulo"),
+      defaultPath: "programa.elf",
+      filters: [{ name: "ELF", extensions: ["elf"] }],
+    });
+    if (!path) return;
+    try {
+      await api.exportElf(path);
+      this.estadoEl.textContent = t("exportar.ok", { path });
+      this.estadoEl.className = "ok";
+    } catch (e) {
+      this.estadoEl.textContent = t("exportar.error", { message: String(e) });
+      this.estadoEl.className = "error";
+    }
+  }
+
   // ----- estado de la UI -----
 
   private setModo(modo: Modo, mensaje: string, clase: "" | "ok" | "error" = ""): void {
@@ -259,6 +280,7 @@ class App {
     b.paso.disabled = !hayPrograma || !parado || modo === "terminado";
     b.detener.disabled = modo !== "corriendo" && modo !== "esperando";
     b.reiniciar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
+    b.exportar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
   }
 }
 
