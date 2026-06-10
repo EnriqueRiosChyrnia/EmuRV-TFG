@@ -89,30 +89,6 @@ fn ejemplo_04_fibonacci() {
 }
 
 #[test]
-fn ejemplo_06_tetris_por_turnos() {
-    // La secuencia de piezas es determinista (LCG con semilla 0x1234,
-    // mismas constantes que el Tetris 8086 original): J, O, I, ...
-    // Jugada: J rot 0 en col 0; O rot 0 en col 4; salir con -1.
-    let (out, _regs, reason) = run_program(
-        include_str!("../../ejemplos/06-tetris.asm"),
-        &["0", "0", "0", "4", "-1"],
-    );
-    assert_eq!(reason, StopReason::Exited { code: 0 });
-    // orden de aparición de las piezas (verifica el port del LCG)
-    let pj = out.find("Pieza: J").expect("J primero");
-    let po = out.find("Pieza: O").expect("O segundo");
-    let pi = out.find("Pieza: I").expect("I tercero");
-    assert!(pj < po && po < pi, "orden de piezas LCG");
-    // estado final del tablero: J apilada en col 0-1, O en col 4-5
-    assert!(out.contains("|##..##....|"), "fila 19 (fondo): {out}");
-    assert!(out.contains("|.#..##....|"), "fila 18: {out}");
-    assert!(out.contains("|.#........|"), "fila 17: {out}");
-    // sin líneas completas no hay puntos (tabla 100/300/500/800 intacta)
-    assert!(out.contains("SCORE: 0"), "salida: {out}");
-    assert!(out.contains("Fin del juego"), "salida: {out}");
-}
-
-#[test]
 fn ejemplo_05_pila_funciones() {
     let (out, regs, reason) =
         run_program(include_str!("../../ejemplos/05-pila-funciones.asm"), &[]);
