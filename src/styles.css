@@ -1,116 +1,164 @@
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
+/* EmuRV — estilos de la aplicación. Tema oscuro sobrio, monoespaciado
+   donde se muestran datos de máquina. */
 
-.logo.typescript:hover {
-  filter: drop-shadow(0 0 2em #2d79c7);
-}
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+  --fondo: #1e2227;
+  --fondo-panel: #23282f;
+  --fondo-claro: #2b323b;
+  --borde: #3a424d;
+  --texto: #d7dde5;
+  --texto-suave: #8b97a5;
+  --acento: #4ea1ff;
+  --ok: #6fcf6f;
+  --error: #ff7a7a;
+  --cambio: #ffd166;
+  --mono: "SF Mono", ui-monospace, Menlo, monospace;
 }
 
-.container {
+* { box-sizing: border-box; }
+
+html, body {
   margin: 0;
-  padding-top: 10vh;
+  height: 100%;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+}
+
+#app {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(420px, 1.4fr) minmax(340px, 1fr);
+  grid-template-rows: auto 1fr 230px auto;
+  grid-template-areas:
+    "toolbar  toolbar"
+    "editor   lateral"
+    "consola  lateral"
+    "estado   estado";
+}
+
+/* ---------- barra de herramientas ---------- */
+#toolbar {
+  grid-area: toolbar;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--fondo-panel);
+  border-bottom: 1px solid var(--borde);
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
+#toolbar button, #toolbar select {
+  background: var(--fondo-claro);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
   cursor: pointer;
 }
 
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+#toolbar button:hover:not(:disabled) { border-color: var(--acento); }
+#toolbar button:disabled { opacity: 0.45; cursor: default; }
+#toolbar button.principal { background: var(--acento); color: #10151b; font-weight: 600; }
+#toolbar .separador { width: 1px; align-self: stretch; background: var(--borde); margin: 0 4px; }
+#toolbar .espacio { flex: 1; }
+
+/* ---------- editor ---------- */
+#editor {
+  grid-area: editor;
+  overflow: hidden;
+  border-right: 1px solid var(--borde);
 }
 
-input,
-button {
+#editor .cm-editor { height: 100%; font-size: 14px; }
+#editor .cm-editor .cm-scroller { font-family: var(--mono); }
+#editor .cm-editor.cm-focused { outline: none; }
+
+/* ---------- paneles ---------- */
+#lateral {
+  grid-area: lateral;
+  display: grid;
+  grid-template-rows: 1.2fr 1fr;
+  overflow: hidden;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo-panel);
+  border-bottom: 1px solid var(--borde);
+  overflow: hidden;
+}
+
+.panel h2 {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-suave);
+  border-bottom: 1px solid var(--borde);
+}
+
+.panel-cuerpo { flex: 1; overflow: auto; }
+
+/* ---------- consola ---------- */
+#panel-consola { grid-area: consola; }
+
+#consola {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--mono);
+  font-size: 13px;
+  height: 100%;
+}
+
+.consola-salida {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.consola-eco { color: var(--acento); }
+.consola-error { color: var(--error); }
+
+.consola-entrada {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--borde);
+  opacity: 0.5;
+}
+
+.consola-entrada.activa { opacity: 1; }
+.consola-entrada.activa .consola-prompt { color: var(--ok); }
+
+.consola-entrada input {
+  flex: 1;
+  background: transparent;
+  border: none;
   outline: none;
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 13px;
 }
 
-#greet-input {
-  margin-right: 5px;
+/* ---------- barra de estado ---------- */
+#estado {
+  grid-area: estado;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  color: var(--texto-suave);
+  background: var(--fondo-panel);
+  border-top: 1px solid var(--borde);
+  min-height: 28px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
+#estado.ok { color: var(--ok); }
+#estado.error { color: var(--error); }
