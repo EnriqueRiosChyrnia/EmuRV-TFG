@@ -263,6 +263,20 @@ La diferencia 1460→109 M instr/s con hook activo confirma la decisión de ARQU
 
 **Pendiente de verificación presencial** (la sesión autónoma no puede desbloquear la pantalla): re-captura visual del bundle final con el fix del overlay — la evidencia actual es la regla CSS presente en el `dist/` embebido y la determinismo del selector. Pasos: abrir `EmuRV.app`, confirmar que la ayuda NO está abierta al inicio y que el botón «Ayuda» la abre/cierra.
 
+---
+
+## Post-entrega — Ejemplo 6: Tetris por turnos (pedido del autor, 2026-06-10)
+
+**Pedido:** integrar a los ejemplos el Tetris 8086 (`tetris_3.asm`, 1528 líneas, emu8086) del Proyecto 2 de Microprocesadores del autor.
+
+**Análisis del original:** juego en tiempo real para DOS — escribe directo en la memoria de video (B800h), lee teclado sin bloquear (INT 16h AH=01h), gravedad por timer del BIOS (INT 1Ah, ~18.2 Hz), bocina por INT 21h. Lógica: tablero 20×10 como array de bytes, 7 tetriminos × 4 rotaciones como bitmaps de 16 bits (4×4, bit 15 = celda superior izquierda), LCG de 16 bits (`semilla = semilla·25173 + 13849`, pieza = semilla mod 7), colisión sobre estado hipotético (`test_*`), eliminación de líneas por desplazamiento, puntaje 100/300/500/800.
+
+**Decisión de port [Seguro]:** EmuRV v0.1 no tiene video direccionable, teclado no bloqueante ni timer (todos explícitamente fuera de alcance en SPEC.md), así que una traducción 1:1 es imposible. El port (`ejemplos/06-tetris.asm`, RV32IM, ~430 líneas) **conserva intacta la lógica del juego** — mismos bitmaps, mismas constantes del LCG y misma semilla, mismo algoritmo de colisión y de eliminación de líneas, misma tabla de puntos — y reemplaza la capa de E/S: juego **por turnos** en consola (tablero ASCII por syscall 11, rotación y columna por syscall 5 con validación y reintento, caída dura hasta apoyar, -1 para salir). Game over cuando una pieza queda apoyada tocando la fila 0. Las diferencias con el original están comentadas en el encabezado del archivo.
+
+**Verificación:** test de integración `ejemplo_06_tetris_por_turnos` — la secuencia de piezas es determinista por el LCG (J, O, I…), lo que permite verificar el port del generador contra el original; se colocan J en col 0 y O en col 4 y se comprueba el estado exacto de las 3 filas inferiores del tablero (`|##..##....|` etc.), SCORE 0 y salida limpia. Suite completa: 35/35 verdes, clippy 0. Bundle regenerado (21 MB / DMG 7.9 MB).
+
+Valor didáctico: es el ejemplo "grande" — arrays 2D en memoria, manipulación de bits, convención de llamada con marcos de pila reales y subrutinas anidadas, exactamente el puente emu8086→RISC-V que la tesis propone.
+
 ### PROPUESTAS FUERA DE ALCANCE (registradas durante el desarrollo, NO implementadas)
 
 - Sugerencias "¿quisiste decir…?" por distancia de edición en errores de mnemónicos.

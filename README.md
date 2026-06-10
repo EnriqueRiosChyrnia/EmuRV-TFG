@@ -15,7 +15,7 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - Vista de memoria navegable con accesos rápidos a `.text`, `.data` y la pila.
 - Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar.
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).
-- 5 ejemplos comentados en español, accesibles desde el menú «Ejemplos».
+- 6 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris por turnos**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores.
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 
 ## Instalación
@@ -60,7 +60,7 @@ main:
 4. Click en el margen izquierdo del editor para poner un **breakpoint** (punto rojo): «Ejecutar» se detiene ahí, antes de ejecutar esa línea.
 5. **Reiniciar** vuelve la máquina al estado inicial (registros y memoria como recién ensamblado).
 
-Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada) y «Fibonacci» paso a paso.
+Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada), «Fibonacci» paso a paso, y «Tetris por turnos» para un programa grande de verdad (tablero en memoria, bitmaps, colisiones, líneas completas).
 
 ## Syscalls (convención RARS)
 
