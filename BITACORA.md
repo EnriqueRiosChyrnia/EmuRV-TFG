@@ -141,22 +141,38 @@ El usuario verificó la app: panel gráfico y Tetris funcionan, con dos problema
 - **UX elegida [Probable — a validar por el usuario]:** botón «⧉» en el encabezado del panel; al abrir la ventana, el panel embebido se oculta y su timer para (una sola vista activa: más claro y menos tráfico, aunque el protocolo soporta ambas a la vez). Al cerrar la ventana, el panel embebido vuelve solo. Con la ventana abierta, el botón «Pantalla» de la toolbar la trae al frente.
 - **Mecánica:** `WebviewWindow` con label `pantalla` → `pantalla.html` (entrada multipágina de Vite) + `src/pantalla.ts` (canvas a ventana completa, `object-fit: contain` + `image-rendering: pixelated`, timer 30 Hz propio). Capability `default.json`: ventana `pantalla` agregada y permiso `core:webview:allow-create-webview-window`.
 
+## Correcciones de la pantalla desacoplada (2026-06-10, tercera tanda)
+
+El usuario confirmó el fix de Reiniciar→Paso ✓. La ventana desacoplada tenía dos bugs introducidos/dejados por la tanda anterior, ambos corregidos acá.
+
+### Bug 1: al cambiar de programa, ninguna vista de video se refrescaba
+
+- **Causa [Seguro, reproducida en test]:** `assemble` creaba la sesión nueva con `VideoShared` desde cero → el contador `seq` volvía a 0. Los consumidores (panel embebido y ventana desacoplada) conservan el `seq` de la sesión anterior (p. ej. 47) y piden "frames más nuevos que 47": los frames de la sesión nueva (seq 1, 2, 3…) quedaban filtrados para siempre. Cerrar la ventana "curaba" porque su handler de cierre reseteaba el seq local del panel a 0.
+- **Fix:** `VideoShared::para_sesion_nueva(anterior)` — el contador **continúa** entre sesiones (los consumidores no tienen forma de enterarse del reemplazo, así que el espacio de seq debe ser monotónico global). Si la pantalla estaba en uso, la sesión nueva además arranca publicando un frame negro con `seq = anterior + 1`: el programa nuevo no hereda la imagen del anterior y ambas vistas se limpian al re-ensamblar.
+- **Test de regresión:** `sesion_nueva_continua_el_seq_y_limpia_la_pantalla` reproduce la condición de filtrado (seq desde cero ≤ since del consumidor) y verifica el fix; más casos borde (primera sesión, sesión previa sin video).
+- **Alternativa descartada [Probable]:** emitir un evento "reset de video" a todas las ventanas para que reinicien su seq. Más piezas móviles y una carrera (frames publicados entre el evento y el reinicio del consumidor); la continuidad del contador no requiere cooperación del frontend.
+
+### Bug 2: al desacoplar, el panel embebido quedaba duplicado
+
+- **Causa raíz [Seguro]:** `.panel { display: flex }` en styles.css **pisa el atributo `hidden`** (que solo aplica `display: none` desde la hoja de estilos del navegador, con menor precedencia que cualquier regla de autor). `seccion.hidden = true` no ocultaba nada — el panel de video estuvo siempre visible desde el primer arranque; la "aparición automática" parecía funcionar porque ya estaba ahí. Fix: regla `.panel[hidden] { display: none; }`.
+- **Segunda capa [Probable]:** el ocultado dependía del evento `tauri://created`, cuyo listener se registra de forma asíncrona por IPC DESPUÉS de iniciada la creación de la ventana: carrera perdida (el evento dispara antes de que el listener exista). Ahora el panel se oculta sincrónicamente al iniciar el desacople y `tauri://error` lo restaura si la creación falla. `tauri://destroyed` se mantiene (funcionaba: se registra mucho antes de que el usuario cierre).
+
 ## PENDIENTE DE VERIFICACIÓN VISUAL DEL USUARIO
 
-Estado tras la verificación del usuario (2026-06-10): el panel gráfico y el Tetris **se confirmaron funcionando** (gates FB2/FB3 visualmente OK en lo esencial), con dos problemas que esta tanda corrige. Queda pendiente de OJO HUMANO lo siguiente — los puntos 1 y 2 NO se declaran cumplidos hasta esa confirmación:
+Estado: FB2/FB3 confirmados visualmente por el usuario ✓. Bug Reiniciar→Paso confirmado corregido ✓. Pendiente de OJO HUMANO (los puntos 1 y 2 NO se declaran cumplidos hasta esa confirmación):
 
-1. **Ventana desacoplada (nuevo):**
+1. **Refresco al cambiar de programa con la ventana desacoplada (bug 1 de esta tanda):**
    - Abrir el build nuevo (`src-tauri/target/release/bundle/macos/EmuRV.app`) o `cargo tauri dev`.
-   - Cargar «Franjas de color (pantalla)» → Ensamblar → Ejecutar → aparece el panel.
-   - Click en el botón «⧉» del encabezado del panel: DEBE abrirse una ventana «EmuRV — Pantalla» con las franjas, y el panel embebido desaparecer.
-   - Redimensionar la ventana: la imagen DEBE escalar nítida (píxeles cuadrados, sin blur) manteniendo proporción 4:3 con bandas negras.
-   - Ejecutar el Tetris con la ventana abierta: el tablero DEBE verse ahí mientras la consola del IDE pide la entrada.
-   - Cerrar la ventana: el panel embebido DEBE reaparecer con el último frame.
-2. **Reiniciar → Paso (bug corregido):**
-   - Cargar cualquier ejemplo (p. ej. Fibonacci) → Ensamblar → Ejecutar hasta terminar → «Reiniciar» → «Paso».
-   - DEBE: avanzar UNA instrucción por click, con la línea resaltada moviéndose y los registros cambiando — sin re-ensamblar.
-   - Con el Tetris: tras Reiniciar, la pantalla DEBE quedar negra (sin el tablero viejo).
-3. **Capturas aún no guardadas:** `docs/capturas/fb2-franjas.png` (franjas en el panel) y `docs/capturas/fb3-tetris.png` (tablero con piezas). Sumar `fb2-ventana-aparte.png` si el punto 1 pasa.
+   - Cargar «Franjas de color (pantalla)» → Ensamblar → Ejecutar → desacoplar con «⧉» → se ven las franjas en la ventana aparte.
+   - SIN cerrar la ventana: elegir «Tetris gráfico» → Ensamblar. La ventana aparte DEBE ponerse negra (pantalla limpia) en ese momento.
+   - Ejecutar y jugar una pieza: el tablero DEBE aparecer en la ventana aparte.
+   - Cerrar la ventana y repetir el cambio de ejemplo con el panel embebido: DEBE limpiarse y refrescarse igual, sin re-abrir nada.
+2. **El panel embebido desaparece al desacoplar (bug 2 de esta tanda):**
+   - Con un ejemplo gráfico corriendo y el panel visible, click en «⧉».
+   - El panel dentro del IDE DEBE desaparecer (queda solo la ventana aparte — nada duplicado).
+   - Antes de ensamblar nada (app recién abierta): el panel de video NO debe verse (estaba siempre visible por el bug de CSS; ahora arranca oculto).
+   - Cerrar la ventana aparte: el panel embebido DEBE reaparecer dentro del IDE con el último frame.
+3. **Capturas aún no guardadas:** `docs/capturas/fb2-franjas.png`, `docs/capturas/fb3-tetris.png`, `docs/capturas/fb2-ventana-aparte.png`.
 4. **Medición de FPS pendiente:** con la app abierta, correr un programa que reescriba el frame en bucle y anotar acá los FPS efectivos (el plan lo pide).
 5. Si algo NO se ve como se describe, reportarlo: el punto queda abierto.
 

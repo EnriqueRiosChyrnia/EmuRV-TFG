@@ -370,3 +370,10 @@ html, body {
   padding: 2px 7px;
   cursor: pointer;
 }
+
+/* El atributo hidden solo aplica display:none desde la hoja del navegador;
+   .panel { display: flex } lo pisaba y el panel de video nunca se ocultaba
+   (bug de duplicación al desacoplar la pantalla). */
+.panel[hidden] {
+  display: none;
+}

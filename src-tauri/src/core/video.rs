@@ -21,6 +21,48 @@ pub struct VideoShared {
     pub in_use: bool,
 }
 
+impl VideoShared {
+    /// Estado de video para una sesión nueva (re-ensamblado) que reemplaza
+    /// a `anterior`. El contador de publicaciones CONTINÚA: los
+    /// consumidores (panel embebido, ventana desacoplada) recuerdan el seq
+    /// de la sesión anterior y no tienen forma de enterarse del reemplazo;
+    /// si el contador volviera a cero descartarían todos los frames de la
+    /// sesión nueva por "viejos" (bug: al cambiar de programa la pantalla
+    /// seguía mostrando el frame del anterior). Si la pantalla estaba en
+    /// uso, la sesión nueva arranca publicando un frame negro: el programa
+    /// nuevo no hereda la imagen del anterior.
+    pub fn para_sesion_nueva(anterior: Option<&std::sync::Mutex<VideoShared>>) -> VideoShared {
+        let Some(ant) = anterior else {
+            return VideoShared::default();
+        };
+        let Ok(ant) = ant.lock() else {
+            return VideoShared::default();
+        };
+        if ant.in_use {
+            VideoShared {
+                rgba: Some(frame_negro()),
+                seq: ant.seq + 1,
+                in_use: false,
+            }
+        } else {
+            VideoShared {
+                rgba: None,
+                seq: ant.seq,
+                in_use: false,
+            }
+        }
+    }
+}
+
+/// Frame RGBA negro opaco: la "pantalla limpia".
+pub fn frame_negro() -> Vec<u8> {
+    let mut f = vec![0u8; (FRAMEBUFFER_DATA_SIZE * 4) as usize];
+    for px in f.chunks_exact_mut(4) {
+        px[3] = 255;
+    }
+    f
+}
+
 /// Buffer RGBA en formato compatible con canvas (RGBA8888, little-endian).
 /// Dimensiones fijas: 320×240 = 76800 píxeles = 307200 bytes.
 #[derive(Default)]
@@ -138,6 +180,63 @@ mod tests {
         assert_eq!(fb_rgba.data[5], 0xFF);
         assert_eq!(fb_rgba.data[6], 0x00);
         assert_eq!(fb_rgba.data[7], 0xFF);
+    }
+
+    /// Regresión del bug "al cambiar de programa la pantalla no se
+    /// refresca": la sesión nueva debe continuar el contador de
+    /// publicaciones de la anterior, no arrancar de cero.
+    #[test]
+    fn sesion_nueva_continua_el_seq_y_limpia_la_pantalla() {
+        use std::sync::Mutex;
+        // Un consumidor (panel o ventana desacoplada) ya pintó hasta seq 5.
+        let since_consumidor = 5u64;
+        let vieja = Mutex::new(VideoShared {
+            rgba: Some(vec![1, 2, 3]),
+            seq: since_consumidor,
+            in_use: true,
+        });
+
+        // Reproducción del bug: una sesión que arranca de cero publica su
+        // primer frame con seq 1, y el consumidor lo descarta (1 <= 5):
+        // exactamente la condición de filtrado de read_framebuffer.
+        let desincronizada = VideoShared::default();
+        let primer_frame = desincronizada.seq + 1;
+        assert!(
+            primer_frame <= since_consumidor,
+            "con seq desde cero el primer frame quedaría filtrado"
+        );
+
+        // Con el fix: el contador continúa y la pantalla limpia llega.
+        let nueva = VideoShared::para_sesion_nueva(Some(&vieja));
+        assert!(
+            nueva.seq > since_consumidor,
+            "el frame inicial de la sesión nueva debe superar el seq del consumidor"
+        );
+        assert!(!nueva.in_use, "el uso de video se detecta por programa (RF4)");
+        let negro = nueva.rgba.expect("pantalla limpia publicada");
+        assert_eq!(negro.len(), 320 * 240 * 4);
+        assert_eq!(&negro[0..4], &[0, 0, 0, 255], "frame negro opaco");
+    }
+
+    #[test]
+    fn sesion_nueva_sin_anterior_arranca_de_cero() {
+        let v = VideoShared::para_sesion_nueva(None);
+        assert_eq!(v.seq, 0);
+        assert!(v.rgba.is_none());
+        assert!(!v.in_use);
+    }
+
+    #[test]
+    fn sesion_nueva_tras_sesion_sin_video_no_publica() {
+        use std::sync::Mutex;
+        let vieja = Mutex::new(VideoShared {
+            rgba: None,
+            seq: 0,
+            in_use: false,
+        });
+        let nueva = VideoShared::para_sesion_nueva(Some(&vieja));
+        assert!(nueva.rgba.is_none(), "sin uso previo no hay nada que limpiar");
+        assert_eq!(nueva.seq, 0);
     }
 
     #[test]
