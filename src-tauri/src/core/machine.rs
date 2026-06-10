@@ -267,6 +267,20 @@ impl Machine<'_> {
             .map_err(|_| format!("no se pudo escribir en 0x{addr:08X}"))
     }
 
+    /// Lee framebuffer + paleta y convierte a RGBA para renderizar.
+    /// Retorna Vec<u8> con 320×240×4 bytes (RGBA8888).
+    pub fn read_framebuffer_rgba(&self) -> Result<Vec<u8>, String> {
+        use super::video::{FramebufferRGBA, palette_vga13h_default};
+
+        let fb_data = self.read_mem(FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE as usize)?;
+        let pal_data = self.read_mem(PALETTE_BASE, PALETTE_DATA_SIZE as usize)
+            .unwrap_or_else(|_| palette_vga13h_default());
+
+        let mut fb_rgba = FramebufferRGBA::new();
+        fb_rgba.convert(&fb_data, &pal_data);
+        Ok(fb_rgba.data)
+    }
+
     /// Define el conjunto de breakpoints (direcciones de .text). Instala o
     /// retira el hook de código según haga falta (clave para RNF-03).
     pub fn set_breakpoints(&mut self, addrs: HashSet<u32>) -> Result<(), String> {

@@ -35,6 +35,9 @@ enum EmuCmd {
         len: usize,
         reply: Sender<Result<Vec<u8>, String>>,
     },
+    ReadFramebuffer {
+        reply: Sender<Result<Vec<u8>, String>>,
+    },
     GetState {
         reply: Sender<MachineState>,
     },
@@ -188,6 +191,10 @@ fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String>
         EmuCmd::SetBreakpoints(bps) => machine.set_breakpoints(bps),
         EmuCmd::ReadMem { addr, len, reply } => {
             let _ = reply.send(machine.read_mem(addr, len));
+            Ok(())
+        }
+        EmuCmd::ReadFramebuffer { reply } => {
+            let _ = reply.send(machine.read_framebuffer_rgba());
             Ok(())
         }
         EmuCmd::GetState { reply } => {
@@ -407,4 +414,18 @@ pub fn get_state(manager: State<'_, EmuManager>) -> Result<MachineState, String>
     })?;
     rx.recv()
         .map_err(|_| String::from("la sesión de emulación terminó"))
+}
+
+/// Lee framebuffer gráfico (conversión índice→RGBA): 307200 bytes (320×240×4).
+#[tauri::command]
+pub fn read_framebuffer(manager: State<'_, EmuManager>) -> Result<Vec<u8>, String> {
+    let rx = with_session(&manager, |s| {
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::ReadFramebuffer { reply })
+            .map_err(|_| String::from("la sesión de emulación terminó"))?;
+        Ok(rx)
+    })?;
+    rx.recv()
+        .map_err(|_| String::from("la sesión de emulación terminó"))?
 }

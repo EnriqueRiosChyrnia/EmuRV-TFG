@@ -8,6 +8,7 @@ pub mod assembler;
 pub mod elf_export;
 pub mod machine;
 pub mod syscalls;
+pub mod video;
 
 /// Base del segmento de código (.text). Coincide con RARS.
 pub const TEXT_BASE: u32 = 0x0040_0000;
