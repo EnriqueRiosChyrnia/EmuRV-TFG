@@ -15,19 +15,19 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - Vista de memoria navegable con accesos rápidos a `.text`, `.data` y la pila.
 - Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar.
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).
-- 6 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris por turnos**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores.
+- 7 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240.
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 
 ## Modo gráfico (Framebuffer VGA 13h)
 
-**Rama `feature/framebuffer`** — Extensión experimental de pantalla gráfica VGA modo 13h (320×240, paleta indexada 256 colores).
+**Rama `feature/framebuffer`** — Extensión experimental: pantalla gráfica estilo VGA modo 13h (320×240, paleta indexada de 256 colores), visible en el panel «Pantalla» de la app.
 
-- **Framebuffer:** región de 320×240 píxeles (76,800 bytes, paleta indexada) mapeada en `0x9000_0000`.
-- **Paleta:** 256 colores RGB888 (768 bytes) en `0x9002_0000` — por defecto, CGA 16 + rampa de grises.
-- **Vsync:** escribir a `0x9003_0000` para solicitar redibujado.
-- **Ejemplos:** `07-franjas.asm` dibuja rectángulos de color; `08-tetris-grafico.asm` demuestra renderizado de múltiples áreas.
-- **Performance:** conversión índice→RGBA en < 3 ms (buffer reusable desde el canvas del frontend).
-- **Compatibilidad:** programas sin gráficos no pagan ningún costo (framebuffer inactivo).
+- **Framebuffer:** 320×240 píxeles, 1 byte por píxel (índice de paleta), mapeado en `0x9000_0000`.
+- **Paleta:** 256 colores RGB888 en `0x9002_0000` — por defecto, los 16 CGA + rampa de grises; el programa puede reescribirla.
+- **Vsync:** escribir 1 en `0x9003_0000` señala "frame listo".
+- **Panel en la UI:** aparece solo cuando el programa usa la VRAM (o con el botón «Pantalla»); canvas con `image-rendering: pixelated`, refresco a ~30 Hz con flag sucio y bytes crudos por el puente (sin JSON).
+- **Ejemplos:** «Franjas de color» (mínimo) y **«Tetris gráfico»**: el mismo Tetris port del 8086 de v0.1, ahora dibujando el tablero como bloques de color en la pantalla (la lógica de juego —LCG, colisiones, líneas, puntaje— es idéntica y está verificada por el mismo oráculo de tests).
+- **Compatibilidad:** los programas sin gráficos no pagan ningún costo (RF4).
 
 Detalles: ver [`docs/MEMORIA-GRAFICA.md`](docs/MEMORIA-GRAFICA.md) y [`BITACORA.md`](BITACORA.md) (decisiones técnicas, mediciones RF1-RF4).
 
@@ -95,7 +95,7 @@ main:
 4. Click en el margen izquierdo del editor para poner un **breakpoint** (punto rojo): «Ejecutar» se detiene ahí, antes de ejecutar esa línea.
 5. **Reiniciar** vuelve la máquina al estado inicial (registros y memoria como recién ensamblado).
 
-Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada), «Fibonacci» paso a paso, y «Tetris por turnos» para un programa grande de verdad (tablero en memoria, bitmaps, colisiones, líneas completas).
+Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada), «Fibonacci» paso a paso, y «Tetris gráfico» para un programa grande de verdad (tablero en memoria, bitmaps, colisiones, líneas completas, dibujado en la pantalla gráfica).
 
 ## Syscalls (convención RARS)
 

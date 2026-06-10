@@ -345,3 +345,15 @@ html, body {
 
 #estado.ok { color: var(--ok); }
 #estado.error { color: var(--error); }
+
+/* ---------- pantalla gráfica (framebuffer 320x240) ---------- */
+#video-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  /* escalado nítido por píxel, sin interpolación borrosa (RF de FB2) */
+  image-rendering: pixelated;
+}

@@ -16,12 +16,14 @@ import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
+import { Video } from "./paneles/video";
 
 import ejContador from "../ejemplos/03-contador.asm?raw";
 import ejFibonacci from "../ejemplos/04-fibonacci.asm?raw";
 import ejHola from "../ejemplos/01-hola-mundo.asm?raw";
 import ejPila from "../ejemplos/05-pila-funciones.asm?raw";
 import ejSuma from "../ejemplos/02-suma-interactiva.asm?raw";
+import ejFranjas from "../ejemplos/07-franjas.asm?raw";
 import ejTetrisGrafico from "../ejemplos/08-tetris-grafico.asm?raw";
 
 const EJEMPLOS: { clave: string; codigo: string }[] = [
@@ -30,6 +32,7 @@ const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.contador", codigo: ejContador },
   { clave: "ejemplo.fibonacci", codigo: ejFibonacci },
   { clave: "ejemplo.pila", codigo: ejPila },
+  { clave: "ejemplo.franjas", codigo: ejFranjas },
   { clave: "ejemplo.tetris", codigo: ejTetrisGrafico },
 ];
 
@@ -41,6 +44,7 @@ class App {
   private consola: Consola;
   private registros: Registros;
   private memoria: Memoria;
+  private video: Video;
   private ayuda: Ayuda;
   private programa: AssembleOk | null = null;
   private reinicioPedido = false;
@@ -58,6 +62,10 @@ class App {
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
+    this.video = new Video(
+      document.getElementById("panel-video")!,
+      document.getElementById("video-canvas") as HTMLCanvasElement,
+    );
     this.ayuda = new Ayuda();
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
@@ -114,6 +122,7 @@ class App {
     const espacio = document.createElement("span");
     espacio.className = "espacio";
     bar.appendChild(espacio);
+    boton("video", "toolbar.video").onclick = () => this.video.alternar();
     boton("exportar", "toolbar.exportar").onclick = () => void this.exportarElf();
     boton("ayuda", "toolbar.ayuda").onclick = () => this.ayuda.abrir();
   }
@@ -142,10 +151,18 @@ class App {
     // Refresco periódico (~10 Hz) durante ejecución larga (RNF-03):
     // solo registros; la memoria se relee al detenerse.
     await events.onRegisters((st) => this.registros.actualizar(st));
+    // El programa usa la pantalla gráfica: mostrar el panel (RF4) y
+    // arrancar el volcado a ~30 Hz mientras corre (RF2).
+    await events.onVideoActivo(() => {
+      this.video.mostrar();
+      this.video.iniciarTimer();
+    });
   }
 
   private alDetenerse(ev: StoppedEvent): void {
     this.consola.setInputMode(false);
+    // Último volcado de la pantalla con el estado final del frame.
+    this.video.detenerTimerYRefrescar();
     // Las vistas se refrescan al detenerse (pausa/paso/breakpoint/fin),
     // jamás por instrucción (RNF-03).
     if (this.reinicioPedido) {

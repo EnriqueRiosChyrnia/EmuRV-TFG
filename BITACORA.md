@@ -41,30 +41,40 @@
 - **Razón:** Más simple, probablemente más rápido (sin overhead de hook por escritura).
 - **Confianza:** Suposición. No medido vs alternativa. Resultado actual: < 3 ms, aceptable.
 
-### FB2: Panel gráfico en UI
+### FB2: Panel gráfico en UI (implementación completa, 2026-06-10)
 
-**RF2 [Probable] Frecuencia de redibujado**
-- **Decisión:** Timer ~30 Hz + flag sucio (RF2 del plan).
-- **Implementación:** (simplificada para FB2) Redibujado se puede disparar por escritura al control 0x9003_0000.
-- **Confianza:** Probable. Arquitectura definida, UI no implementada en esta rama.
+> **Corrección de bitácora.** Una versión anterior de esta entrada declaraba FB2 "cumplido" con solo el backend implementado y sin capa visual. Eso era falso: el gate FB2 exige que el ejemplo de franjas SE VEA en el panel. Esta entrada reemplaza a la anterior y la capa visual ahora existe; la verificación visual queda pendiente del usuario (ver sección al final).
 
-**RF4 [Seguro] Compatibilidad con v0.1**
-- **Decisión:** Paleta y framebuffer mapeados pero inactivos si no se usan.
-- **Resultado:** Programas sin gráficos no escriben en 0x9000_0000+, no pagan costo.
-- **Confianza:** Seguro. Verificado: 7 ejemplos de v0.1 siguen ejecutando sin cambios.
+**RF1 [Seguro] Bytes crudos en el puente — bug corregido**
+- **Hallazgo:** la primera implementación devolvía `Result<Vec<u8>, String>` desde el comando Tauri. Tauri 2 serializa `Vec<u8>` como **array JSON de números**: ~1 MB de texto por frame. Violaba RF1 mientras la bitácora decía cumplirlo.
+- **Corrección:** el comando devuelve `tauri::ipc::Response::new(bytes)` → el frontend recibe `ArrayBuffer` binario (307.200 bytes exactos por frame, 0 bytes si no hay cambios).
+- **Hallazgo adicional:** `read_framebuffer` no estaba registrado en `invoke_handler` — el comando era **ininvocable** desde la UI. Corregido en lib.rs.
+- **Confianza:** Seguro (mecanismo); la medición de FPS efectivos requiere la app corriendo (pendiente de verificación visual).
 
-### FB3: Tetris gráfico
+**RF2 [Seguro] Flag sucio + timer ~30 Hz**
+- **Diseño:** el backend cachea el último contenido (índices+paleta) publicado; si no cambió, `read_framebuffer` responde 0 bytes y la UI no repinta. Timer de 33 ms en la UI, activo solo con el panel visible; `putImageData` sobre un único `ImageData` reusado.
+- **Test:** `fb2_publicacion_con_flag_sucio` (publica una vez, no republica sin cambios).
 
-**Decisión: Alcance simplificado**
-- **Observación:** Tetris ASCII (06-tetris) es 380+ líneas. Portarlo requeriría:
-  - Mantener lógica de juego (colisiones, líneas, piezas) = reutilizable
-  - Cambiar solo render ASCII → dibujado en framebuffer
-  - Pero la entrada en tiempo real requeriría hook de teclado (no disponible en V0.1)
-- **Alcance FB3:** Ejemplo minimalista (08-tetris-grafico) que dibuja rectángulos gráficos.
-  - Demuestra capacidad de renderizar en framebuffer
-  - Prueba casos de uso más complejos que franjas simples (múltiples áreas, colores distintos)
-  - La lógica completa de Tetris gráfico queda designada para trabajo futuro
-- **Confianza:** Seguro (para el alcance definido). Suposición si se asume "Tetris completo".
+**Decisión de arquitectura: estado de video compartido (no comando al hilo de emulación)**
+- **Problema detectado:** el hilo de emulación se BLOQUEA dentro del hook de syscalls esperando entrada (syscall 5). Si `read_framebuffer` pasara por ese hilo (como `read_mem`), un juego por turnos pediría entrada con el tablero invisible: el frame solo aparecería después de teclear.
+- **Solución:** `Arc<Mutex<VideoShared>>` en `MachData`. Publican: el hilo de emulación (fin de cada tramo de 100 ms, paso, detención) y el **hook de syscall 5 antes de bloquearse** (`publicar_frame` es función libre sobre `Unicorn` por esto). El comando Tauri lee el snapshot sin tocar el hilo. `console_thread` emite `emu://video-activo` al pedir entrada si hay uso de video (el hilo de emulación no puede emitirlo estando bloqueado).
+- **Test:** `fb2_publica_antes_de_bloquear_por_entrada` (dibuja → pide entrada → el frame ya está publicado).
+- **Confianza:** Seguro (cubierto por tests); el comportamiento visual exacto en la app, pendiente de verificación.
+
+**RF4 [Seguro] Compatibilidad con v0.1 / costo cero sin gráficos**
+- Panel oculto por defecto; aparece con el evento `emu://video-activo` (primera escritura detectada en VRAM o control) o por el botón «Pantalla» de la toolbar.
+- Programas sin gráficos: `publicar_frame` hace un escaneo barato (¿VRAM toda en cero?) por tramo de 100 ms y retorna sin publicar. Los 6 ejemplos no gráficos pasan sin cambios.
+
+### FB3: Tetris gráfico (port real, 2026-06-10)
+
+> **Corrección de bitácora.** Una versión anterior declaraba FB3 "cumplido" con un ejemplo que dibujaba dos rectángulos de prueba. Eso NO era el gate FB3 (port del Tetris real). Reemplazado por el port completo.
+
+**Port:** `08-tetris-grafico.asm` = misma lógica que el Tetris por turnos de v0.1 (recuperado del historial git): mismo tablero 20×10 en memoria, mismos bitmaps 4×4, mismo LCG (semilla 0x1234, constantes 25173/13849), misma colisión/eliminación de líneas/puntaje. Cambios exactos:
+1. `imprimir_tablero` (ASCII) → `dibujar_tablero` (gráfico): celdas de 11×11 px en grilla de 12×12, tablero de 120×240 px desde x=8, bordes laterales blancos, vsync (control=1) al final de cada frame.
+2. `fijar` marca las celdas con `tipo+2` (índice de color CGA 2..8) en vez de `1` → cada pieza conserva su color. Sigue siendo no-cero: `colisiona` y `linea_completa` intactas.
+3. Entrada: por turnos en consola (el plan lo permite explícitamente: "si no, mantener por turnos pero con render gráfico"). Tiempo real requeriría entrada de teclado sin bloqueo, que v0.1 no tiene.
+- **Oráculo reusado:** el test ejecuta la MISMA secuencia determinista que el test de 06-tetris (J rot 0 col 0; O rot 0 col 4; -1) y verifica el estado del tablero **en memoria** (vía símbolo `tablero`) — equivalente celda a celda al oráculo ASCII `|##..##....|` — más el orden LCG (J→O→I), SCORE 0, y los píxeles RGBA del framebuffer (J gris 0xAAAAAA en (19,0); O cian 0x00AAAA en (19,4); vacío negro; borde blanco).
+- **Confianza:** Seguro para la lógica y el render a VRAM (tests). La apariencia en pantalla, pendiente de verificación visual.
 
 ## Mediciones (RF1-RF4)
 
@@ -78,9 +88,9 @@
 
 ### Compatibilidad v0.1
 
-**Test:** integracion_ejemplos (7 ejemplos)
-- Ejemplo 01-06: sin cambios, todos pasan
-- Resultado: 7/7 verde
+**Test:** integracion_ejemplos
+- Ejemplos 01-05 sin cambios, todos pasan (6 tests: el de suma tiene dos casos).
+- El oráculo del Tetris (06) se conserva, reformulado sobre el Tetris gráfico (08): misma secuencia de piezas, mismo estado final del tablero, verificado en memoria.
 - **Conclusión:** FB no rompe v0.1. ✓
 
 ### Pruebas de escritura/lectura
@@ -99,21 +109,40 @@
    - Control: 0x9003_0000 + 4 KB (0x1000)
    - Permitió alineación clara sin solapamiento.
 
-3. **Registros RV32:** Solo t0-t6 disponibles (x5-x7, x28-x31). Ejemplos deben usar s0-s1 (saved) para temporales. Esto es correcto según ABI RV32, pero los ejemplos gráficos requieren cuidado.
+3. **Registros en los ejemplos gráficos:** el ABI RV32 da 7 temporales (t0-t6); las rutinas de dibujo con muchos índices vivos usan además a3-a5 (libres en rutinas hoja sin argumentos) y s4-s7 con marco de pila en las que llaman a otras, igual que el Tetris de v0.1.
 
-4. **Comando Tauri `read_framebuffer`:** Expone bytes crudos en lugar de JSON. Permite que el frontend use putImageData directamente sobre ImageData reusado (evita recrear cada frame).
+4. **Comando Tauri `read_framebuffer`:** `tauri::ipc::Response` (bytes crudos, no JSON) leyendo el estado compartido de video, nunca el hilo de emulación. El frontend vuelca con `putImageData` sobre un `ImageData` reusado.
 
-## Estado final
+## Estado final (actualizado 2026-06-10)
 
 - **Rama:** feature/framebuffer
-- **Commits:** FB0, FB1, FB2, FB3, FB4 (git log muestra la progresión)
-- **Tests:** 50/50 verde (v0.1 35 + FB 15)
-- **Clippy:** Sin warnings
-- **Ejemplos:** 07-franjas, 08-tetris-grafico funcionando
+- **Tests:** 49/49 verde (30 core + 4 ejemplos FB + 6 integración + tests FB0..FB3; el test del Tetris por turnos se reemplazó por el oráculo equivalente del Tetris gráfico)
+- **Clippy:** 0 warnings. `cargo tauri build` exitoso (tsc estricto incluido).
+- **Bundle:** EmuRV.app 21 MB / DMG 7,2 MB — dentro del límite de 30 MB del plan.
+- **Ejemplos:** menú con 7 (5 de v0.1 + 07-franjas + 08-tetris-grafico). El 06-tetris ASCII se quitó del menú a pedido del usuario; su lógica vive intacta dentro del 08.
+- **UI:** panel «Pantalla (320×240)» con canvas `image-rendering: pixelated`, timer 30 Hz, ImageData reusado, aparición automática al detectar uso de VRAM, botón de toggle, i18n en es.json.
+
+## PENDIENTE DE VERIFICACIÓN VISUAL DEL USUARIO
+
+Los gates FB2 y FB3 exigen verificación VISUAL que una sesión autónoma no puede hacer (no puedo ver la pantalla). El backend y la capa de UI están implementados y testeados; falta que el usuario confirme mirando la app. **Hasta entonces FB2 y FB3 NO se declaran cumplidos.**
+
+Pasos exactos:
+
+1. Abrir `src-tauri/target/release/bundle/macos/EmuRV.app` (build del 2026-06-10) o correr `cargo tauri dev`.
+2. **Gate FB2 — franjas:**
+   - Menú «Ejemplos» → «Franjas de color (pantalla)» → «Ensamblar» → «Ejecutar».
+   - DEBE: aparecer solo el panel «Pantalla (320×240)» (sin tocar el botón) y verse tres franjas cortas (azul, verde, cian) sobre fondo negro en la parte superior, con píxeles nítidos (sin blur).
+   - Guardar captura como `docs/capturas/fb2-franjas.png`.
+3. **Gate FB3 — Tetris gráfico:**
+   - Menú «Ejemplos» → «Tetris gráfico» → «Ensamblar» → «Ejecutar».
+   - DEBE: aparecer el panel con el tablero vacío (dos bordes verticales blancos) ANTES de teclear nada; la consola muestra "Pieza: J" con su vista previa.
+   - Jugar: rotación `0`, columna `0` → la J debe verse apilada abajo a la izquierda en gris claro, ANTES del siguiente prompt. Luego rotación `0`, columna `4` → la O en cian junto a la J. Salir con `-1`.
+   - Guardar captura del tablero con piezas como `docs/capturas/fb3-tetris.png`.
+4. **Medición de FPS pendiente:** con la app abierta, correr un programa que reescriba el frame en bucle y anotar acá los FPS efectivos (el plan lo pide; no se puede medir sin la app corriendo).
+5. Si algo de lo anterior NO se ve así, reportarlo: el gate queda abierto.
 
 ## Recomendaciones para trabajo futuro (fuera de alcance)
 
-1. **Tetris gráfico completo:** Port de 06-tetris.asm con entrada en tiempo real (requeriría hook de teclado, no en v0.1).
-2. **Panel gráfico en UI:** Canvas 320×240 escalado, timer vsync, integración con Tauri.
-3. **Sprites y animación:** Hardware no lo soporta (es un framebuffer lineal), pero se puede implementar en software.
-4. **Medición bajo carga:** Performance de conversión bajo ejecución continua + UI render.
+1. **Entrada en tiempo real:** syscall de teclado sin bloqueo (estilo INT 16h) para que el Tetris caiga solo; hoy la entrada es por turnos como permite el plan.
+2. **Sprites y animación:** el hardware emulado no los tiene (framebuffer lineal); se pueden implementar en software sobre lo existente.
+3. **Medición de FPS bajo carga** (ver punto 4 de la verificación visual).
