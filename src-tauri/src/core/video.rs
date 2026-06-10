@@ -1,5 +1,20 @@
-/// Conversión de framebuffer indexado a RGBA (FB1).
+/// Conversión de framebuffer indexado a RGBA (FB1) y estado compartido
+/// con la UI (FB2).
 use super::{FRAMEBUFFER_DATA_SIZE, PALETTE_DATA_SIZE};
+
+/// Estado de video compartido entre el hilo de emulación y los comandos
+/// Tauri. El hilo de emulación PUBLICA frames acá (también desde el hook
+/// de syscalls, antes de bloquearse esperando entrada — si no, el tablero
+/// de un juego por turnos no se vería hasta después de teclear); la UI los
+/// CONSUME con `read_framebuffer` sin tocar el hilo de emulación.
+#[derive(Default)]
+pub struct VideoShared {
+    /// Último frame RGBA pendiente de pintar. `take()` al consumirlo:
+    /// `None` significa "nada nuevo" (flag sucio de RF2).
+    pub rgba: Option<Vec<u8>>,
+    /// El programa usó la pantalla (escribió VRAM o el registro de control).
+    pub in_use: bool,
+}
 
 /// Buffer RGBA en formato compatible con canvas (RGBA8888, little-endian).
 /// Dimensiones fijas: 320×240 = 76800 píxeles = 307200 bytes.

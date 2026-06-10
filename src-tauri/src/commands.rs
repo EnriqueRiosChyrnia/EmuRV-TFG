@@ -9,6 +9,7 @@
 use crate::core::assembler::{self, AsmError, Program};
 use crate::core::machine::{Machine, StopReason};
 use crate::core::syscalls::{ConsoleEvent, InputMsg};
+use crate::core::video::VideoShared;
 use crate::core::{DATA_BASE, SP_INIT, TEXT_BASE};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -35,9 +36,6 @@ enum EmuCmd {
         len: usize,
         reply: Sender<Result<Vec<u8>, String>>,
     },
-    ReadFramebuffer {
-        reply: Sender<Result<Vec<u8>, String>>,
-    },
     GetState {
         reply: Sender<MachineState>,
     },
@@ -52,6 +50,10 @@ struct Session {
     waiting_input: Arc<AtomicBool>,
     /// Copia del programa ensamblado (para el export ELF, RF-08).
     program: Program,
+    /// Estado de video compartido: `read_framebuffer` lo consume sin pasar
+    /// por el hilo de emulación (que puede estar bloqueado en una syscall
+    /// de entrada).
+    video: Arc<Mutex<VideoShared>>,
 }
 
 /// Estado global gestionado por Tauri.
@@ -129,16 +131,30 @@ fn emu_thread(
     cmd_rx: Receiver<EmuCmd>,
     stop_flag: Arc<AtomicBool>,
 ) {
+    // Aviso único a la UI cuando el programa usa la pantalla gráfica (RF4):
+    // el panel de video se muestra solo si hay uso real de la VRAM.
+    let video = machine.video_shared();
+    let mut video_notificado = false;
+    let check_video = |notificado: &mut bool| {
+        if !*notificado && video.lock().map(|v| v.in_use).unwrap_or(false) {
+            *notificado = true;
+            let _ = app.emit("emu://video-activo", ());
+        }
+    };
     while let Ok(cmd) = cmd_rx.recv() {
         match cmd {
             EmuCmd::Step => {
                 let reason = machine.step();
+                machine.publish_frame();
+                check_video(&mut video_notificado);
                 emit_stopped(&app, &machine, reason);
             }
             EmuCmd::Run => {
                 stop_flag.store(false, Ordering::SeqCst);
                 loop {
                     let reason = machine.run(RUN_SLICE_MS);
+                    machine.publish_frame();
+                    check_video(&mut video_notificado);
                     match reason {
                         StopReason::Paused => {
                             if stop_flag.load(Ordering::SeqCst) {
@@ -193,10 +209,6 @@ fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String>
             let _ = reply.send(machine.read_mem(addr, len));
             Ok(())
         }
-        EmuCmd::ReadFramebuffer { reply } => {
-            let _ = reply.send(machine.read_framebuffer_rgba());
-            Ok(())
-        }
         EmuCmd::GetState { reply } => {
             let _ = reply.send(machine_state(machine));
             Ok(())
@@ -207,13 +219,26 @@ fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String>
 
 /// Puente consola→UI: reenvía la salida del programa como eventos Tauri.
 /// Hilo aparte para no acoplar la emulación al event loop de la ventana.
-fn console_thread(app: AppHandle, out_rx: Receiver<ConsoleEvent>, waiting: Arc<AtomicBool>) {
+/// También avisa del uso de video al pedir entrada: si el programa dibujó
+/// y se bloqueó esperando una línea, el hilo de emulación no va a poder
+/// emitir el aviso hasta desbloquearse (FB2).
+fn console_thread(
+    app: AppHandle,
+    out_rx: Receiver<ConsoleEvent>,
+    waiting: Arc<AtomicBool>,
+    video: Arc<Mutex<VideoShared>>,
+) {
+    let mut video_notificado = false;
     while let Ok(ev) = out_rx.recv() {
         match ev {
             ConsoleEvent::Output(text) => {
                 let _ = app.emit("emu://consola", ConsoleOut { text });
             }
             ConsoleEvent::InputRequest => {
+                if !video_notificado && video.lock().map(|v| v.in_use).unwrap_or(false) {
+                    video_notificado = true;
+                    let _ = app.emit("emu://video-activo", ());
+                }
                 waiting.store(true, Ordering::SeqCst);
                 let _ = app.emit("emu://pedir-entrada", ());
             }
@@ -252,6 +277,7 @@ pub fn assemble(
     let (cmd_tx, cmd_rx) = channel();
     let stop_flag = Arc::new(AtomicBool::new(false));
     let waiting_input = Arc::new(AtomicBool::new(false));
+    let video: Arc<Mutex<VideoShared>> = Arc::default();
     let program_copy = program.clone();
 
     // La máquina se construye DENTRO del hilo: Unicorn no es Send (usa Rc).
@@ -260,7 +286,8 @@ pub fn assemble(
     std::thread::spawn({
         let app = app.clone();
         let stop = Arc::clone(&stop_flag);
-        move || match Machine::new(program, out_tx, in_rx) {
+        let video = Arc::clone(&video);
+        move || match Machine::new_with_video(program, out_tx, in_rx, video) {
             Ok(machine) => {
                 let _ = init_tx.send(Ok(()));
                 emu_thread(app, machine, cmd_rx, stop);
@@ -283,7 +310,8 @@ pub fn assemble(
 
     std::thread::spawn({
         let waiting = Arc::clone(&waiting_input);
-        move || console_thread(app, out_rx, waiting)
+        let video = Arc::clone(&video);
+        move || console_thread(app, out_rx, waiting, video)
     });
 
     // Reemplaza la sesión anterior: sus canales se cierran y sus hilos
@@ -294,6 +322,7 @@ pub fn assemble(
         stop_flag,
         waiting_input,
         program: program_copy,
+        video,
     });
     Ok(ok)
 }
@@ -416,16 +445,19 @@ pub fn get_state(manager: State<'_, EmuManager>) -> Result<MachineState, String>
         .map_err(|_| String::from("la sesión de emulación terminó"))
 }
 
-/// Lee framebuffer gráfico (conversión índice→RGBA): 307200 bytes (320×240×4).
+/// Lee el último frame publicado (RGBA, 320×240×4 = 307200 bytes).
+/// Responde con BYTES CRUDOS (`tauri::ipc::Response`), nunca JSON (RF1).
+/// Si no hay frame nuevo desde la última lectura responde 0 bytes (flag
+/// sucio, RF2). No pasa por el hilo de emulación: lee el estado compartido,
+/// así el tablero se ve incluso con el programa bloqueado pidiendo entrada.
 #[tauri::command]
-pub fn read_framebuffer(manager: State<'_, EmuManager>) -> Result<Vec<u8>, String> {
-    let rx = with_session(&manager, |s| {
-        let (reply, rx) = channel();
-        s.cmd_tx
-            .send(EmuCmd::ReadFramebuffer { reply })
-            .map_err(|_| String::from("la sesión de emulación terminó"))?;
-        Ok(rx)
+pub fn read_framebuffer(manager: State<'_, EmuManager>) -> Result<tauri::ipc::Response, String> {
+    let frame = with_session(&manager, |s| {
+        Ok(s.video
+            .lock()
+            .map_err(|_| String::from("estado de video corrupto"))?
+            .rgba
+            .take())
     })?;
-    rx.recv()
-        .map_err(|_| String::from("la sesión de emulación terminó"))?
+    Ok(tauri::ipc::Response::new(frame.unwrap_or_default()))
 }

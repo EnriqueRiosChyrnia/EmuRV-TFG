@@ -16,6 +16,7 @@ pub fn run() {
             commands::set_breakpoints,
             commands::send_input,
             commands::read_mem,
+            commands::read_framebuffer,
             commands::get_state,
             commands::export_elf,
         ])

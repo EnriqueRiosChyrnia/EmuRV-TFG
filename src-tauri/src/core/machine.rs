@@ -12,6 +12,7 @@
 
 use super::assembler::Program;
 use super::syscalls::{self, ConsoleEvent, InputMsg};
+use super::video::{FramebufferRGBA, VideoShared};
 use super::{
     DATA_BASE, DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE,
     FRAMEBUFFER_SIZE, GP_INIT, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE, SP_INIT,
@@ -20,6 +21,7 @@ use super::{
 use serde::Serialize;
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use unicorn_engine::Arch;
 use unicorn_engine::{uc_error, HookType, MemType, Mode, Prot, RegisterRISCV, Unicorn};
 
@@ -60,6 +62,14 @@ pub struct MachData {
     pub suppress_bp: Option<u32>,
     /// Último acceso a memoria inválido capturado por el hook MEM_INVALID.
     pub bad_mem: Option<(MemType, u64)>,
+    /// Estado de video compartido con la UI (FB2). En MachData (y no en
+    /// Machine) porque el hook de syscalls publica el frame antes de
+    /// bloquearse esperando entrada.
+    pub video_shared: Arc<Mutex<VideoShared>>,
+    /// Caché del último frame publicado (índices + paleta): flag sucio RF2.
+    pub video_last: Option<Vec<u8>>,
+    /// Ya se detectó uso de la pantalla (evita reescanear la VRAM, RF4).
+    pub video_used: bool,
 }
 
 /// La máquina NO es `Send` (Unicorn usa `Rc` internamente): debe crearse y
@@ -82,6 +92,17 @@ impl Machine<'_> {
         out: Sender<ConsoleEvent>,
         input: Receiver<InputMsg>,
     ) -> Result<Self, String> {
+        Self::new_with_video(program, out, input, Arc::default())
+    }
+
+    /// Variante que comparte el estado de video con la UI (FB2): la GUI
+    /// pasa un `Arc` que después lee desde el comando `read_framebuffer`.
+    pub fn new_with_video(
+        program: Program,
+        out: Sender<ConsoleEvent>,
+        input: Receiver<InputMsg>,
+        video_shared: Arc<Mutex<VideoShared>>,
+    ) -> Result<Self, String> {
         let data = MachData {
             out,
             input,
@@ -92,6 +113,9 @@ impl Machine<'_> {
             breakpoints: HashSet::new(),
             suppress_bp: None,
             bad_mem: None,
+            video_shared,
+            video_last: None,
+            video_used: false,
         };
         let mut uc = Unicorn::new_with_data(Arch::RISCV, Mode::RISCV32, data)
             .map_err(|e| format!("no se pudo iniciar el emulador: {e:?}"))?;
@@ -161,6 +185,11 @@ impl Machine<'_> {
     /// Es la operación de "Reiniciar" (RF-10): estado post-ensamblado.
     fn load(&mut self) -> Result<(), String> {
         let err = |e: uc_error| format!("error cargando el programa en memoria: {e:?}");
+        {
+            let d = self.uc.get_data_mut();
+            d.video_last = None;
+            d.video_used = false;
+        }
         // Limpia regiones (suficiente con la extensión usada + un margen no
         // acotado por el programa: pila completa y datos completos, por si
         // la corrida anterior escribió en cualquier parte).
@@ -273,15 +302,28 @@ impl Machine<'_> {
     /// Lee framebuffer + paleta y convierte a RGBA para renderizar.
     /// Retorna Vec<u8> con 320×240×4 bytes (RGBA8888).
     pub fn read_framebuffer_rgba(&self) -> Result<Vec<u8>, String> {
-        use super::video::{FramebufferRGBA, palette_vga13h_default};
+        use super::video::{palette_vga13h_default, FramebufferRGBA};
 
         let fb_data = self.read_mem(FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE as usize)?;
-        let pal_data = self.read_mem(PALETTE_BASE, PALETTE_DATA_SIZE as usize)
+        let pal_data = self
+            .read_mem(PALETTE_BASE, PALETTE_DATA_SIZE as usize)
             .unwrap_or_else(|_| palette_vga13h_default());
 
         let mut fb_rgba = FramebufferRGBA::new();
         fb_rgba.convert(&fb_data, &pal_data);
         Ok(fb_rgba.data)
+    }
+
+    /// Publica el frame actual en el estado compartido con la UI (FB2).
+    /// El hilo de emulación lo llama al final de cada tramo y al detenerse.
+    pub fn publish_frame(&mut self) {
+        publicar_frame(&mut self.uc);
+    }
+
+    /// `Arc` del estado de video, para que la GUI lo lea sin pasar por el
+    /// hilo de emulación (que puede estar bloqueado esperando entrada).
+    pub fn video_shared(&self) -> Arc<Mutex<VideoShared>> {
+        Arc::clone(&self.uc.get_data().video_shared)
     }
 
     /// Define el conjunto de breakpoints (direcciones de .text). Instala o
@@ -421,6 +463,45 @@ fn runtime_error_message(e: uc_error, pc: u32, bad_mem: Option<(MemType, u64)>) 
         }
         other => format!("error del emulador en pc = 0x{pc:08X}: {other:?}"),
     }
+}
+
+/// Publica el frame actual (VRAM + paleta → RGBA) en `video_shared` si la
+/// VRAM cambió desde la última publicación (flag sucio, RF2). Función libre
+/// sobre `Unicorn` para poder llamarla también desde el hook de syscalls,
+/// donde no hay `Machine`. Mientras el programa no use la pantalla no
+/// publica nada (RF4: cero costo para programas sin gráficos).
+pub fn publicar_frame(uc: &mut Unicorn<'_, MachData>) {
+    let Ok(fb) = uc.mem_read_as_vec(FRAMEBUFFER_BASE as u64, FRAMEBUFFER_DATA_SIZE as usize)
+    else {
+        return;
+    };
+    if !uc.get_data().video_used {
+        let ctrl = uc
+            .mem_read_as_vec(VIDEO_CONTROL_BASE as u64, 4)
+            .unwrap_or_default();
+        let usado = ctrl.iter().any(|&b| b != 0) || fb.iter().any(|&b| b != 0);
+        if !usado {
+            return;
+        }
+        uc.get_data_mut().video_used = true;
+    }
+    let Ok(pal) = uc.mem_read_as_vec(PALETTE_BASE as u64, PALETTE_DATA_SIZE as usize) else {
+        return;
+    };
+    let mut snap = fb;
+    snap.extend_from_slice(&pal);
+    if uc.get_data().video_last.as_deref() == Some(snap.as_slice()) {
+        return;
+    }
+    let (fb_data, pal_data) = snap.split_at(FRAMEBUFFER_DATA_SIZE as usize);
+    let mut rgba = FramebufferRGBA::new();
+    rgba.convert(fb_data, pal_data);
+    {
+        let mut v = uc.get_data().video_shared.lock().unwrap();
+        v.rgba = Some(rgba.data);
+        v.in_use = true;
+    }
+    uc.get_data_mut().video_last = Some(snap);
 }
 
 #[cfg(test)]

@@ -166,6 +166,10 @@ fn read_c_string(uc: &mut Unicorn<'_, MachData>, addr: u64) -> Result<String, u6
 /// recibirla (ARQUITECTURA.md §Diseños clave 4). Reintenta si la línea no
 /// es un entero válido, avisando por consola.
 fn read_int(uc: &mut Unicorn<'_, MachData>) {
+    // El hilo va a quedar bloqueado esperando la línea: publicar antes el
+    // frame de video pendiente, o un juego por turnos pediría entrada con
+    // el tablero todavía invisible (FB2).
+    super::machine::publicar_frame(uc);
     loop {
         let _ = uc.get_data().out.send(ConsoleEvent::InputRequest);
         // En variable propia: el temporal del scrutinee retendría el préstamo
