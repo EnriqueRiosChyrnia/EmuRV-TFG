@@ -1,0 +1,49 @@
+{
+  "toolbar.ensamblar": "Ensamblar",
+  "toolbar.ejecutar": "Ejecutar",
+  "toolbar.paso": "Paso",
+  "toolbar.detener": "Detener",
+  "toolbar.reiniciar": "Reiniciar",
+  "toolbar.exportar": "Exportar ELF",
+  "toolbar.ejemplos": "Ejemplos",
+  "toolbar.ayuda": "Ayuda",
+
+  "panel.registros": "Registros",
+  "panel.memoria": "Memoria",
+  "panel.consola": "Consola",
+
+  "registros.nombre": "Reg",
+  "registros.hex": "Hexadecimal",
+  "registros.dec": "Decimal",
+
+  "memoria.direccion": "Dirección",
+  "memoria.ir": "Ir",
+  "memoria.texto": ".text",
+  "memoria.datos": ".data",
+  "memoria.pila": "pila (sp)",
+  "memoria.error": "No se pudo leer esa zona de memoria",
+
+  "consola.placeholder": "El programa espera una línea de entrada…",
+  "consola.limpiar": "Limpiar",
+
+  "estado.sin_programa": "Escribí tu programa y presioná «Ensamblar»",
+  "estado.ensamblado": "Programa ensamblado: {n} bytes de código. Listo para ejecutar.",
+  "estado.errores": "El programa tiene {n} error(es). Revisá las líneas marcadas.",
+  "estado.corriendo": "Ejecutando…",
+  "estado.esperando_entrada": "El programa espera entrada en la consola",
+  "estado.paso": "Paso ejecutado. Próxima línea: {line}",
+  "estado.paso_sin_linea": "Paso ejecutado",
+  "estado.breakpoint": "Detenido en breakpoint (línea {line})",
+  "estado.terminado": "Programa terminado (código {code})",
+  "estado.pausado": "Ejecución pausada",
+  "estado.error_ejecucion": "Error de ejecución: {message}",
+  "estado.reiniciado": "Máquina reiniciada al estado inicial",
+
+  "ejemplo.hola": "Hola mundo",
+  "ejemplo.suma": "Suma interactiva",
+  "ejemplo.contador": "Contador",
+  "ejemplo.fibonacci": "Fibonacci",
+  "ejemplo.pila": "Pila y funciones",
+
+  "error.generico": "Error: {message}"
+}

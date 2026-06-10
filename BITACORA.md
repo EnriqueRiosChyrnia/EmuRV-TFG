@@ -90,3 +90,32 @@ Verificado con tests (los asserts originales fallaron y revelaron la semántica 
 - Verificaciones de integración: salida de consola exacta, registros finales (s0/s1 de fibonacci, sp balanceado tras recursión), breakpoint que detiene sin ejecutar y reanuda, reset que restaura .data.
 - `cargo clippy --all-targets`: 0 warnings. `cargo fmt` aplicado.
 
+---
+
+## Fase 2 — Puente Tauri + editor
+
+### 2026-06-09 — Arquitectura del puente UI↔emulación
+
+- **La máquina Unicorn no es `Send`** (usa `Rc` internamente): se construye DENTRO del hilo de emulación, con un canal de confirmación para reportar errores de creación al comando `assemble`. Esto refuerza el diseño del riesgo R4 (emulación siempre en hilo propio). [Seguro]
+- **Comandos por canal + eventos Tauri**: la sesión guarda `cmd_tx` (órdenes), `input_tx` (entrada de consola) y dos flags atómicos (`stop`, `waiting_input`). "Detener" no toca Unicorn desde otro hilo: setea el flag y, si el programa espera entrada, manda `Cancel` por el canal de entrada para despertarlo. [Seguro]
+- **Ejecución larga en tramos de 100 ms** (`emu_start` con timeout): entre tramos se emite `emu://registros` (~10 Hz, RNF-03) y se atienden órdenes auxiliares (breakpoints, lectura de memoria) sin frenar la corrida. Run/Step/Reset llegados a destiempo se descartan: la UI deshabilita esos botones mientras corre. [Seguro]
+- **Ensamblar de nuevo = sesión nueva**: los canales viejos se cierran y los hilos anteriores mueren solos; sin estado compartido que limpiar. [Seguro]
+
+### 2026-06-09 — Frontend
+
+- Editor CodeMirror 6 con `StreamLanguage` propio para RV32 (riesgo R3): mnemónicos RV32IM + pseudo, registros ABI/xN, directivas, números en todas las bases, comentarios `#`. Tema `one-dark` (legibilidad sobre fondo oscuro sin definir un tema propio). [Seguro]
+- i18n: todos los textos de la UI salen de `src/i18n/es.json` vía `t(clave, params)` (RNF-05); no hay strings hardcodeados en los componentes.
+- Los 5 ejemplos se importan en build con `?raw` de Vite directamente desde `ejemplos/` (una sola fuente de verdad, sin copias).
+- `tsconfig` subido a ES2021 (por `String.replaceAll`).
+
+### 2026-06-09 — Gate F2: SUPERADO (verificación automatizada del puente completo)
+
+Método: autotest temporal solo-dev que **clickea los botones reales** («Ensamblar», luego «Ejecutar») en la ventana de `cargo tauri dev`, lee el DOM de la consola y reporta a un archivo vía un comando dev-only (`autotest_report`, protegido con `#[cfg(debug_assertions)]`). Resultado observado:
+
+```
+salida=¡Hola, mundo!
+|estado=Programa terminado (código 0)
+```
+
+Es decir: ensamblado desde la GUI, ejecución sobre Unicorn, syscall 4 → evento Tauri → DOM de la consola, y syscall 10 → estado final correcto. La captura de pantalla no fue posible (macOS exige permiso de grabación de pantalla, no otorgable en sesión autónoma); la verificación DOM es más precisa de todos modos. El hook de autorun se eliminó tras el gate; el comando `autotest_report` (solo debug) queda para verificar los gates F3/F4 y se elimina en F6. [Seguro]
+

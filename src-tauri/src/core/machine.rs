@@ -18,9 +18,7 @@ use super::{
 };
 use serde::Serialize;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::Arc;
 use unicorn_engine::Arch;
 use unicorn_engine::{uc_error, HookType, MemType, Mode, Prot, RegisterRISCV, Unicorn};
 
@@ -63,12 +61,13 @@ pub struct MachData {
     pub bad_mem: Option<(MemType, u64)>,
 }
 
+/// La máquina NO es `Send` (Unicorn usa `Rc` internamente): debe crearse y
+/// usarse dentro del hilo de emulación. La señal de stop entre hilos vive
+/// fuera (en la sesión), no acá.
 pub struct Machine<'a> {
     uc: Unicorn<'a, MachData>,
     program: Program,
     bp_hook: Option<unicorn_engine::UcHookId>,
-    /// Señal de stop consultada entre tramos de ejecución.
-    stop_flag: Arc<AtomicBool>,
 }
 
 /// Dirección "hasta" que nunca se alcanza en RV32: ejecuta sin tope.
@@ -133,7 +132,6 @@ impl Machine<'_> {
             uc,
             program,
             bp_hook: None,
-            stop_flag: Arc::new(AtomicBool::new(false)),
         };
         m.load()?;
         Ok(m)
@@ -184,7 +182,6 @@ impl Machine<'_> {
         d.pause = false;
         d.suppress_bp = None;
         d.bad_mem = None;
-        self.stop_flag.store(false, Ordering::SeqCst);
         Ok(())
     }
 
@@ -195,12 +192,6 @@ impl Machine<'_> {
 
     pub fn program(&self) -> &Program {
         &self.program
-    }
-
-    /// Señal para frenar una ejecución larga desde otro hilo: el tramo en
-    /// curso termina (timeout ≤100 ms) y `run` devuelve `Paused`.
-    pub fn stop_handle(&self) -> Arc<AtomicBool> {
-        Arc::clone(&self.stop_flag)
     }
 
     pub fn pc(&self) -> u32 {
@@ -298,10 +289,6 @@ impl Machine<'_> {
         let result = self.uc.emu_start(pc as u64, NEVER, timeout_ms * 1000, 0);
         self.uc.get_data_mut().suppress_bp = None;
         self.interpret(result, StopReason::Paused)
-    }
-
-    pub fn stop_requested(&self) -> bool {
-        self.stop_flag.load(Ordering::SeqCst)
     }
 
     /// Traduce el resultado de `emu_start` + flags de los hooks a un
