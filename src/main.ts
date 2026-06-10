@@ -22,7 +22,7 @@ import ejFibonacci from "../ejemplos/04-fibonacci.asm?raw";
 import ejHola from "../ejemplos/01-hola-mundo.asm?raw";
 import ejPila from "../ejemplos/05-pila-funciones.asm?raw";
 import ejSuma from "../ejemplos/02-suma-interactiva.asm?raw";
-import ejTetris from "../ejemplos/06-tetris.asm?raw";
+import ejTetrisGrafico from "../ejemplos/08-tetris-grafico.asm?raw";
 
 const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.hola", codigo: ejHola },
@@ -30,7 +30,7 @@ const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.contador", codigo: ejContador },
   { clave: "ejemplo.fibonacci", codigo: ejFibonacci },
   { clave: "ejemplo.pila", codigo: ejPila },
-  { clave: "ejemplo.tetris", codigo: ejTetris },
+  { clave: "ejemplo.tetris", codigo: ejTetrisGrafico },
 ];
 
 /** Estado de la UI respecto del programa. */
