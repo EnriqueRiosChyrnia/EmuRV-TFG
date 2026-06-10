@@ -13,6 +13,8 @@
   "panel.memoria": "Memoria",
   "panel.consola": "Consola",
   "panel.video": "Pantalla (320×240)",
+  "video.desacoplar": "Abrir la pantalla en una ventana aparte",
+  "video.ventana": "EmuRV — Pantalla",
 
   "registros.nombre": "Reg",
   "registros.hex": "Hexadecimal",

@@ -1,13 +1,18 @@
 // Pantalla gráfica (framebuffer VGA 13h, 320×240): canvas con volcado por
 // putImageData sobre un ImageData reusado (RF1) y timer de ~30 Hz con flag
-// sucio resuelto en el backend (RF2: si la VRAM no cambió llegan 0 bytes).
+// sucio por número de secuencia (RF2): el backend conserva el último frame
+// y responde solo si hay uno más nuevo que el que este consumidor ya pintó,
+// así el panel embebido y la ventana desacoplada pueden convivir.
 // El panel está oculto hasta que el programa usa la VRAM o el usuario lo
 // muestra con el botón de la toolbar (RF4).
-import { api } from "../api";
+import { invoke } from "@tauri-apps/api/core";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { t } from "../i18n";
 
 const ANCHO = 320;
 const ALTO = 240;
 const PERIODO_MS = 33; // ~30 Hz
+const VENTANA = "pantalla"; // label de la ventana desacoplada
 
 export class Video {
   private seccion: HTMLElement;
@@ -15,26 +20,35 @@ export class Video {
   private imageData: ImageData; // reusado entre frames (RF1)
   private timer: number | null = null;
   private leyendo = false;
+  private seq = 0n; // última publicación pintada por ESTE consumidor
+  private desacoplada = false;
 
-  constructor(seccion: HTMLElement, canvas: HTMLCanvasElement) {
+  constructor(seccion: HTMLElement, canvas: HTMLCanvasElement, botonDesacoplar: HTMLElement) {
     this.seccion = seccion;
     canvas.width = ANCHO;
     canvas.height = ALTO;
     this.ctx = canvas.getContext("2d")!;
     this.imageData = this.ctx.createImageData(ANCHO, ALTO);
+    botonDesacoplar.onclick = () => void this.abrirVentanaAparte();
   }
 
   get visible(): boolean {
     return !this.seccion.hidden;
   }
 
+  /** Muestra el panel embebido (salvo que la pantalla esté desacoplada). */
   mostrar(): void {
-    if (!this.seccion.hidden) return;
+    if (this.desacoplada || !this.seccion.hidden) return;
     this.seccion.hidden = false;
     void this.refrescar();
   }
 
   alternar(): void {
+    if (this.desacoplada) {
+      // La pantalla vive en la ventana aparte: traerla al frente.
+      void WebviewWindow.getByLabel(VENTANA).then((w) => w?.setFocus());
+      return;
+    }
     if (this.seccion.hidden) this.mostrar();
     else {
       this.seccion.hidden = true;
@@ -44,7 +58,7 @@ export class Video {
 
   /** Arranca el volcado periódico (mientras el programa corre). */
   iniciarTimer(): void {
-    if (this.timer !== null) return;
+    if (this.timer !== null || this.desacoplada) return;
     this.timer = window.setInterval(() => void this.refrescar(), PERIODO_MS);
   }
 
@@ -61,14 +75,17 @@ export class Video {
     }
   }
 
-  /** Pide el frame RGBA; 0 bytes = sin cambios (flag sucio del backend). */
+  /** Pide un frame más nuevo que el último pintado; 0 bytes = sin cambios. */
   async refrescar(): Promise<void> {
     if (!this.visible || this.leyendo) return;
     this.leyendo = true;
     try {
-      const buf = await api.readFramebuffer();
-      if (buf.byteLength === ANCHO * ALTO * 4) {
-        this.imageData.data.set(new Uint8ClampedArray(buf));
+      const buf = await invoke<ArrayBuffer>("read_framebuffer", {
+        since: Number(this.seq),
+      });
+      if (buf.byteLength === 8 + ANCHO * ALTO * 4) {
+        this.seq = new DataView(buf).getBigUint64(0, true);
+        this.imageData.data.set(new Uint8ClampedArray(buf, 8));
         this.ctx.putImageData(this.imageData, 0, 0);
       }
     } catch {
@@ -76,5 +93,35 @@ export class Video {
     } finally {
       this.leyendo = false;
     }
+  }
+
+  /** Desacopla la pantalla a una ventana propia (Tauri multi-ventana).
+   *  El panel embebido se oculta mientras la ventana exista; al cerrarla,
+   *  el panel vuelve. La ventana corre su propio timer (src/pantalla.ts). */
+  async abrirVentanaAparte(): Promise<void> {
+    const existente = await WebviewWindow.getByLabel(VENTANA);
+    if (existente) {
+      await existente.setFocus();
+      return;
+    }
+    const w = new WebviewWindow(VENTANA, {
+      url: "pantalla.html",
+      title: t("video.ventana"),
+      width: 648,
+      height: 484,
+      minWidth: 328,
+      minHeight: 248,
+    });
+    await w.once("tauri://created", () => {
+      this.desacoplada = true;
+      this.seccion.hidden = true;
+      this.detenerTimer();
+    });
+    await w.once("tauri://destroyed", () => {
+      this.desacoplada = false;
+      this.seq = 0n; // re-pedir el frame vigente al volver al panel
+      this.mostrar();
+      this.iniciarTimer();
+    });
   }
 }

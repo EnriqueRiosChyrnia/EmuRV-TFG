@@ -65,6 +65,7 @@ class App {
     this.video = new Video(
       document.getElementById("panel-video")!,
       document.getElementById("video-canvas") as HTMLCanvasElement,
+      document.getElementById("video-desacoplar")!,
     );
     this.ayuda = new Ayuda();
     this.consola.setOnLine((line) => {
@@ -136,6 +137,9 @@ class App {
   private traducirTitulos(): void {
     document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
       el.textContent = t(el.dataset.i18n!);
+    });
+    document.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach((el) => {
+      el.title = t(el.dataset.i18nTitle!);
     });
   }
 
