@@ -18,6 +18,19 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - 6 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris por turnos**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores.
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 
+## Modo gráfico (Framebuffer VGA 13h)
+
+**Rama `feature/framebuffer`** — Extensión experimental de pantalla gráfica VGA modo 13h (320×240, paleta indexada 256 colores).
+
+- **Framebuffer:** región de 320×240 píxeles (76,800 bytes, paleta indexada) mapeada en `0x9000_0000`.
+- **Paleta:** 256 colores RGB888 (768 bytes) en `0x9002_0000` — por defecto, CGA 16 + rampa de grises.
+- **Vsync:** escribir a `0x9003_0000` para solicitar redibujado.
+- **Ejemplos:** `07-franjas.asm` dibuja rectángulos de color; `08-tetris-grafico.asm` demuestra renderizado de múltiples áreas.
+- **Performance:** conversión índice→RGBA en < 3 ms (buffer reusable desde el canvas del frontend).
+- **Compatibilidad:** programas sin gráficos no pagan ningún costo (framebuffer inactivo).
+
+Detalles: ver [`docs/MEMORIA-GRAFICA.md`](docs/MEMORIA-GRAFICA.md) y [`BITACORA.md`](BITACORA.md) (decisiones técnicas, mediciones RF1-RF4).
+
 ## Instalación
 
 ### Desde el bundle

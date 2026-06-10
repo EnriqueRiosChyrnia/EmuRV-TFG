@@ -1,6 +1,5 @@
 /// Test FB1: núcleo del framebuffer
 /// Verifica conversión índice→RGBA, comando read_framebuffer, rendimiento.
-
 use emurv_lib::core::{
     assembler::assemble,
     machine::Machine,

@@ -192,7 +192,7 @@ impl Machine<'_> {
             .mem_write(PALETTE_BASE as u64, &pal)
             .map_err(err)?;
         self.uc
-            .mem_write(VIDEO_CONTROL_BASE as u64, &vec![0u8; 4])
+            .mem_write(VIDEO_CONTROL_BASE as u64, &[0u8; 4])
             .map_err(err)?;
         self.uc
             .mem_write(TEXT_BASE as u64, &self.program.text)
