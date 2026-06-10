@@ -9,9 +9,14 @@ use super::{FRAMEBUFFER_DATA_SIZE, PALETTE_DATA_SIZE};
 /// CONSUME con `read_framebuffer` sin tocar el hilo de emulación.
 #[derive(Default)]
 pub struct VideoShared {
-    /// Último frame RGBA pendiente de pintar. `take()` al consumirlo:
-    /// `None` significa "nada nuevo" (flag sucio de RF2).
+    /// Último frame RGBA publicado. Se CONSERVA (no se consume): puede
+    /// haber más de un consumidor (panel embebido + ventana aparte), y un
+    /// consumidor nuevo necesita el frame vigente aunque sea viejo.
     pub rgba: Option<Vec<u8>>,
+    /// Número de publicación, monotónico. Cada consumidor recuerda el suyo
+    /// y pide "algo más nuevo que seq": es el flag sucio de RF2 por
+    /// consumidor, sin que uno le robe el frame al otro.
+    pub seq: u64,
     /// El programa usó la pantalla (escribió VRAM o el registro de control).
     pub in_use: bool,
 }

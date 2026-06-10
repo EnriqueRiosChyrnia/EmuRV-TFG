@@ -149,3 +149,27 @@ fn fb2_publica_antes_de_bloquear_por_entrada() {
     // Píxel 0 = índice 14 = amarillo CGA (0xFF, 0xFF, 0x55).
     assert_eq!(&frame[0..3], &[0xFF, 0xFF, 0x55]);
 }
+
+#[test]
+fn fb2_reset_limpia_la_pantalla() {
+    // Tras Reiniciar, el panel debe mostrar la VRAM limpia (frame negro),
+    // no el último frame de la corrida anterior.
+    let src = std::fs::read_to_string("../ejemplos/07-franjas.asm").expect("leer");
+    let program = assemble(&src).expect("ensamblar");
+    let shared: Arc<Mutex<VideoShared>> = Arc::default();
+    let (out_tx, _) = channel();
+    let (_, in_rx) = channel();
+    let mut m =
+        Machine::new_with_video(program, out_tx, in_rx, Arc::clone(&shared)).expect("máquina");
+
+    let _ = m.run(0);
+    m.publish_frame();
+    let frame = shared.lock().unwrap().rgba.take().expect("frame con franjas");
+    assert_ne!(&frame[0..3], &[0, 0, 0], "el píxel 0 estaba pintado (azul)");
+
+    m.reset().expect("reset");
+    let v = shared.lock().unwrap();
+    let negro = v.rgba.as_ref().expect("reset debe publicar frame limpio");
+    assert_eq!(negro.len(), 320 * 240 * 4);
+    assert_eq!(&negro[0..4], &[0, 0, 0, 255], "píxel 0 negro tras reset");
+}

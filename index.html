@@ -13,7 +13,10 @@
       <main id="editor"></main>
       <aside id="lateral">
         <section id="panel-video" class="panel" hidden>
-          <h2 data-i18n="panel.video"></h2>
+          <h2 class="panel-titulo-con-boton">
+            <span data-i18n="panel.video"></span>
+            <button id="video-desacoplar" data-i18n-title="video.desacoplar">⧉</button>
+          </h2>
           <div class="panel-cuerpo">
             <canvas id="video-canvas" width="320" height="240"></canvas>
           </div>

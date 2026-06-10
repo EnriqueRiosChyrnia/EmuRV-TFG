@@ -79,6 +79,11 @@ pub struct Machine<'a> {
     uc: Unicorn<'a, MachData>,
     program: Program,
     bp_hook: Option<unicorn_engine::UcHookId>,
+    /// Una corrida libre (count=0) dejó bloques traducidos en la caché JIT.
+    /// Esos bloques NO respetan el count=1 de un paso posterior (Unicorn
+    /// ejecuta el bloque cacheado entero): hay que flushear la caché antes
+    /// de steppear. Era el bug "Reiniciar → Paso no avanza".
+    tb_de_corrida: bool,
 }
 
 /// Dirección "hasta" que nunca se alcanza en RV32: ejecuta sin tope.
@@ -176,6 +181,7 @@ impl Machine<'_> {
             uc,
             program,
             bp_hook: None,
+            tb_de_corrida: false,
         };
         m.load()?;
         Ok(m)
@@ -189,6 +195,19 @@ impl Machine<'_> {
             let d = self.uc.get_data_mut();
             d.video_last = None;
             d.video_used = false;
+            // Si la pantalla estaba en uso, publicar un frame negro: tras
+            // Reiniciar el panel debe reflejar la VRAM limpia, no el último
+            // frame de la corrida anterior.
+            let mut v = d.video_shared.lock().unwrap();
+            if v.in_use {
+                let mut negro = FramebufferRGBA::new();
+                negro.convert(
+                    &[0u8; FRAMEBUFFER_DATA_SIZE as usize],
+                    &super::video::palette_vga13h_default(),
+                );
+                v.rgba = Some(negro.data);
+                v.seq += 1;
+            }
         }
         // Limpia regiones (suficiente con la extensión usada + un margen no
         // acotado por el programa: pila completa y datos completos, por si
@@ -352,12 +371,22 @@ impl Machine<'_> {
                     )
                     .map_err(|e| format!("no se pudo instalar el hook de breakpoints: {e:?}"))?;
                 self.bp_hook = Some(id);
+                // Los bloques ya traducidos no quedan instrumentados por el
+                // hook nuevo (misma caché JIT del bug de Reiniciar→Paso):
+                // sin flush, un breakpoint puesto después de una corrida
+                // libre no frena.
+                let _ = self.uc.ctl_flush_tb();
+                self.tb_de_corrida = false;
             }
             (false, Some(id)) => {
                 self.uc
                     .remove_hook(id)
                     .map_err(|e| format!("no se pudo retirar el hook de breakpoints: {e:?}"))?;
                 self.bp_hook = None;
+                // Simétrico: los bloques instrumentados frenan aunque el
+                // hook ya no exista; flushear para volver a correr a pleno.
+                let _ = self.uc.ctl_flush_tb();
+                self.tb_de_corrida = false;
             }
             _ => {}
         }
@@ -378,6 +407,12 @@ impl Machine<'_> {
             return StopReason::Exited { code };
         }
         self.clear_run_state();
+        if self.tb_de_corrida {
+            // Sin esto, el paso ejecuta el bloque cacheado completo de la
+            // corrida anterior en vez de UNA instrucción.
+            let _ = self.uc.ctl_flush_tb();
+            self.tb_de_corrida = false;
+        }
         // Un paso nunca debe frenarse en el breakpoint del pc actual.
         let pc = self.pc();
         self.uc.get_data_mut().suppress_bp = Some(pc);
@@ -400,6 +435,7 @@ impl Machine<'_> {
             self.uc.get_data_mut().suppress_bp = Some(pc);
         }
         let result = self.uc.emu_start(pc as u64, NEVER, timeout_ms * 1000, 0);
+        self.tb_de_corrida = true;
         self.uc.get_data_mut().suppress_bp = None;
         self.interpret(result, StopReason::Paused)
     }
@@ -499,6 +535,7 @@ pub fn publicar_frame(uc: &mut Unicorn<'_, MachData>) {
     {
         let mut v = uc.get_data().video_shared.lock().unwrap();
         v.rgba = Some(rgba.data);
+        v.seq += 1;
         v.in_use = true;
     }
     uc.get_data_mut().video_last = Some(snap);
@@ -597,6 +634,41 @@ mod tests {
         assert_eq!(m.pc(), TEXT_BASE);
         assert_eq!(m.registers()[5], 0);
         assert_eq!(m.read_mem(DATA_BASE, 4).unwrap(), 1u32.to_le_bytes());
+    }
+
+    /// Mismo origen que el bug de Reiniciar→Paso (caché JIT): un breakpoint
+    /// puesto DESPUÉS de una corrida libre debe frenar igual.
+    #[test]
+    fn breakpoint_puesto_despues_de_correr_frena() {
+        let src = ".text\nli t0, 1\nli t0, 2\nli t0, 3\nli a7, 10\necall";
+        let (mut m, _o, _i) = machine_for(src);
+        assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+        m.reset().unwrap();
+        let bp = TEXT_BASE + 8; // tercera instrucción
+        m.set_breakpoints([bp].into()).unwrap();
+        assert_eq!(m.run(0), StopReason::Breakpoint { addr: bp });
+        assert_eq!(m.registers()[5], 2, "ejecutó hasta antes del breakpoint");
+    }
+
+    /// Regresión del bug reportado: tras Reiniciar, «Paso» no avanzaba y
+    /// solo se recuperaba re-ensamblando. Reset → step debe ejecutar la
+    /// primera instrucción inmediatamente, y los pasos siguientes seguir.
+    #[test]
+    fn paso_funciona_inmediatamente_despues_de_reset() {
+        let src = ".text\nli t0, 5\nli t1, 7\nadd t2, t0, t1\nli a7, 10\necall";
+        let (mut m, _o, _i) = machine_for(src);
+        assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+        m.reset().unwrap();
+
+        assert_eq!(m.pc(), TEXT_BASE);
+        assert_eq!(m.step(), StopReason::StepDone, "primer paso tras reset");
+        assert_eq!(m.pc(), TEXT_BASE + 4, "el pc debe avanzar");
+        assert_eq!(m.registers()[5], 5, "li t0, 5 ejecutado");
+
+        assert_eq!(m.step(), StopReason::StepDone, "segundo paso");
+        assert_eq!(m.registers()[6], 7, "li t1, 7 ejecutado");
+        assert_eq!(m.step(), StopReason::StepDone, "tercer paso");
+        assert_eq!(m.registers()[7], 12, "add ejecutado");
     }
 
     #[test]

@@ -445,19 +445,36 @@ pub fn get_state(manager: State<'_, EmuManager>) -> Result<MachineState, String>
         .map_err(|_| String::from("la sesión de emulación terminó"))
 }
 
-/// Lee el último frame publicado (RGBA, 320×240×4 = 307200 bytes).
-/// Responde con BYTES CRUDOS (`tauri::ipc::Response`), nunca JSON (RF1).
-/// Si no hay frame nuevo desde la última lectura responde 0 bytes (flag
-/// sucio, RF2). No pasa por el hilo de emulación: lee el estado compartido,
-/// así el tablero se ve incluso con el programa bloqueado pidiendo entrada.
+/// Lee el último frame publicado si es más nuevo que `since` (el número de
+/// publicación que el consumidor ya pintó). Responde BYTES CRUDOS
+/// (`tauri::ipc::Response`, nunca JSON — RF1): 8 bytes de seq little-endian
+/// + 307200 bytes RGBA, o 0 bytes si no hay nada más nuevo (flag sucio,
+/// RF2). El frame se conserva: el panel embebido y la ventana aparte pueden
+/// consumir en paralelo, cada uno con su propio `since`. No pasa por el
+/// hilo de emulación: lee el estado compartido, así el tablero se ve
+/// incluso con el programa bloqueado pidiendo entrada.
 #[tauri::command]
-pub fn read_framebuffer(manager: State<'_, EmuManager>) -> Result<tauri::ipc::Response, String> {
-    let frame = with_session(&manager, |s| {
-        Ok(s.video
+pub fn read_framebuffer(
+    since: u64,
+    manager: State<'_, EmuManager>,
+) -> Result<tauri::ipc::Response, String> {
+    let respuesta = with_session(&manager, |s| {
+        let v = s
+            .video
             .lock()
-            .map_err(|_| String::from("estado de video corrupto"))?
-            .rgba
-            .take())
+            .map_err(|_| String::from("estado de video corrupto"))?;
+        if v.seq <= since {
+            return Ok(Vec::new());
+        }
+        match &v.rgba {
+            Some(frame) => {
+                let mut out = Vec::with_capacity(8 + frame.len());
+                out.extend_from_slice(&v.seq.to_le_bytes());
+                out.extend_from_slice(frame);
+                Ok(out)
+            }
+            None => Ok(Vec::new()),
+        }
     })?;
-    Ok(tauri::ipc::Response::new(frame.unwrap_or_default()))
+    Ok(tauri::ipc::Response::new(respuesta))
 }

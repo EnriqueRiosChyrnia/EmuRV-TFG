@@ -122,24 +122,43 @@
 - **Ejemplos:** menú con 7 (5 de v0.1 + 07-franjas + 08-tetris-grafico). El 06-tetris ASCII se quitó del menú a pedido del usuario; su lógica vive intacta dentro del 08.
 - **UI:** panel «Pantalla (320×240)» con canvas `image-rendering: pixelated`, timer 30 Hz, ImageData reusado, aparición automática al detectar uso de VRAM, botón de toggle, i18n en es.json.
 
+## Correcciones post-verificación del usuario (2026-06-10, segunda tanda)
+
+El usuario verificó la app: panel gráfico y Tetris funcionan, con dos problemas. Ambos corregidos en esta tanda.
+
+### Bug "Reiniciar → Paso no avanza" — causa raíz: caché JIT de Unicorn
+
+- **Repro confirmado por test:** `run()` hasta `Exited`, `reset()`, `step()` → devolvía `Exited {0}` ejecutando el programa ENTERO en vez de una instrucción. Solo «Ensamblar» (máquina nueva) lo curaba.
+- **Causa [Seguro, reproducida y verificada]:** los bloques traducidos (TB) que la corrida libre (`emu_start` con count=0) deja en la caché JIT de Unicorn **no respetan el count=1** de un paso posterior: el paso ejecuta el bloque cacheado completo. `reset()`/`load()` siempre fueron correctos (registros, pc, memoria, exit_code) — el estado podrido era la caché del JIT, invisible a esos campos. Por eso el síntoma confundía: "reiniciar no reinicia".
+- **Fix:** flag `tb_de_corrida` en `Machine`; `run()` la marca y `step()` hace `ctl_flush_tb()` antes de steppear si está marcada. Costo: una retraducción tras cada corrida libre, irrelevante a velocidad humana de paso.
+- **Mismo origen, segundo bug latente [Seguro]:** un breakpoint puesto DESPUÉS de una corrida libre tampoco frenaba (el hook de código nuevo no instrumenta TBs ya cacheados). `set_breakpoints` ahora flushea la caché al instalar **y al retirar** el hook (simétrico: bloques instrumentados seguirían frenando lento sin hook).
+- **Pantalla no se limpiaba al reiniciar [Seguro]:** `publicar_frame` con VRAM en cero y `video_used=false` retorna temprano (RF4), así que tras reset nadie publicaba nada y el panel quedaba con el frame viejo. `load()` ahora publica un frame negro si la pantalla estaba en uso.
+- **Tests de regresión:** `paso_funciona_inmediatamente_despues_de_reset`, `breakpoint_puesto_despues_de_correr_frena`, `fb2_reset_limpia_la_pantalla`.
+
+### Pantalla desacoplable en ventana aparte (Tauri 2 multi-ventana)
+
+- **Protocolo de frames multiconsumidor [Seguro]:** el `rgba.take()` anterior servía a UN consumidor; con panel + ventana, cada lectura le robaría el frame al otro. `VideoShared` ahora conserva el último frame y lleva `seq` monotónico; `read_framebuffer(since)` responde `[8 bytes seq LE][307200 bytes RGBA]` solo si `seq > since`, o 0 bytes. Cada consumidor recuerda su `seq` (flag sucio por consumidor) y uno nuevo arranca con `since=0`, recibiendo el frame vigente al abrirse. Sigue siendo binario crudo (RF1).
+- **UX elegida [Probable — a validar por el usuario]:** botón «⧉» en el encabezado del panel; al abrir la ventana, el panel embebido se oculta y su timer para (una sola vista activa: más claro y menos tráfico, aunque el protocolo soporta ambas a la vez). Al cerrar la ventana, el panel embebido vuelve solo. Con la ventana abierta, el botón «Pantalla» de la toolbar la trae al frente.
+- **Mecánica:** `WebviewWindow` con label `pantalla` → `pantalla.html` (entrada multipágina de Vite) + `src/pantalla.ts` (canvas a ventana completa, `object-fit: contain` + `image-rendering: pixelated`, timer 30 Hz propio). Capability `default.json`: ventana `pantalla` agregada y permiso `core:webview:allow-create-webview-window`.
+
 ## PENDIENTE DE VERIFICACIÓN VISUAL DEL USUARIO
 
-Los gates FB2 y FB3 exigen verificación VISUAL que una sesión autónoma no puede hacer (no puedo ver la pantalla). El backend y la capa de UI están implementados y testeados; falta que el usuario confirme mirando la app. **Hasta entonces FB2 y FB3 NO se declaran cumplidos.**
+Estado tras la verificación del usuario (2026-06-10): el panel gráfico y el Tetris **se confirmaron funcionando** (gates FB2/FB3 visualmente OK en lo esencial), con dos problemas que esta tanda corrige. Queda pendiente de OJO HUMANO lo siguiente — los puntos 1 y 2 NO se declaran cumplidos hasta esa confirmación:
 
-Pasos exactos:
-
-1. Abrir `src-tauri/target/release/bundle/macos/EmuRV.app` (build del 2026-06-10) o correr `cargo tauri dev`.
-2. **Gate FB2 — franjas:**
-   - Menú «Ejemplos» → «Franjas de color (pantalla)» → «Ensamblar» → «Ejecutar».
-   - DEBE: aparecer solo el panel «Pantalla (320×240)» (sin tocar el botón) y verse tres franjas cortas (azul, verde, cian) sobre fondo negro en la parte superior, con píxeles nítidos (sin blur).
-   - Guardar captura como `docs/capturas/fb2-franjas.png`.
-3. **Gate FB3 — Tetris gráfico:**
-   - Menú «Ejemplos» → «Tetris gráfico» → «Ensamblar» → «Ejecutar».
-   - DEBE: aparecer el panel con el tablero vacío (dos bordes verticales blancos) ANTES de teclear nada; la consola muestra "Pieza: J" con su vista previa.
-   - Jugar: rotación `0`, columna `0` → la J debe verse apilada abajo a la izquierda en gris claro, ANTES del siguiente prompt. Luego rotación `0`, columna `4` → la O en cian junto a la J. Salir con `-1`.
-   - Guardar captura del tablero con piezas como `docs/capturas/fb3-tetris.png`.
-4. **Medición de FPS pendiente:** con la app abierta, correr un programa que reescriba el frame en bucle y anotar acá los FPS efectivos (el plan lo pide; no se puede medir sin la app corriendo).
-5. Si algo de lo anterior NO se ve así, reportarlo: el gate queda abierto.
+1. **Ventana desacoplada (nuevo):**
+   - Abrir el build nuevo (`src-tauri/target/release/bundle/macos/EmuRV.app`) o `cargo tauri dev`.
+   - Cargar «Franjas de color (pantalla)» → Ensamblar → Ejecutar → aparece el panel.
+   - Click en el botón «⧉» del encabezado del panel: DEBE abrirse una ventana «EmuRV — Pantalla» con las franjas, y el panel embebido desaparecer.
+   - Redimensionar la ventana: la imagen DEBE escalar nítida (píxeles cuadrados, sin blur) manteniendo proporción 4:3 con bandas negras.
+   - Ejecutar el Tetris con la ventana abierta: el tablero DEBE verse ahí mientras la consola del IDE pide la entrada.
+   - Cerrar la ventana: el panel embebido DEBE reaparecer con el último frame.
+2. **Reiniciar → Paso (bug corregido):**
+   - Cargar cualquier ejemplo (p. ej. Fibonacci) → Ensamblar → Ejecutar hasta terminar → «Reiniciar» → «Paso».
+   - DEBE: avanzar UNA instrucción por click, con la línea resaltada moviéndose y los registros cambiando — sin re-ensamblar.
+   - Con el Tetris: tras Reiniciar, la pantalla DEBE quedar negra (sin el tablero viejo).
+3. **Capturas aún no guardadas:** `docs/capturas/fb2-franjas.png` (franjas en el panel) y `docs/capturas/fb3-tetris.png` (tablero con piezas). Sumar `fb2-ventana-aparte.png` si el punto 1 pasa.
+4. **Medición de FPS pendiente:** con la app abierta, correr un programa que reescriba el frame en bucle y anotar acá los FPS efectivos (el plan lo pide).
+5. Si algo NO se ve como se describe, reportarlo: el punto queda abierto.
 
 ## Recomendaciones para trabajo futuro (fuera de alcance)
 

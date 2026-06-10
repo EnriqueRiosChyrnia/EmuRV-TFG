@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmuRV — Pantalla</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+      /* Escalado nítido por píxel, preservando 4:3 (FB2) */
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
+    </style>
+    <script type="module" src="/src/pantalla.ts" defer></script>
+  </head>
+  <body>
+    <canvas id="pantalla-canvas" width="320" height="240"></canvas>
+  </body>
+</html>
