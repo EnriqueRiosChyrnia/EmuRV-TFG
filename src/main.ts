@@ -6,6 +6,8 @@ import { api, events, type AsmError, type AssembleOk, type StoppedEvent } from "
 import { createEditor, getDoc, setDoc } from "./editor";
 import { t } from "./i18n";
 import { Consola } from "./paneles/consola";
+import { Memoria } from "./paneles/memoria";
+import { Registros } from "./paneles/registros";
 
 import ejContador from "../ejemplos/03-contador.asm?raw";
 import ejFibonacci from "../ejemplos/04-fibonacci.asm?raw";
@@ -27,6 +29,8 @@ type Modo = "sin_programa" | "listo" | "corriendo" | "esperando" | "terminado";
 class App {
   private editor: EditorView;
   private consola: Consola;
+  private registros: Registros;
+  private memoria: Memoria;
   private programa: AssembleOk | null = null;
   private reinicioPedido = false;
 
@@ -39,6 +43,8 @@ class App {
     this.estadoEl = document.getElementById("estado")!;
     this.editor = createEditor(document.getElementById("editor")!, ejHola);
     this.consola = new Consola(document.getElementById("consola")!);
+    this.registros = new Registros(document.getElementById("registros")!);
+    this.memoria = new Memoria(document.getElementById("memoria")!);
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
       this.setModo("corriendo", t("estado.corriendo"));
@@ -120,11 +126,21 @@ class App {
       this.setModo("esperando", t("estado.esperando_entrada"));
     });
     await events.onStopped((ev) => this.alDetenerse(ev));
-    // emu://registros se consume en F3 (paneles de estado).
+    // Refresco periódico (~10 Hz) durante ejecución larga (RNF-03):
+    // solo registros; la memoria se relee al detenerse.
+    await events.onRegisters((st) => this.registros.actualizar(st));
   }
 
   private alDetenerse(ev: StoppedEvent): void {
     this.consola.setInputMode(false);
+    // Las vistas se refrescan al detenerse (pausa/paso/breakpoint/fin),
+    // jamás por instrucción (RNF-03).
+    if (this.reinicioPedido) {
+      this.registros.reiniciar(ev.state);
+    } else {
+      this.registros.actualizar(ev.state);
+    }
+    void this.memoria.refrescar();
     const linea = ev.state.line ?? 0;
     switch (ev.reason.kind) {
       case "exited":
@@ -166,10 +182,14 @@ class App {
       this.programa = ok;
       this.consola.clear();
       this.consola.setInputMode(false);
+      this.memoria.setPrograma(ok);
+      this.registros.reiniciar(await api.getState());
+      await this.memoria.irA(ok.data_base);
       this.setModo("listo", t("estado.ensamblado", { n: ok.text_len }), "ok");
     } catch (e) {
       const errores = e as AsmError[];
       this.programa = null;
+      this.memoria.setPrograma(null);
       this.consola.clear();
       for (const err of errores) {
         this.consola.append(`línea ${err.line}, col ${err.col}: ${err.msg}\n`, "error");

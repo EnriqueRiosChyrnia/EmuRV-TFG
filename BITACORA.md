@@ -119,3 +119,36 @@ salida=¡Hola, mundo!
 
 Es decir: ensamblado desde la GUI, ejecución sobre Unicorn, syscall 4 → evento Tauri → DOM de la consola, y syscall 10 → estado final correcto. La captura de pantalla no fue posible (macOS exige permiso de grabación de pantalla, no otorgable en sesión autónoma); la verificación DOM es más precisa de todos modos. El hook de autorun se eliminó tras el gate; el comando `autotest_report` (solo debug) queda para verificar los gates F3/F4 y se elimina en F6. [Seguro]
 
+---
+
+## Fase 3 — Paneles de estado
+
+### 2026-06-09 — Decisiones de los paneles
+
+- **Registros (RF-05)**: tabla pc + x0–x31 con nombre ABI y alias xN, hex y decimal **con signo** (los estudiantes razonan los negativos en decimal; el hex ya muestra el patrón de bits). El resaltado de modificados compara contra el snapshot anterior en el frontend; el backend no necesita rastrear cambios. Tras Ensamblar/Reiniciar el snapshot se descarta para no marcar todo como cambiado. [Seguro]
+- **Memoria (RF-06)**: hexdump de 16×16 bytes con columna ASCII, entrada de dirección hex y accesos rápidos .text / .data / pila (este último muestra desde `sp−0x40` para ver el tope de la pila con contexto). Se refresca SOLO al detenerse la ejecución o al navegar (RNF-03); durante ejecución larga solo se refrescan los registros con el evento de ~10 Hz. [Seguro]
+- La entrada bloqueante de consola (syscall 5) ya estaba cableada desde F2 (canal input + flag `waiting_input` para Cancel); esta fase la verificó de punta a punta. 
+
+### 2026-06-09 — Gate F3: SUPERADO (autotest DOM + captura de pantalla)
+
+Con los permisos de grabación de pantalla ya otorgados, este gate tiene evidencia doble (DOM + visual, `docs/capturas/f3-fibonacci-paso.png`).
+
+**T1 — suma interactiva punta a punta** (tipeando en el input real de la consola):
+
+```
+T1 salida=Ingresá el primer número: 8
+Ingresá el segundo número: 34
+La suma es: 42
+T1 estado=Programa terminado (código 0)
+```
+
+**T2 — fibonacci paso a paso**: traza de la celda decimal de s0 durante 14 pasos (el `*` indica presencia de la clase CSS `cambiado`, es decir, el resaltado de RF-05):
+
+```
+T2 s0=0,0,0,0,0,0,0,0,0,0,0,1*,1,1
+T2 pc=0x00400038
+T2 estado=Paso ejecutado. Próxima línea: 31
+```
+
+s0 cambia exactamente en el paso 12 — el `mv s0, s1` de la primera iteración del bucle, contando la expansión de pseudo-instrucciones (`la` ocupa 2 pasos) — y el resaltado aparece solo en ese paso. La captura muestra los tres paneles poblados y el estado en español. [Seguro]
+
