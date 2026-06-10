@@ -28,14 +28,36 @@ Abrir `EmuRV.app` (o el `.dmg`) generado en `src-tauri/target/release/bundle/`. 
 
 ### Compilar desde el código fuente
 
-Requisitos: [Rust](https://rustup.rs) (estable), Node.js ≥ 20, CMake y pkg-config (`brew install cmake pkg-config` — los exige la compilación de Unicorn).
+Requisitos comunes: [Rust](https://rustup.rs) (estable), Node.js ≥ 20, CMake y pkg-config (los exige la compilación de Unicorn).
+
+**macOS:**
+
+```bash
+brew install cmake pkg-config
+```
+
+**Linux (Debian/Ubuntu):** además de cmake/pkg-config, las librerías de sistema de Tauri 2:
+
+```bash
+sudo apt update
+sudo apt install -y cmake pkg-config build-essential curl wget file \
+  libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
+  libayatana-appindicator3-dev librsvg2-dev
+```
+
+(En Fedora: `webkit2gtk4.1-devel openssl-devel libappindicator-gtk3-devel librsvg2-devel`; en Arch: `webkit2gtk-4.1 base-devel openssl appmenu-gtk-module libappindicator-gtk3 librsvg`.)
+
+**Compilar y ejecutar (igual en todas las plataformas):**
 
 ```bash
 npm install
+cargo install tauri-cli --locked   # una sola vez
 cargo tauri build        # bundle en src-tauri/target/release/bundle/
 # o, para desarrollo:
 cargo tauri dev
 ```
+
+En Linux el bundle sale como `.deb`/`.rpm`/AppImage según la distro. Nota: esta versión solo se probó en macOS Apple Silicon; el código es multiplataforma pero el build en Linux no está validado.
 
 ## Tu primer programa (5 minutos)
 
