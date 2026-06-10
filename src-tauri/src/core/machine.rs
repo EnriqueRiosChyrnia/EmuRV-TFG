@@ -13,8 +13,9 @@
 use super::assembler::Program;
 use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::{
-    DATA_BASE, DATA_REGION_BASE, DATA_REGION_SIZE, GP_INIT, SP_INIT, STACK_SIZE, STACK_TOP,
-    TEXT_BASE, TEXT_SIZE,
+    DATA_BASE, DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE,
+    FRAMEBUFFER_SIZE, GP_INIT, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE, SP_INIT,
+    STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
 };
 use serde::Serialize;
 use std::collections::HashSet;
@@ -110,6 +111,25 @@ impl Machine<'_> {
         )
         .map_err(|e| format!("no se pudo mapear la pila: {e:?}"))?;
 
+        uc.mem_map(
+            FRAMEBUFFER_BASE as u64,
+            FRAMEBUFFER_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear el framebuffer: {e:?}"))?;
+        uc.mem_map(
+            PALETTE_BASE as u64,
+            PALETTE_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear la paleta: {e:?}"))?;
+        uc.mem_map(
+            VIDEO_CONTROL_BASE as u64,
+            VIDEO_CONTROL_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear el registro de control: {e:?}"))?;
+
         // Syscalls y excepciones: llegan como interrupción con la causa
         // RISC-V en intno (ver syscalls::handle_trap).
         uc.add_intr_hook(syscalls::handle_trap)
@@ -158,6 +178,18 @@ impl Machine<'_> {
                 (STACK_TOP - STACK_SIZE) as u64,
                 &vec![0u8; STACK_SIZE as usize],
             )
+            .map_err(err)?;
+        self.uc
+            .mem_write(
+                FRAMEBUFFER_BASE as u64,
+                &vec![0u8; FRAMEBUFFER_DATA_SIZE as usize],
+            )
+            .map_err(err)?;
+        self.uc
+            .mem_write(PALETTE_BASE as u64, &vec![0u8; PALETTE_DATA_SIZE as usize])
+            .map_err(err)?;
+        self.uc
+            .mem_write(VIDEO_CONTROL_BASE as u64, &vec![0u8; 4])
             .map_err(err)?;
         self.uc
             .mem_write(TEXT_BASE as u64, &self.program.text)
@@ -211,6 +243,28 @@ impl Machine<'_> {
         self.uc
             .mem_read_as_vec(addr as u64, len)
             .map_err(|_| format!("la dirección 0x{addr:08X} no está mapeada"))
+    }
+
+    pub fn read_u8(&self, addr: u64) -> Result<u8, String> {
+        self.read_mem(addr as u32, 1).map(|v| v[0])
+    }
+
+    pub fn write_u8(&mut self, addr: u64, val: u8) -> Result<(), String> {
+        self.uc
+            .mem_write(addr, &[val])
+            .map_err(|_| format!("no se pudo escribir en 0x{addr:08X}"))
+    }
+
+    pub fn read_u32(&self, addr: u64) -> Result<u32, String> {
+        self.read_mem(addr as u32, 4).map(|v| {
+            u32::from_le_bytes([v[0], v[1], v[2], v[3]])
+        })
+    }
+
+    pub fn write_u32(&mut self, addr: u64, val: u32) -> Result<(), String> {
+        self.uc
+            .mem_write(addr, &val.to_le_bytes())
+            .map_err(|_| format!("no se pudo escribir en 0x{addr:08X}"))
     }
 
     /// Define el conjunto de breakpoints (direcciones de .text). Instala o
