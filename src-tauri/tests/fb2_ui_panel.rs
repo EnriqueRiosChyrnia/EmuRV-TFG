@@ -1,6 +1,5 @@
 /// Test FB2: panel gráfico en la UI
 /// Verifica que el ejemplo 07-franjas ejecuta sin errores y renderiza correctamente.
-
 use emurv_lib::core::{
     assembler::assemble,
     machine::{Machine, StopReason},

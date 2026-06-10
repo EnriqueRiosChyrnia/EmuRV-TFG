@@ -1,9 +1,9 @@
 /// Conversión de framebuffer indexado a RGBA (FB1).
-
 use super::{FRAMEBUFFER_DATA_SIZE, PALETTE_DATA_SIZE};
 
 /// Buffer RGBA en formato compatible con canvas (RGBA8888, little-endian).
 /// Dimensiones fijas: 320×240 = 76800 píxeles = 307200 bytes.
+#[derive(Default)]
 pub struct FramebufferRGBA {
     pub data: Vec<u8>,
 }

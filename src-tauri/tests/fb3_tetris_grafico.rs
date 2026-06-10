@@ -1,6 +1,5 @@
 /// Test FB3: Tetris gráfico
 /// Verifica que el ejemplo 08-tetris-grafico ejecuta y dibuja rectángulos.
-
 use emurv_lib::core::{
     assembler::assemble,
     machine::{Machine, StopReason},
