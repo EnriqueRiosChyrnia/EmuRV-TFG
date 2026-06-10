@@ -45,5 +45,32 @@
   "ejemplo.fibonacci": "Fibonacci",
   "ejemplo.pila": "Pila y funciones",
 
-  "error.generico": "Error: {message}"
+  "error.generico": "Error: {message}",
+
+  "exportar.titulo": "Guardar ELF",
+  "exportar.ok": "ELF exportado en {path}",
+  "exportar.error": "No se pudo exportar: {message}",
+
+  "ayuda.titulo": "Ayuda de EmuRV",
+  "ayuda.cerrar": "Cerrar",
+  "ayuda.ciclo.titulo": "Ciclo de trabajo",
+  "ayuda.ciclo.texto": "Escribí tu programa, presioná «Ensamblar» y después «Ejecutar» (corre hasta el final) o «Paso» (una instrucción por vez). «Reiniciar» vuelve la máquina al estado inicial sin re-ensamblar. Los paneles de la derecha muestran los registros (los que cambiaron quedan resaltados) y la memoria.",
+  "ayuda.syscalls.titulo": "Syscalls (convención RARS)",
+  "ayuda.syscalls.texto": "Cargá el número de servicio en a7, los argumentos en a0, y ejecutá «ecall»:",
+  "ayuda.syscalls.servicio": "Servicio",
+  "ayuda.syscalls.args": "Argumentos",
+  "ayuda.syscalls.s1": "imprimir entero",
+  "ayuda.syscalls.s4": "imprimir cadena",
+  "ayuda.syscalls.s5": "leer entero (la consola espera tu entrada)",
+  "ayuda.syscalls.s10": "terminar el programa",
+  "ayuda.syscalls.s11": "imprimir carácter",
+  "ayuda.memoria.titulo": "Mapa de memoria",
+  "ayuda.memoria.text": "código (.text) — acá empieza la ejecución",
+  "ayuda.memoria.data": "datos (.data)",
+  "ayuda.memoria.sp": "tope de la pila (sp inicial; crece hacia abajo)",
+  "ayuda.directivas.titulo": "Directivas soportadas",
+  "ayuda.ejemplos.titulo": "Ejemplos",
+  "ayuda.ejemplos.texto": "El menú «Ejemplos» carga 5 programas comentados: hola mundo, suma con entrada de usuario, contador, fibonacci y pila/funciones (factorial recursivo). Son un buen punto de partida para tu propio código.",
+  "ayuda.breakpoints.titulo": "Breakpoints",
+  "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar»."
 }

@@ -187,3 +187,28 @@ consola=línea 2, col 5: instrucción desconocida: «sumar». EmuRV soporta RV32
 
 [Seguro — evidencia DOM + captura]
 
+---
+
+## Fase 5 — Export ELF y ayuda integrada
+
+### 2026-06-09 — Decisiones
+
+- **`object::write::elf::Writer`** (API de bajo nivel del crate `object` 0.39, conforme al stack cerrado de ARQUITECTURA.md): la API de alto nivel (`write::Object`) solo emite relocatables ET_REL; para un ejecutable ET_EXEC con segmentos PT_LOAD hay que usar el Writer directo. [Seguro]
+- **Estructura del ELF**: ET_EXEC, EM_RISCV, little-endian, e_entry = 0x00400000. Dos PT_LOAD (uno si no hay .data): .text R+X en 0x00400000 y .data R+W en 0x10010000, offsets alineados a página (p_offset ≡ p_vaddr mod 0x1000, requisito de los cargadores). Tabla de secciones .text/.data/.shstrtab incluida para readelf/Ripes. [Seguro]
+- **El export usa una copia del programa guardada en la sesión** (no toca el hilo de emulación): exportar no interfiere con una máquina en uso. [Seguro]
+- Ayuda integrada (RF-07): overlay modal con ciclo de trabajo, tabla de syscalls con ejemplo de uso, mapa de memoria, directivas, ejemplos y breakpoints. Todo el contenido sale de `es.json`. [Seguro]
+- El diálogo de guardado usa `tauri-plugin-dialog` (permiso `dialog:default` en capabilities). El autotest invoca el comando `export_elf` directamente con ruta fija: el diálogo nativo de macOS no es automatizable sin permisos de accesibilidad, y no es código nuestro. [Seguro]
+
+### 2026-06-09 — Gate F5: SUPERADO
+
+- **3 tests unitarios del header** (`elf_export.rs`): magic/clase/endianness, ET_EXEC + EM_RISCV + e_entry, segmentos PT_LOAD con direcciones del mapa, contenido de segmentos == bytes ensamblados, congruencia offset/vaddr, y caso sin .data con un solo segmento. Total de la suite: 34/34 verdes.
+- **`file` sobre el ELF exportado desde la GUI** (hola mundo, vía botón→comando real):
+
+```
+/tmp/emurv_gate.elf: ELF 32-bit LSB executable, UCB RISC-V, soft-float ABI,
+version 1 (SYSV), statically linked, stripped
+```
+
+- Validación con qemu-riscv32: **no aplicable en macOS** (el modo de usuario de QEMU es solo-Linux; documentado en F0). La validación equivalente queda cubierta por los tests de header + `file` + verificación de contenido de segmentos byte a byte.
+- Ayuda verificada por DOM: overlay visible, 8 filas de tablas (5 syscalls + 3 zonas de memoria). Captura: `docs/capturas/f5-ayuda.png`.
+

@@ -46,6 +46,7 @@ export const api = {
   stop: () => invoke<void>("stop"),
   setBreakpoints: (addrs: number[]) => invoke<void>("set_breakpoints", { addrs }),
   sendInput: (text: string) => invoke<void>("send_input", { text }),
+  exportElf: (path: string) => invoke<void>("export_elf", { path }),
   readMem: (addr: number, len: number) => invoke<number[]>("read_mem", { addr, len }),
   getState: () => invoke<MachineState>("get_state"),
 };

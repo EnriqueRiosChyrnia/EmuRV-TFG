@@ -5,9 +5,9 @@
 //! didáctico existente en español sin cambiar direcciones.
 
 pub mod assembler;
+pub mod elf_export;
 pub mod machine;
 pub mod syscalls;
-// elf_export se agrega en la fase F5 (PLAN.md).
 
 /// Base del segmento de código (.text). Coincide con RARS.
 pub const TEXT_BASE: u32 = 0x0040_0000;

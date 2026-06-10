@@ -47,6 +47,8 @@ struct Session {
     stop_flag: Arc<AtomicBool>,
     /// La UI marca si el programa espera entrada (para Cancel en stop).
     waiting_input: Arc<AtomicBool>,
+    /// Copia del programa ensamblado (para el export ELF, RF-08).
+    program: Program,
 }
 
 /// Estado global gestionado por Tauri.
@@ -243,6 +245,7 @@ pub fn assemble(
     let (cmd_tx, cmd_rx) = channel();
     let stop_flag = Arc::new(AtomicBool::new(false));
     let waiting_input = Arc::new(AtomicBool::new(false));
+    let program_copy = program.clone();
 
     // La máquina se construye DENTRO del hilo: Unicorn no es Send (usa Rc).
     // El canal init confirma la creación o devuelve el error.
@@ -283,8 +286,20 @@ pub fn assemble(
         input_tx: in_tx,
         stop_flag,
         waiting_input,
+        program: program_copy,
     });
     Ok(ok)
+}
+
+/// Exporta el programa ensamblado como ELF32 RISC-V (RF-08).
+#[tauri::command]
+pub fn export_elf(path: String, manager: State<'_, EmuManager>) -> Result<(), String> {
+    let guard = manager.0.lock().unwrap();
+    let s = guard
+        .as_ref()
+        .ok_or("no hay programa ensamblado: usá «Ensamblar» primero")?;
+    let bytes = crate::core::elf_export::export_elf(&s.program)?;
+    std::fs::write(&path, bytes).map_err(|e| format!("no se pudo escribir «{path}»: {e}"))
 }
 
 /// Helper: ejecuta `f` con la sesión activa o devuelve error en español.
