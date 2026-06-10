@@ -46,6 +46,7 @@
   "ejemplo.pila": "Pila y funciones",
 
   "error.generico": "Error: {message}",
+  "error.posicion": "línea {line}, col {col}: {msg}",
 
   "exportar.titulo": "Guardar ELF",
   "exportar.ok": "ELF exportado en {path}",

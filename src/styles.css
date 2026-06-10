@@ -259,6 +259,9 @@ html, body {
   z-index: 100;
 }
 
+/* el display:flex de arriba pisaría al atributo hidden sin esta regla */
+#ayuda-overlay[hidden] { display: none; }
+
 .ayuda-caja {
   width: min(680px, 88vw);
   max-height: 84vh;
