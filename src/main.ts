@@ -3,7 +3,14 @@
 // los comandos y eventos del backend.
 import type { EditorView } from "@codemirror/view";
 import { api, events, type AsmError, type AssembleOk, type StoppedEvent } from "./api";
-import { createEditor, getDoc, setDoc } from "./editor";
+import {
+  createEditor,
+  getBreakpointLines,
+  getDoc,
+  setDoc,
+  setErrors,
+  setExecLine,
+} from "./editor";
 import { t } from "./i18n";
 import { Consola } from "./paneles/consola";
 import { Memoria } from "./paneles/memoria";
@@ -41,7 +48,9 @@ class App {
     this.construirToolbar();
     this.traducirTitulos();
     this.estadoEl = document.getElementById("estado")!;
-    this.editor = createEditor(document.getElementById("editor")!, ejHola);
+    this.editor = createEditor(document.getElementById("editor")!, ejHola, () =>
+      this.enviarBreakpoints(),
+    );
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
@@ -51,6 +60,14 @@ class App {
     });
     void this.suscribirEventos();
     this.setModo("sin_programa", t("estado.sin_programa"));
+
+    // Gancho para los autotests de gates (solo dev; se elimina en F6).
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).__emurvTest = {
+        editor: this.editor,
+        enviarBreakpoints: () => this.enviarBreakpoints(),
+      };
+    }
   }
 
   // ----- construcción de la UI -----
@@ -141,6 +158,9 @@ class App {
       this.registros.actualizar(ev.state);
     }
     void this.memoria.refrescar();
+    // Línea actual resaltada mientras el programa sigue vivo (RF-04).
+    const sigueVivo = ev.reason.kind !== "exited" && ev.reason.kind !== "runtime_error";
+    setExecLine(this.editor, sigueVivo ? ev.state.line : null);
     const linea = ev.state.line ?? 0;
     switch (ev.reason.kind) {
       case "exited":
@@ -182,20 +202,37 @@ class App {
       this.programa = ok;
       this.consola.clear();
       this.consola.setInputMode(false);
+      setErrors(this.editor, []);
+      setExecLine(this.editor, null);
       this.memoria.setPrograma(ok);
       this.registros.reiniciar(await api.getState());
       await this.memoria.irA(ok.data_base);
+      this.enviarBreakpoints(); // los del margen aplican a la sesión nueva
       this.setModo("listo", t("estado.ensamblado", { n: ok.text_len }), "ok");
     } catch (e) {
       const errores = e as AsmError[];
       this.programa = null;
       this.memoria.setPrograma(null);
       this.consola.clear();
+      setErrors(this.editor, errores);
+      setExecLine(this.editor, null);
       for (const err of errores) {
         this.consola.append(`línea ${err.line}, col ${err.col}: ${err.msg}\n`, "error");
       }
       this.setModo("sin_programa", t("estado.errores", { n: errores.length }), "error");
     }
+  }
+
+  /** Traduce las líneas con breakpoint a direcciones y las manda al backend.
+   *  Las líneas sin código generado (comentarios, datos) se ignoran. */
+  private enviarBreakpoints(): void {
+    if (!this.programa) return;
+    const addrs: number[] = [];
+    for (const linea of getBreakpointLines(this.editor)) {
+      const addr = this.programa.line_to_addr[String(linea)];
+      if (addr !== undefined) addrs.push(addr);
+    }
+    void api.setBreakpoints(addrs);
   }
 
   private async ejecutar(): Promise<void> {
@@ -227,4 +264,5 @@ class App {
 
 window.addEventListener("DOMContentLoaded", () => {
   new App();
+
 });

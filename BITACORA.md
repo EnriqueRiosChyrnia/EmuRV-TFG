@@ -152,3 +152,38 @@ T2 estado=Paso ejecutado. Próxima línea: 31
 
 s0 cambia exactamente en el paso 12 — el `mv s0, s1` de la primera iteración del bucle, contando la expansión de pseudo-instrucciones (`la` ocupa 2 pasos) — y el resaltado aparece solo en ese paso. La captura muestra los tres paneles poblados y el estado en español. [Seguro]
 
+---
+
+## Fase 4 — Breakpoints y errores didácticos
+
+### 2026-06-09 — Decisiones
+
+- **Breakpoints como `RangeSet` de CodeMirror**: las marcas se mueven solas con las ediciones del texto (mapeo por `tr.changes`). La UI traduce línea→dirección con el `line_to_addr` recibido de `assemble`; las líneas sin código generado (comentarios, datos, blancos) simplemente no aportan dirección. Tras re-ensamblar se reenvían (las direcciones pueden haber cambiado). [Seguro]
+- **Línea actual** como `Decoration.line` con efecto propio + `scrollIntoView`: se muestra en paso/breakpoint/pausa y se limpia al terminar o fallar. [Seguro]
+- **Errores anclados** con `setDiagnostics` de @codemirror/lint (subrayado + tooltip con el mensaje en español). Al editar el documento se limpian los diagnósticos viejos (quedarían corridos y confunden). [Seguro]
+
+### 2026-06-09 — Gate F4: SUPERADO — demo documentada
+
+**Demo (automatizada sobre la GUI real; reproducible a mano con los mismos pasos):** ejemplo Contador; click en el margen de la línea 16 (`mv a0, t0`, cuerpo del bucle) → aparece el punto rojo; «Ejecutar».
+
+```
+marcador_bp=true
+parada1: estado=Detenido en breakpoint (línea 16) t0=1 linea_resaltada=true
+parada2: estado=Detenido en breakpoint (línea 16) t0=2      ← tras «Ejecutar» (continuar)
+parada3: estado=Detenido en breakpoint (línea 16) t0=3      ← ídem
+final:   estado=Programa terminado (código 0) salida=1·2·3·…·10·   ← tras quitar el bp
+```
+
+Cada parada ocurre ANTES de ejecutar la instrucción marcada (t0 ya incrementado por la iteración anterior, salida aún sin imprimir el valor), la reanudación no re-dispara el mismo breakpoint y al quitarlo el programa corre libre hasta terminar. Captura: `docs/capturas/f4-breakpoint-bucle.png` (punto rojo en el margen + línea resaltada + t0 destacado en el panel).
+
+**RF-02 (errores anclados), verificado en la misma sesión** con un fuente con 2 errores:
+
+```
+subrayados=2    ← decoraciones cm-lintRange-error en las líneas 2 y 4
+estado=El programa tiene 2 error(es). Revisá las líneas marcadas.
+consola=línea 2, col 5: instrucción desconocida: «sumar». EmuRV soporta RV32IM …
+        línea 4, col 5: «addi» espera 3 operandos (registro, registro, inmediato); hay 2
+```
+
+[Seguro — evidencia DOM + captura]
+
