@@ -1,12 +1,14 @@
 # ARQUITECTURA — decisiones técnicas
 
+> **Nota de estado (actualizado 2026-06-10).** Este documento registra las decisiones de arquitectura *previstas* al planificar el proyecto. Dos de ellas cambiaron durante la implementación, con evidencia registrada en BITACORA.md. Las divergencias están marcadas en línea con el prefijo **⚠ DIVERGENCIA** y detalladas en `ENSAMBLADOR.md`. El resto del documento se mantiene como fue verificado.
+
 ## Stack (decisiones cerradas del brief de tesis — no reabrir)
 
 | Componente | Elección | Crate / nota |
 |---|---|---|
 | Núcleo de emulación | Unicorn Engine (RISC-V 32) | `unicorn-engine` |
-| Ensamblador | Keystone | ver §Riesgos R1 — verificar ANTES de todo |
-| Desensamblador | Capstone | `capstone` |
+| Ensamblador | ~~Keystone~~ → **ensamblador propio RV32IM** | ⚠ DIVERGENCIA — Keystone no soporta RISC-V (spike R1). Ver ENSAMBLADOR.md |
+| Desensamblador | Capstone (no incorporado en v0.1) | ⚠ DIVERGENCIA — ningún RF lo requiere; queda designado para uso futuro |
 | Shell de aplicación | Tauri 2.x | Rust backend + frontend web |
 | Escritura de ELF | crate `object` (módulo write) | `goblin` solo lee; usar `object::write` |
 | Editor | CodeMirror 6 | modo RISC-V propio, ver §Riesgos R3 |
@@ -46,7 +48,7 @@
 
 ## §Riesgos y planes B (aplicar sin pedir permiso, registrando en BITACORA.md)
 
-- **R1 [Probable]** El soporte RISC-V de Keystone es históricamente incompleto y sus bindings Rust están desactualizados. **Spike obligatorio en fase 0 (máx. 45 min)**: intentar ensamblar 10 instrucciones RV32IM representativas (incluyendo pseudo-instrucciones `li`, `la`, `j`) con Keystone. Si falla o el soporte es parcial → **Plan B: ensamblador propio RV32IM** (lexer + parser + encoder de los formatos R/I/S/B/U/J + pseudo-instrucciones + directivas .text/.data/.word/.asciiz/.space). Costo: ~1 fase extra. Beneficio colateral real para la tesis: mensajes de error en español de calidad superior y control total del source_map. Decidir en fase 0 y NO volver atrás.
-- **R2 [Probable]** `unicorn-engine` compila la librería C: requiere cmake y toolchain. Verificar en fase 0 (`brew install cmake` si falta).
+- **R1 [RESUELTO — confirmado peor que lo previsto]** El soporte RISC-V de Keystone no es incompleto: es **inexistente** en toda release oficial (verificado en headers de Keystone 0.9.2: el enum `ks_arch` no contiene `KS_ARCH_RISCV`). **Plan B aplicado: ensamblador propio RV32IM** (lexer + parser + encoder R/I/S/B/U/J + pseudo-instrucciones + directivas). Resultado: mensajes de error en español de calidad didáctica (RF-02) y control total del source_map (RF-04). Documentado en ENSAMBLADOR.md y BITACORA.md.
+- **R2 [RESUELTO — materializado distinto]** `unicorn-engine` compila la librería C: requiere cmake **y pkg-config**. La falta de pkg-config (no de cmake) produjo errores C desconcertantes (`Int128`, `PROT_EXEC`) porque el `configure` de qemu abortaba sin propagar el fallo. Solución: `brew install pkg-config`. Registrado en README como requisito de build.
 - **R3 [Seguro]** No existe modo CodeMirror oficial para RISC-V: definir un `StreamLanguage` simple propio (regex de mnemónicos, registros ABI, directivas, etiquetas, comentarios `#`).
 - **R4 [Suposición]** El bloqueo del hilo de emulación esperando input podría interactuar mal con el runtime de Tauri si se implementa en el hilo principal. Mitigación: la emulación SIEMPRE vive en su propio hilo, comunicación solo por canales.
