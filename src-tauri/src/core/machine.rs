@@ -185,8 +185,11 @@ impl Machine<'_> {
                 &vec![0u8; FRAMEBUFFER_DATA_SIZE as usize],
             )
             .map_err(err)?;
+
+        use super::video::palette_vga13h_default;
+        let pal = palette_vga13h_default();
         self.uc
-            .mem_write(PALETTE_BASE as u64, &vec![0u8; PALETTE_DATA_SIZE as usize])
+            .mem_write(PALETTE_BASE as u64, &pal)
             .map_err(err)?;
         self.uc
             .mem_write(VIDEO_CONTROL_BASE as u64, &vec![0u8; 4])
