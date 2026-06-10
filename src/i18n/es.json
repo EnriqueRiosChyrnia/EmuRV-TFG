@@ -44,6 +44,7 @@
   "ejemplo.contador": "Contador",
   "ejemplo.fibonacci": "Fibonacci",
   "ejemplo.pila": "Pila y funciones",
+  "ejemplo.tetris": "Tetris por turnos",
 
   "error.generico": "Error: {message}",
   "error.posicion": "línea {line}, col {col}: {msg}",
@@ -71,7 +72,7 @@
   "ayuda.memoria.sp": "tope de la pila (sp inicial; crece hacia abajo)",
   "ayuda.directivas.titulo": "Directivas soportadas",
   "ayuda.ejemplos.titulo": "Ejemplos",
-  "ayuda.ejemplos.texto": "El menú «Ejemplos» carga 5 programas comentados: hola mundo, suma con entrada de usuario, contador, fibonacci y pila/funciones (factorial recursivo). Son un buen punto de partida para tu propio código.",
+  "ayuda.ejemplos.texto": "El menú «Ejemplos» carga 6 programas comentados: hola mundo, suma con entrada de usuario, contador, fibonacci, pila/funciones (factorial recursivo) y un Tetris por turnos (port de un Tetris 8086: tablero en memoria, bitmaps de piezas, colisiones y líneas completas). Son un buen punto de partida para tu propio código.",
   "ayuda.breakpoints.titulo": "Breakpoints",
   "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar»."
 }
