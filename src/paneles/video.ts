@@ -104,6 +104,13 @@ export class Video {
       await existente.setFocus();
       return;
     }
+    // Ocultar el panel embebido YA, antes de crear la ventana: esperar al
+    // evento tauri://created es una carrera perdida (la ventana se crea
+    // antes de que el listener termine de registrarse por IPC) y el panel
+    // quedaba duplicado. Si la creación falla, tauri://error lo restaura.
+    this.desacoplada = true;
+    this.seccion.hidden = true;
+    this.detenerTimer();
     const w = new WebviewWindow(VENTANA, {
       url: "pantalla.html",
       title: t("video.ventana"),
@@ -112,12 +119,12 @@ export class Video {
       minWidth: 328,
       minHeight: 248,
     });
-    await w.once("tauri://created", () => {
-      this.desacoplada = true;
-      this.seccion.hidden = true;
-      this.detenerTimer();
+    void w.once("tauri://error", () => {
+      this.desacoplada = false;
+      this.mostrar();
+      this.iniciarTimer();
     });
-    await w.once("tauri://destroyed", () => {
+    void w.once("tauri://destroyed", () => {
       this.desacoplada = false;
       this.seq = 0n; // re-pedir el frame vigente al volver al panel
       this.mostrar();

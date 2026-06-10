@@ -277,7 +277,19 @@ pub fn assemble(
     let (cmd_tx, cmd_rx) = channel();
     let stop_flag = Arc::new(AtomicBool::new(false));
     let waiting_input = Arc::new(AtomicBool::new(false));
-    let video: Arc<Mutex<VideoShared>> = Arc::default();
+    // El estado de video de la sesión nueva continúa el contador de la
+    // anterior (y limpia la pantalla): los consumidores ya abiertos —panel
+    // embebido y ventana desacoplada— siguen recibiendo frames sin
+    // reiniciarse (ver VideoShared::para_sesion_nueva).
+    let video_anterior = manager
+        .0
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|s| Arc::clone(&s.video));
+    let video = Arc::new(Mutex::new(VideoShared::para_sesion_nueva(
+        video_anterior.as_deref(),
+    )));
     let program_copy = program.clone();
 
     // La máquina se construye DENTRO del hilo: Unicorn no es Send (usa Rc).
