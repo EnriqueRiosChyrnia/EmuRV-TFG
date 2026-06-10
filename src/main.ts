@@ -63,14 +63,6 @@ class App {
     });
     void this.suscribirEventos();
     this.setModo("sin_programa", t("estado.sin_programa"));
-
-    // Gancho para los autotests de gates (solo dev; se elimina en F6).
-    if (import.meta.env.DEV) {
-      (window as unknown as Record<string, unknown>).__emurvTest = {
-        editor: this.editor,
-        enviarBreakpoints: () => this.enviarBreakpoints(),
-      };
-    }
   }
 
   // ----- construcción de la UI -----
@@ -219,7 +211,10 @@ class App {
       setErrors(this.editor, errores);
       setExecLine(this.editor, null);
       for (const err of errores) {
-        this.consola.append(`línea ${err.line}, col ${err.col}: ${err.msg}\n`, "error");
+        this.consola.append(
+          `${t("error.posicion", { line: err.line, col: err.col, msg: err.msg })}\n`,
+          "error",
+        );
       }
       this.setModo("sin_programa", t("estado.errores", { n: errores.length }), "error");
     }

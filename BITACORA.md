@@ -212,3 +212,63 @@ version 1 (SYSV), statically linked, stripped
 - Validación con qemu-riscv32: **no aplicable en macOS** (el modo de usuario de QEMU es solo-Linux; documentado en F0). La validación equivalente queda cubierta por los tests de header + `file` + verificación de contenido de segmentos byte a byte.
 - Ayuda verificada por DOM: overlay visible, 8 filas de tablas (5 syscalls + 3 zonas de memoria). Captura: `docs/capturas/f5-ayuda.png`.
 
+---
+
+## Fase 6 — Pulido y entrega
+
+### 2026-06-10 — Cierre de la fase
+
+- Eliminado todo el andamiaje de autotests (comando `autotest_report`, gancho `__emurvTest`): el binario de entrega no contiene código de prueba.
+- Último string hardcodeado del frontend movido a `es.json` (`error.posicion`); barrido de i18n completo (RNF-05).
+- Icono propio (chip con la "V" de RISC-V) generado programáticamente (PNG 1024² en Python puro, sin dependencias) y procesado con `cargo tauri icon` para todos los tamaños. Fuente: `docs/icono-fuente.png`. [Seguro]
+- README.md de usuario en la raíz: instalación (bundle y fuente, incluida la nota de cmake+pkg-config), primer programa en 5 minutos, tabla de syscalls, estructura del repo.
+
+### 2026-06-10 — Mediciones de RNF (hardware: Apple Silicon, build release)
+
+Tests reproducibles en `src-tauri/tests/rnf_rendimiento.rs` (`cargo test --release --test rnf_rendimiento -- --ignored --nocapture`):
+
+| RNF | Requisito | Medido | Margen |
+|-----|-----------|--------|--------|
+| RNF-02 | ensamblar 500 líneas < 200 ms | 502 líneas → **0.37 ms** | ~540× |
+| RNF-03 | ≥ 10 M instr/s | **1459.9 M instr/s** (sin breakpoints) | ~146× |
+| RNF-03 (adverso) | — | **108.7 M instr/s** con hook de breakpoints activo | ~11× |
+
+La diferencia 1460→109 M instr/s con hook activo confirma la decisión de ARQUITECTURA.md (hook solo si hay breakpoints): el JIT de Unicorn pierde un orden de magnitud con hook de código, pero incluso así supera el requisito. [Seguro — números medidos, no estimados]
+
+### 2026-06-10 — Bundle de release
+
+- `cargo tauri build`: compilación release limpia; **EmuRV.app generado (21 MB)**.
+- **Bug atrapado por la captura de verificación del bundle**: el overlay de ayuda quedaba siempre visible — el `display: flex` del CSS pisa al atributo `hidden` (la regla de autor gana a la del UA). Fix: regla `#ayuda-overlay[hidden] { display: none; }` (mayor especificidad). Rebundle posterior verificado contra el `dist/` embebido. Lección para la tesis: la verificación visual del artefacto final encuentra lo que los tests de DOM con click no ven (el autotest de F5 chequeaba "visible tras click", que era cierto — estaba visible desde antes). [Seguro]
+- **DMG**: el paso de estilado del DMG de Tauri (`bundle_dmg.sh`) usa AppleScript sobre Finder y falla sin el permiso de Automation (no otorgable en sesión autónoma). Plan B aplicado: `hdiutil create -format UDZO` directo → **EmuRV_0.1.0_aarch64.dmg (7.9 MB)**, mismo contenido, sin la decoración de fondo del instalador. [Seguro]
+- **RNF-01 (arranque)**: 0.34 s desde `open` hasta que el proceso aparece como aplicación con ventana (el primer sondeo ya lo encontró: la cota real es ≤ un roundtrip de osascript, ~0.3 s). Muy por debajo de los 2 s exigidos. [Seguro]
+
+### 2026-06-10 — GATE FINAL: checklist RF-01..RF-10 con evidencia
+
+| RF | Requisito | Evidencia |
+|----|-----------|-----------|
+| RF-01 | Editor con resaltado y números de línea | CodeMirror 6 + `StreamLanguage` RV32 propio (`src/editor/riscv.ts`); capturas `docs/capturas/f3-*.png`, `f4-*.png` |
+| RF-02 | Errores por línea/columna en español | Tests `errores_en_espanol_con_linea_y_columna`, `reporta_multiples_errores_ordenados`; verificación DOM F4: 2 subrayados anclados + mensajes en consola |
+| RF-03 | Ejecutar y Paso sobre Unicorn | Tests `paso_a_paso_actualiza_registros`, `ecall_avanza_pc_y_no_se_repite`; gates F2 (hola mundo GUI) y F3 (fibonacci paso a paso) |
+| RF-04 | Breakpoints por línea + línea actual resaltada | Test `breakpoint_detiene_sin_ejecutar_y_reanuda`; demo F4 (3 paradas en bucle con t0=1,2,3, `linea_resaltada=true`, captura) |
+| RF-05 | Registros ABI hex/dec con resaltado de cambios | Panel `registros.ts`; evidencia F3-T2: traza `s0=...,1*` (resaltado solo en el paso del cambio) |
+| RF-06 | Memoria navegable + accesos .text/.data/sp | Panel `memoria.ts` (hexdump 16×16 + ASCII); captura F3 mostrando .data en 0x10010000 |
+| RF-07 | Consola con syscalls RARS (1,4,5,10,11) | `syscalls.rs` + tests; F3-T1: suma interactiva punta a punta tipeando en la consola; reintento de entrada inválida testado; tabla en la Ayuda |
+| RF-08 | Export ELF32 RISC-V estándar | 3 tests de formato en `elf_export.rs`; `file`: "ELF 32-bit LSB executable, UCB RISC-V" (F5) |
+| RF-09 | ≥5 ejemplos en español en menú | `ejemplos/*.asm` (5), menú «Ejemplos» verificado en gates F3/F4/F5; RNF-06: 6 tests de integración |
+| RF-10 | Reiniciar al estado post-ensamblado | Test `reset_vuelve_al_estado_post_ensamblado` (registros y .data restaurados); botón verificado en GUI (F3) |
+
+**RNF**: RNF-01 arranque 0.34 s ✓ · RNF-02 ensamblado 500 líneas 0.37 ms ✓ · RNF-03 1460 M instr/s (109 M con bp) ✓ · RNF-04 bundle 21 MB (.app) / 7.9 MB (.dmg) < 30 MB ✓ · RNF-05 i18n `es.json` completo ✓ · RNF-06 un test de integración por ejemplo (6 en total) ✓
+
+**Estado final**: `cargo test` 34/34 verdes (+3 benchmarks RNF ejecutables aparte en release) · `cargo clippy --all-targets` 0 warnings · `cargo tauri build` exitoso · bundle en `src-tauri/target/release/bundle/`.
+
+**Pendiente de verificación presencial** (la sesión autónoma no puede desbloquear la pantalla): re-captura visual del bundle final con el fix del overlay — la evidencia actual es la regla CSS presente en el `dist/` embebido y la determinismo del selector. Pasos: abrir `EmuRV.app`, confirmar que la ayuda NO está abierta al inicio y que el botón «Ayuda» la abre/cierra.
+
+### PROPUESTAS FUERA DE ALCANCE (registradas durante el desarrollo, NO implementadas)
+
+- Sugerencias "¿quisiste decir…?" por distancia de edición en errores de mnemónicos.
+- Desensamblado de .text en la vista de memoria (capstone, ya designado en el stack).
+- Soporte de `%hi`/`%lo` y `.equ` en el ensamblador.
+- Resaltado del operando exacto del error (hoy se subraya desde la columna al fin de línea).
+- Syscalls RARS adicionales (8 leer cadena, 17 exit2 con código).
+
+

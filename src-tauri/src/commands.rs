@@ -395,14 +395,6 @@ pub fn read_mem(addr: u32, len: u32, manager: State<'_, EmuManager>) -> Result<V
         .map_err(|_| String::from("la sesión de emulación terminó"))?
 }
 
-/// SOLO PARA VERIFICACIÓN DE GATES EN DEV (se elimina al cerrar la fase):
-/// el frontend reporta el resultado del autotest a un archivo.
-#[cfg(debug_assertions)]
-#[tauri::command]
-pub fn autotest_report(text: String) -> Result<(), String> {
-    std::fs::write("/tmp/emurv_gate.txt", text).map_err(|e| e.to_string())
-}
-
 /// Registros + pc + línea actual (para refrescar al pausar).
 #[tauri::command]
 pub fn get_state(manager: State<'_, EmuManager>) -> Result<MachineState, String> {
