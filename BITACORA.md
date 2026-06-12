@@ -357,3 +357,12 @@ Gate TEC1 ✓: 70 tests + 6 ignore, clippy 0, tsc limpio.
 - Tests (`tec2_teclado.rs`, 6): lectura CONTROL/DATA/CONTROL con lw y con lb; cola vacía → 0/0; overflow 65→64 perdiendo la más vieja; reset limpia; **eco end-to-end**: programa asm que pollea CONTROL, lee DATA, imprime con syscall 11 y sale con Esc — cola "ab\x1b" inyectada → consola "ab", Exited{0}.
 
 Gate TEC2 ✓: 76 tests + 6 ignore (integración 6/6, regresiones JIT y fb* intactas), clippy 0, tsc limpio.
+
+## TEC3 — Syscalls de tiempo 30 y 32 (2026-06-12)
+
+- **a7=30** (tiempo del sistema en ms, compatible RARS: bajos en a0, altos en a1): reloj **monotónico anclado a época** — al primer uso se captura `(Instant, SystemTime)` en un `OnceLock` estático y se devuelve `época_ancla + transcurrido_monotónico`. Diferencia documentada con RARS: `System.currentTimeMillis()` puede saltar hacia atrás (NTP); EmuRV garantiza valor no decreciente dentro del proceso. Ancla compartida entre máquinas del proceso: deseable para monotonía global. [Seguro]
+- **a7=32** (dormir a0 ms, u32): publica el frame ANTES de dormir (mismo patrón que `read_int`: la pantalla se ve durante el sleep) y duerme contra deadline en trozos ≤10 ms chequeando `stop_request` (el Arc cableado en TEC2); al detectar stop corta YA y hace `emu_stop()` sin marcar error — semántica de pausa de usuario idéntica a la rama `Cancel` de `read_int`. Latencia de corte ≤10 ms.
+- Mensaje de "syscall desconocida" actualizado (lista ahora 1, 4, 5, 10, 11, 30, 32).
+- Tests (`tec3_tiempo.rs`, 4): plausibilidad y no-decrecimiento del par a1:a0 entre dos llamadas; sleep de 80 ms → delta ∈ [60, 5000) ms; **sleep de 10 000 ms interrumpido a los ~50 ms retorna `Paused` en <1 s** (y ≥30 ms: durmió de verdad), con guardián anticuelgue; animación durante sleep: 3 frames con color distinto + sleep 30 ms → `seq ≥ 2` (el publish pre-sleep es el mecanismo).
+
+Gate TEC3 ✓: 80 tests + 6 ignore, clippy 0. (tsc se gatea con TEC4, que está en curso sobre src/.)
