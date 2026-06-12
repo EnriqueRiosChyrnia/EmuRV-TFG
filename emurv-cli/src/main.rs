@@ -444,6 +444,17 @@ fn puente_consola(
                         ));
                     }
                 }
+                ConsoleEvent::Clear => {
+                    // Syscall 60 (RP10): la secuencia ANSI de limpiar SOLO
+                    // si stdout es una terminal real — en pipe/CI no se
+                    // ensucian los diffs (el stdout sigue siendo
+                    // EXCLUSIVAMENTE la salida del invitado).
+                    use std::io::IsTerminal;
+                    if stdout.is_terminal() {
+                        let _ = stdout.write_all(b"\x1B[2J\x1B[H");
+                        let _ = stdout.flush();
+                    }
+                }
             }
         }
     })

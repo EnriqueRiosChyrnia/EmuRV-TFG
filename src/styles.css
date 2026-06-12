@@ -133,7 +133,27 @@ html, body {
   font-family: var(--mono);
   font-size: 13px;
   height: 100%;
+  position: relative;
 }
+
+/* Botón Limpiar (RP10): discreto, arriba a la derecha, siempre visible. */
+.consola-limpiar {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.consola-limpiar:hover { opacity: 1; }
 
 .consola-salida {
   flex: 1;

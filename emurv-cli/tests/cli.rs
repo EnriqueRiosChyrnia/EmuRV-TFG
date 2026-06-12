@@ -487,3 +487,38 @@ fn readstring_y_sbrk_combinados_por_pipe() {
          agrega el '\\n' de fgets — apartamiento documentado)"
     );
 }
+
+// ---------------------------------------------------------------------------
+// RP10 Fase 3 — syscall 60 en pipe: NADA de ANSI (los diffs de CI no se
+// ensucian; la detección de TTY hace el resto en una terminal real).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn syscall_60_en_pipe_no_emite_ansi() {
+    let f = fuente_temporal(
+        "limpiar.s",
+        ".text
+  li a0, 65
+  li a7, 11
+  ecall
+  li a7, 60
+  ecall
+  li a0, 66
+  li a7, 11
+  ecall
+  li a7, 10
+  ecall
+",
+    );
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "AB",
+        "en pipe el 60 es invisible: solo la salida del invitado"
+    );
+    assert!(
+        !out.stdout.contains(&0x1B),
+        "ni un byte ESC en el stdout de un pipe"
+    );
+}

@@ -11,6 +11,7 @@
 //! | 11 | imprimir carácter | a0 = código        | —             |
 //! | 30 | tiempo en ms    | —                    | a0 = bits bajos, a1 = bits altos |
 //! | 32 | dormir          | a0 = ms (sin signo)  | —             |
+//! | 60 | limpiar consola (extensión EmuRV, no RARS) | — | —     |
 //! | 93 | terminar con código (Exit2) | a0 = código (i32) | —    |
 //!
 //! El 17 (Exit2 de MARS/MIPS) NO existe en RARS ni acá: se rechaza con un
@@ -38,8 +39,10 @@ use unicorn_engine::{RegisterRISCV, Unicorn};
 pub enum ConsoleEvent {
     /// Texto a mostrar en la consola.
     Output(String),
-    /// El programa espera una línea de entrada (syscall 5).
+    /// El programa espera una línea de entrada (syscall 5 u 8).
     InputRequest,
+    /// El programa pidió limpiar la consola (syscall 60, extensión EmuRV).
+    Clear,
 }
 
 /// Mensajes hacia la máquina cuando está esperando entrada.
@@ -232,6 +235,12 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
             let _ = uc.reg_write(A1, ms >> 32);
         }
         32 => dormir(uc),
+        60 => {
+            // Extensión EmuRV (no existe en RARS; documentada en Ayuda y
+            // docs): limpiar la consola. La UI vacía el panel; el CLI solo
+            // emite la secuencia ANSI si stdout es una terminal real.
+            let _ = uc.get_data().out.send(ConsoleEvent::Clear);
+        }
         93 => {
             // Exit2 (RARS, número del ABI Linux RISC-V): termina con el
             // código de a0. El núcleo guarda el i32 REAL; el acotamiento a
@@ -276,7 +285,7 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
                          5 leer entero, 8 leer cadena, 9 reservar memoria (sbrk), \
                          10 terminar, 11 imprimir carácter, \
                          30 tiempo del sistema en ms, 32 dormir a0 ms, \
-                         93 terminar con código (a0)"
+                         60 limpiar consola, 93 terminar con código (a0)"
                     ),
                 );
             }

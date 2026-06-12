@@ -281,3 +281,51 @@ fn data_que_pisa_el_heap_error_de_carga() {
     let (_i, in_rx) = channel::<InputMsg>();
     Machine::new(program, out_tx, in_rx).expect("196608 bytes caben exactos");
 }
+
+// ---------------------------------------------------------------------------
+// RP10 Fase 3 — syscall 60: limpiar consola (extensión EmuRV).
+// ---------------------------------------------------------------------------
+
+use std::sync::mpsc::Receiver;
+
+/// El 60 emite ConsoleEvent::Clear en el lugar correcto de la secuencia
+/// (entre las dos salidas) y no frena la ejecución.
+#[test]
+fn syscall_60_emite_clear_en_secuencia() {
+    let src = "
+.text
+  li a0, 65        # 'A'
+  li a7, 11
+  ecall
+  li a7, 60        # limpiar
+  ecall
+  li a0, 66        # 'B'
+  li a7, 11
+  ecall
+  li a7, 10
+  ecall
+";
+    let program = assemble(src).expect("ensambla");
+    let (out_tx, out_rx) = channel::<ConsoleEvent>();
+    let (_i, in_rx) = channel::<InputMsg>();
+    let mut m = Machine::new(program, out_tx, in_rx).expect("máquina");
+    assert!(matches!(correr(&mut m), StopReason::Exited { code: 0 }));
+    let eventos: Vec<ConsoleEvent> = drenar(&out_rx);
+    assert_eq!(
+        eventos,
+        vec![
+            ConsoleEvent::Output("A".into()),
+            ConsoleEvent::Clear,
+            ConsoleEvent::Output("B".into()),
+        ],
+        "Clear viaja en orden, entre las dos salidas"
+    );
+}
+
+fn drenar(rx: &Receiver<ConsoleEvent>) -> Vec<ConsoleEvent> {
+    let mut v = Vec::new();
+    while let Ok(ev) = rx.try_recv() {
+        v.push(ev);
+    }
+    v
+}

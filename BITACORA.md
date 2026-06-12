@@ -1037,3 +1037,29 @@ Tests: 8 nuevos en rp10_syscalls.rs (14 total) + combinado CLI por pipe
 (sbrk → readstring al heap → imprimir; verifica también la ausencia del
 '\n'). Compuerta F2: suites completas verdes (27 binarios src-tauri, CLI
 22+10+6+1), clippy 0 ambos.
+
+## 2026-06-12 — RP10-F3: limpiar consola (botón y syscall 60)
+
+[Seguro] `ConsoleEvent::Clear` nuevo en el núcleo; syscall 60 (extensión
+EmuRV, NO RARS — documentada como tal) lo emite sin frenar la ejecución.
+Test de secuencia: Output("A") → Clear → Output("B") en orden.
+
+[Seguro] UI: evento `emu://consola-limpiar` → `Consola.clear()` (mismo
+método que usa Reiniciar). Botón «Limpiar» en el panel Consola: siempre
+visible (con o sin sesión), solo borra el texto — la máquina ni se entera;
+i18n `consola.limpiar` + tooltip. CSS discreto arriba a la derecha.
+
+[Seguro — decisión registrada] CLI: el 60 emite `\x1B[2J\x1B[H` SOLO si
+stdout es una terminal real (`IsTerminal` de std, estable desde Rust 1.70).
+En pipe/CI: NADA — el stdout sigue siendo exclusivamente la salida del
+invitado y los diffs no se ensucian. Test de proceso: "A" + 60 + "B" por
+pipe da exactamente "AB", ni un byte ESC. La rama TTY no es testeable por
+pipe (por definición); verificación manual pendiente.
+
+[PENDIENTE HUMANO] (1) Botón «Limpiar» en la app: borra el texto, no
+interrumpe una corrida, funciona sin sesión. (2) Syscall 60 en terminal
+real: limpia la pantalla de verdad (correr lecciones/.. cualquier programa
+con li a7,60 SIN pipe).
+
+Compuerta F3: suites verdes (27 binarios src-tauri; CLI 23 en cli.rs +
+resto), tsc limpio, clippy 0 ambos.
