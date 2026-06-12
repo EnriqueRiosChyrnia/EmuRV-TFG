@@ -90,14 +90,14 @@ fn fb1_performance_conversion() {
         let start = Instant::now();
         let _ = m.read_framebuffer_rgba().expect("leer FB");
         let elapsed = start.elapsed();
-        duraciones.push(elapsed.as_millis());
+        duraciones.push(elapsed.as_micros());
     }
 
-    let promedio = duraciones.iter().sum::<u128>() / duraciones.len() as u128;
-    eprintln!("FB1 conversión: {} ms promedio", promedio);
+    let promedio_us = duraciones.iter().sum::<u128>() / duraciones.len() as u128;
+    eprintln!("FB1 conversión: {} µs promedio", promedio_us);
     assert!(
-        promedio <= 3,
-        "conversión debe ser <= 3 ms en release (obtuvo {} ms)",
-        promedio
+        promedio_us <= 3000,
+        "conversión debe ser <= 3 ms en release (obtuvo {} µs)",
+        promedio_us
     );
 }

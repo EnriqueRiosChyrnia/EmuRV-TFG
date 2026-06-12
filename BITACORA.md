@@ -258,3 +258,28 @@ Saneamiento documental ejecutado (3 agentes + hilo principal):
 - **`ENSAMBLADOR.md`:** "35/35 tests" y "6 ejemplos" anotados como estado al cierre de v0.1; estado actual fechado: 55 verdes + 4 `#[ignore]` = 59, y 7 ejemplos (06-tetris ASCII reemplazado por 08-tetris-grafico; 07-franjas agregado en FB2). **`docs/README.md`:** ruta `~/Desktop/...` → `~/Documents/UNI/Tesis/EmuRV-TFG`. **`ARQUITECTURA.md`:** `/tests` reubicado en el árbol a `src-tauri/tests` + agregado `video.rs` faltante, con notas fechadas. [Seguro]
 - **Frontend y núcleo:** comentarios RF1/RF2/RF4 → RB-1/RB-2/RB-4 en `src/pantalla.ts`, `src/main.ts`, `src/paneles/video.ts`; doc-comments de `core/mod.rs` actualizados (13h y semántica real del registro de control).
 - La Etapa 2 (frontend) cerró en el commit `3d515e1`; su detalle quedó en el mensaje de commit y los gates se registran acá: 55+4 tests, clippy 0 warnings, tsc limpio, `vite build` ok.
+
+## Etapa 4 — Mediciones y evidencia en release (2026-06-11)
+
+Hardware: Mac Apple Silicon (Darwin 25.5.0). Build: `--release`. Comando: `cargo test --release -- --ignored --nocapture`. Cifras EXACTAS medidas hoy:
+
+| Benchmark | Resultado | Requisito | Margen |
+|-----------|-----------|-----------|--------|
+| RNF-02 ensamblar 502 líneas | **1.56 ms** (2392 bytes de .text) | < 200 ms | ~128× |
+| RNF-03 velocidad de ejecución | **1146.8 M instr/s** (40 000 004 instr en 0.035 s) | ≥ 10 M instr/s | ~115× |
+| RNF-03 con hook de breakpoint activo | **89.9 M instr/s** (4 000 003 instr en 0.044 s) | ≥ 10 M instr/s | ~9× |
+| FB1 conversión framebuffer→RGBA | **58 µs** promedio (10 corridas) | ≤ 3 ms | ~52× |
+| FB4 FPS lado Rust bajo carga | **835 FPS** (1000 frames en 1.197 s) | ≥ 30 | ~28× |
+
+Notas:
+- La cifra 2-3 ms de FB1 que motivó la desviación registrada en Etapa 3 era de build debug; en release la conversión cuesta 58 µs (el test ahora mide en µs para no perder precisión por división entera de ms). El gate FB1 original (<2 ms) se cumple en release con margen ~34×. [Seguro — medido]
+- **Bench nuevo `tests/fb4_fps.rs`** (gate FB4): el guest repinta el framebuffer completo (76 800 `sb`, ~230 000 instr/frame) y cierra cada frame con syscall 5 (el hook publica antes de bloquear — camino de producción verificado por `fb2_publica_antes_de_bloquear_por_entrada`), con las 1000 líneas pre-encoladas. Se verifica además que cada repintado publica exactamente una vez (flag sucio correcto bajo carga). El FPS de UI real (canvas a 30 Hz) queda **pendiente de medición humana** con la app abierta.
+- La comparación RNF-03 sin/con hook (1146.8 → 89.9 M instr/s) reconfirma la decisión de ARQUITECTURA.md de instalar el hook de código solo cuando hay breakpoints. [Seguro]
+
+### Hallazgos colaterales del diseño del bench (fuera de alcance, NO corregidos)
+
+1. **El timeout de `Machine::run(ms)` no interrumpe un bucle apretado sin syscalls:** un guest que solo hace `sb/addi/bne` en bucle no retorna nunca del `emu_start` con timeout (verificado: el primer diseño del bench colgó indefinidamente con `run(5)`). Implicancia potencial en producción: el botón «Detener» podría no responder durante un bucle infinito puro (sin syscalls ni breakpoints), porque el hilo de emulación procesa comandos solo entre tramos. Pendiente de verificación humana en la app; si se confirma, es candidato a fix futuro (p. ej. hook de conteo o `emu_stop` desde otro hilo). [Probable — reproducido en test, no verificado en la GUI]
+2. **El camino del `ebreak` tiene un bug latente:** al reanudar tras un `ebreak`, la ejecución cae con "instrucción inválida" más allá de la instrucción siguiente (el pc entregado al hook ya viene avanzado y el flujo post-hook avanza de nuevo). Ningún ejemplo ni test del proyecto usa `ebreak`, por eso nunca se vio. Registrado acá; corregirlo queda fuera del alcance de esta sesión (el segundo diseño del bench lo evitó usando syscall 5). [Seguro — reproducido con test sonda hoy]
+### Bundle final (2026-06-11)
+
+`cargo tauri build` exitoso: **EmuRV.app 21 MB** y **EmuRV_0.1.0_aarch64.dmg 7.2 MB** — ambos bajo el límite RNF-04 de 30 MB. A diferencia de la corrida de v0.1, esta vez `bundle_dmg.sh` completó el DMG estilado sin el plan B de `hdiutil`. [Seguro — medido]

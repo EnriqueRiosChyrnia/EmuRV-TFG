@@ -96,3 +96,14 @@ Comando Tauri `read_framebuffer` (implementado en FB1):
 - Se escala con `image-rendering: pixelated` en CSS para 1:1 pixel art.
 - Volcado a canvas con `putImageData` sobre `ImageData` reusado, no recreado cada frame (RB-1, ex RF1).
 - Timer de redibujado en la UI: ~30 Hz (RB-2, ex RF2). No existe vsync explícito disparado por escritura al registro de control (ver la nota de divergencia en la sección de ese registro).
+
+## Rendimiento medido (2026-06-11, build release, Mac Apple Silicon)
+
+Cifras medidas con la suite de benchmarks (`cargo test --release -- --ignored --nocapture`):
+
+| Métrica | Medido | Requisito | Margen |
+|---------|--------|-----------|--------|
+| Conversión framebuffer→RGBA (`fb1_performance_conversion`) | **58 µs** promedio | ≤ 3 ms | ~52× |
+| Frames publicados por segundo, lado Rust, bajo carga (`fb4_fps`: repintado completo de 320×240 por frame, color distinto por pasada, 1000 frames) | **835 FPS** | ≥ 30 FPS (alimentar la UI a 30 Hz) | ~28× |
+
+El bench de FPS mide el techo del lado Rust (emulación del repintado byte a byte ≈ 230 000 instrucciones por frame + detección de cambios + conversión a RGBA + copia al estado compartido). NO incluye el puente Tauri ni el volcado al canvas: la UI consume a ~30 Hz por diseño (RB-2), de modo que el cuello real es el timer de la UI, no el emulador. **El FPS efectivo percibido en pantalla (canvas) requiere medición con la app corriendo y ojo humano: pendiente.**
