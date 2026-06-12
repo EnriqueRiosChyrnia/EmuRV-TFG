@@ -309,3 +309,28 @@ Refutados (ejemplos): "ebreak se ignora en Ejecutar" (el camino tiene el bug lat
 - `cargo tauri build` final con todos los fixes: **EmuRV.app 21 MB / DMG 7.2 MB**.
 
 Sesión ultracode completada: Etapas 0-7 del plan ejecutadas. Los capítulos I-IV y VI + REFERENCIAS.md (37 entradas: 31 verificadas, 5 corregidas, 1 descartada por inverificable) + INDICE-MEMORIA + plantilla vacía del Cap. V viven en `Tesis/partes/`, fuera de este repo. El Capítulo V NO se escribió (no hay datos de evaluación; la plantilla lo advierte). Esta rama NO se mergea a main (decisión humana pendiente).
+
+## TEC0 — Spike de interrumpibilidad y mecanismo MMIO de teclado (2026-06-12)
+
+Sesión ultracode sobre rama nueva `feature/teclado` (desde `feature/framebuffer`, plan en `Tesis/PLAN-TECLADO.md`). Dos PoC contra Unicorn crudo (tests `spike_count.rs` y `spike_mmio.rs`, 12 tests) ANTES de tocar `Machine`. Cifras release, Apple Silicon:
+
+### PoC A — Interrumpibilidad por count: VERDE
+
+- `emu_start(pc, NEVER, 0, count=10M)` sobre `j .` (bucle apretado puro) **retorna en 46.8 ms** — lo que el timeout jamás logró (hallazgo BITACORA Etapa 4). Timeout+count conviven (gana count).
+- **Count exacto al 100%**: frío, con caché JIT caliente, y con count cambiado entre corridas (verificado con contador real en x5). `count=1` tras corridas con count>0 ejecuta exactamente 1 instrucción SIN `ctl_flush_tb` — el bug JIT v0.1 solo aparece tras corridas LIBRES (count=0).
+- Throughput con slicing: **430.1 M instr/s** con tramos de 10M (100M instr, pc retomado entre tramos, sin pérdida ni duplicación); incluso con tramos de count=1000: 237.6 M instr/s (~4.2 µs de overhead por re-entrada a `emu_start`).
+
+### PoC B — Hook MEM_READ para MMIO: VERDE
+
+- Patrón MMIO estándar funciona en unicorn-engine 2.1.5: `mem_write` DENTRO del callback MEM_READ deja el valor fresco visible a la lectura del guest (sin recursión de hooks ni panic de borrow).
+- Semántica leer-consume estilo RARS verificada en registros del guest: CONTROL=1 con dato → leer DATA da el byte y consume → CONTROL=0. `lb` y `lw` funcionan (el hook ve el size real).
+- Dispara igual con caché JIT caliente. Costo con la página NO accedida: **nulo** (relación 1.004; 2.668 vs 2.680 G instr/s en bucle aritmético).
+- Alternativa `mmio_map` (callback devuelve el valor) también verificada verde, pero **se elige hook + memoria con respaldo real**: las lecturas de host (visor de memoria de la UI) no disparan hooks y por tanto NO consumen el dato del teclado — importa en un emulador didáctico. [Seguro — ambos PoC reproducibles]
+
+### Decisiones TEC0
+
+1. **Interrumpibilidad: tramos por count** (`RUN_SLICE_COUNT` ≈ 1M instr ≈ 2.3 ms a 430 M/s), con timeout de respaldo opcional. Resolverá el hallazgo "Detener no responde en bucle apretado".
+2. **Teclado: hook MEM_READ** sobre página 0xFFFF_0000 (RECEIVER_CONTROL +0, RECEIVER_DATA +4, direcciones RARS/MARS).
+3. El refresco `emu://registros` se desacopla del tramo (con tramos de ~2 ms inundaría la UI): cadencia ~100 ms por `Instant`, a definir en TEC1.
+
+Limitaciones registradas por los propios PoC: B5 no mide guests con muchas cargas a RAM normal (chequeo de rango del hook en camino lento); el patrón combinado con los hooks existentes de `machine.rs` se prueba recién en TEC2. Gate TEC0 ✓: 67 tests + 5 ignore, clippy 0, tsc limpio.
