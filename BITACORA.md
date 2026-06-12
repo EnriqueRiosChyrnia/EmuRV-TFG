@@ -711,3 +711,15 @@ Compuerta F3 ✓: 20 suites src-tauri + 20 tests CLI, clippy 0 ambos, transcript
 - Propuesta fuera de alcance registrada: integración del depurador en la UI Tauri (fase visual) y `--pause-on-ebreak` siguen pendientes de otros puntos.
 
 **Compuerta F4 (cierre RP6) ✓ [Seguro — corridas reales]:** `cargo test` + clippy 0 en AMBOS crates (20 suites + 21 tests CLI) · `scripts/ci-local.sh --skip-bundle` exit 0 · `cargo tauri build` ok · **bundle 22 MB ≤ 30 con SOLO el binario de la app adentro** (la feature gdb no entró: verificado en Contents/MacOS) · tsc limpio.
+
+## RP7 Fase 1 — Watchpoints con hooks condicionales (2026-06-12)
+
+Plan `docs/PLAN-RP7-depuracion.md`. `Watchpoint { addr, len 1|2|4, kind Read|Write|Both }`, `Machine::set_watchpoints` reemplazar-todo, **hooks MEM_READ/MEM_WRITE globales instalados SOLO si hay watchpoints y removidos al vaciar** (el patrón-LEY del bp_hook, con flush de TB en ambas transiciones). Regiones válidas: .data, pila, framebuffer, paleta; **página del teclado MMIO vetada** con error didáctico (vigilarla cambiaría la semántica leer-consume); fuera de toda región o len inválido → error claro. `StopReason::Watchpoint { addr, access, value, pc }` (campo `access` y no `kind`: choca con el tag serde del enum).
+
+**Hallazgo propio de la fase [Seguro — reproducido por el test de solapamiento]:** el `emu_stop` dentro del hook de memoria ABORTA la instrucción que accedía; al reanudar, esa instrucción se re-ejecuta y el mismo watchpoint dispararía para siempre. Solución espejo de `suppress_bp`: `suppress_watch` (clave: dirección del acceso + si fue escritura) se arma al REPORTAR la parada y se consume UNA vez al reanudar — la instrucción completa su acceso y la ejecución sigue. Se limpia en `load()` y al reemplazar la lista. En un bucle que escribe N veces, cada escritura dispara una vez (verificado por diseño del test Both: write → continuación → read).
+
+Tests (rp7_watchpoints.rs, 6): write con valor y pc exactos; read con valor leído de memoria (el hook MEM_READ no trae el dato); Both + solapamiento parcial (sw de 4 pisa watch de 1 byte interior); **lectura del HOST no dispara** (garantía TEC2 fijada por test); vetos y validaciones; hooks instalados/retirados según lista (introspección `watch_hooks_instalados`).
+
+**Medición [Seguro]:** RNF-03 con watchpoint activo y bucle CON carga de memoria por iteración (el caso caro): **71.4 M instr/s** (12 M instr en 0.168 s) — gate ≥10 M superado ~7×. Sin watchpoints: cero hooks (el test lo fija), corrida libre intacta.
+
+Compuerta F1 ✓: 21 suites verdes, clippy 0.

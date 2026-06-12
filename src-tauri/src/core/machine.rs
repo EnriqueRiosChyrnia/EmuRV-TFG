@@ -47,6 +47,15 @@ pub enum StopReason {
     Exited { code: i32 },
     /// Se alcanzó un breakpoint (la instrucción en `addr` NO se ejecutó).
     Breakpoint { addr: u32 },
+    /// Un watchpoint disparó: el programa leyó/escribió la zona vigilada.
+    /// `addr`/`value` son del ACCESO real (no del watch); `pc` es la
+    /// instrucción que accedió (la UI resuelve la línea vía source_map).
+    Watchpoint {
+        addr: u32,
+        access: WatchKind,
+        value: u32,
+        pc: u32,
+    },
     /// Pausa por software: el programa ejecutó `ebreak` en `addr`
     /// (convención RARS/gdb). El pc ya quedó fijado en la instrucción
     /// siguiente: reanudar continúa desde ahí, sin re-ejecutar el `ebreak`
@@ -62,6 +71,26 @@ pub enum StopReason {
     RuntimeError { message: String },
 }
 
+/// Tipo de acceso vigilado por un watchpoint (RP7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WatchKind {
+    Read,
+    Write,
+    Both,
+}
+
+/// Watchpoint sobre datos (RP7): vigila `len` bytes (1, 2 o 4) desde
+/// `addr`. Regiones válidas: .data, pila, framebuffer y paleta — la página
+/// del teclado MMIO está vetada (leer consume: vigilarla cambiaría la
+/// semántica del dispositivo).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct Watchpoint {
+    pub addr: u32,
+    pub len: u8,
+    pub kind: WatchKind,
+}
+
 /// Estado compartido con los hooks de Unicorn (vive en el `data` del motor).
 pub struct MachData {
     pub out: Sender<ConsoleEvent>,
@@ -72,6 +101,16 @@ pub struct MachData {
     pub breakpoints: HashSet<u32>,
     /// Breakpoint a ignorar una vez (el del pc actual al reanudar).
     pub suppress_bp: Option<u32>,
+    /// Watchpoints activos (RP7). Vec chico: la búsqueda lineal por acceso
+    /// es más barata que cualquier estructura para <10 entradas.
+    pub watchpoints: Vec<Watchpoint>,
+    /// Disparo de watchpoint pendiente: (addr, tipo de acceso, valor, pc).
+    pub hit_watchpoint: Option<(u32, WatchKind, u32, u32)>,
+    /// Supresión de UN disparo al reanudar (espejo de `suppress_bp`): el
+    /// emu_stop del hook ABORTA la instrucción que accedía; al reanudar,
+    /// esa instrucción se re-ejecuta y volvería a disparar el mismo
+    /// watchpoint para siempre. Clave: (addr del acceso, fue escritura).
+    pub suppress_watch: Option<(u32, bool)>,
     /// Último acceso a memoria inválido capturado por el hook MEM_INVALID.
     pub bad_mem: Option<(MemType, u64)>,
     /// Pausa por `ebreak` registrada por el hook de traps (dirección del
@@ -104,6 +143,10 @@ pub struct Machine<'a> {
     uc: Unicorn<'a, MachData>,
     program: Program,
     bp_hook: Option<unicorn_engine::UcHookId>,
+    /// Hooks de watchpoints (lectura, escritura) — instalados SOLO si hay
+    /// watchpoints (mismo patrón/LEY que bp_hook: sin watchpoints la
+    /// corrida libre no paga ni un hook).
+    watch_hooks: Option<(unicorn_engine::UcHookId, unicorn_engine::UcHookId)>,
     /// Una corrida libre (count=0) dejó bloques traducidos en la caché JIT.
     /// Esos bloques NO respetan el count=1 de un paso posterior (Unicorn
     /// ejecuta el bloque cacheado entero): hay que flushear la caché antes
@@ -147,6 +190,9 @@ impl Machine<'_> {
             runtime_error: None,
             breakpoints: HashSet::new(),
             suppress_bp: None,
+            watchpoints: Vec::new(),
+            hit_watchpoint: None,
+            suppress_watch: None,
             bad_mem: None,
             ebreak_pause: None,
             video_shared,
@@ -261,6 +307,7 @@ impl Machine<'_> {
             uc,
             program,
             bp_hook: None,
+            watch_hooks: None,
             tb_de_corrida: false,
             last_bp: None,
         };
@@ -359,6 +406,8 @@ impl Machine<'_> {
         d.suppress_bp = None;
         d.bad_mem = None;
         d.ebreak_pause = None;
+        d.hit_watchpoint = None;
+        d.suppress_watch = None;
         Ok(())
     }
 
@@ -516,9 +565,96 @@ impl Machine<'_> {
         Ok(())
     }
 
+    /// Instala watchpoints (RP7), semántica REEMPLAZAR-TODO como
+    /// `set_breakpoints`. Hooks MEM_READ/MEM_WRITE instalados SOLO si hay
+    /// alguno y removidos al vaciar, con flush de la caché JIT en ambas
+    /// transiciones (lección del bug Reiniciar→Paso).
+    pub fn set_watchpoints(&mut self, watchpoints: Vec<Watchpoint>) -> Result<(), String> {
+        for w in &watchpoints {
+            if !matches!(w.len, 1 | 2 | 4) {
+                return Err(format!(
+                    "tamaño de watchpoint inválido: {} (vale 1, 2 o 4 bytes)",
+                    w.len
+                ));
+            }
+            let fin = w.addr.wrapping_add(u32::from(w.len));
+            let en = |base: u32, size: u32| w.addr >= base && fin <= base.wrapping_add(size);
+            if en(KEYBOARD_BASE, KEYBOARD_SIZE) {
+                return Err(
+                    "esa dirección es del teclado MMIO (leerla consume la tecla): \
+                     no se puede vigilar; mirá el dispositivo con el visor de memoria"
+                        .to_string(),
+                );
+            }
+            let valida = en(DATA_REGION_BASE, DATA_REGION_SIZE)
+                || en(STACK_TOP - STACK_SIZE, STACK_SIZE)
+                || en(FRAMEBUFFER_BASE, FRAMEBUFFER_SIZE)
+                || en(PALETTE_BASE, PALETTE_SIZE);
+            if !valida {
+                return Err(format!(
+                    "0x{:08X} no está en una zona de datos vigilable \
+                     (.data, pila, framebuffer o paleta)",
+                    w.addr
+                ));
+            }
+        }
+        let need_hooks = !watchpoints.is_empty();
+        {
+            let d = self.uc.get_data_mut();
+            d.watchpoints = watchpoints;
+            // La supresión pendiente refería al estado anterior.
+            d.suppress_watch = None;
+        }
+        match (need_hooks, self.watch_hooks) {
+            (true, None) => {
+                // Hooks globales: los watchpoints pueden vivir en .data,
+                // pila, framebuffer o paleta a la vez; el filtrado fino lo
+                // hace la lista (que ya excluye la página del teclado).
+                let lectura = self
+                    .uc
+                    .add_mem_hook(HookType::MEM_READ, 1, 0, |uc, _t, addr, size, _v| {
+                        atender_watch(uc, addr, size, 0, false);
+                        true
+                    })
+                    .map_err(|e| format!("no se pudo instalar el hook de lectura: {e:?}"))?;
+                let escritura = self
+                    .uc
+                    .add_mem_hook(HookType::MEM_WRITE, 1, 0, |uc, _t, addr, size, valor| {
+                        atender_watch(uc, addr, size, valor as u32, true);
+                        true
+                    })
+                    .map_err(|e| format!("no se pudo instalar el hook de escritura: {e:?}"))?;
+                self.watch_hooks = Some((lectura, escritura));
+                let _ = self.uc.ctl_flush_tb();
+                self.tb_de_corrida = false;
+            }
+            (false, Some((l, e))) => {
+                self.uc
+                    .remove_hook(l)
+                    .map_err(|e| format!("no se pudo retirar el hook de lectura: {e:?}"))?;
+                self.uc
+                    .remove_hook(e)
+                    .map_err(|e| format!("no se pudo retirar el hook de escritura: {e:?}"))?;
+                self.watch_hooks = None;
+                let _ = self.uc.ctl_flush_tb();
+                self.tb_de_corrida = false;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// ¿Hay hooks de watchpoint instalados? Introspección para los tests
+    /// del patrón instalar-solo-si-hace-falta (RP7 F1).
+    #[doc(hidden)]
+    pub fn watch_hooks_instalados(&self) -> bool {
+        self.watch_hooks.is_some()
+    }
+
     fn clear_run_state(&mut self) {
         let d = self.uc.get_data_mut();
         d.hit_breakpoint = None;
+        d.hit_watchpoint = None;
         d.runtime_error = None;
         d.bad_mem = None;
         d.ebreak_pause = None;
@@ -644,6 +780,15 @@ impl Machine<'_> {
         if let Some(addr) = d.hit_breakpoint.take() {
             return StopReason::Breakpoint { addr };
         }
+        if let Some((addr, access, value, pc)) = d.hit_watchpoint.take() {
+            d.suppress_watch = Some((addr, access == WatchKind::Write));
+            return StopReason::Watchpoint {
+                addr,
+                access,
+                value,
+                pc,
+            };
+        }
         // Defensa: si alguna versión futura de Unicorn entregara el trap de
         // ebreak al hook INTR, la rama CAUSE_BREAKPOINT deja esta marca.
         if let Some(addr) = d.ebreak_pause.take() {
@@ -718,6 +863,58 @@ fn runtime_error_message(e: uc_error, pc: u32, bad_mem: Option<(MemType, u64)>) 
         }
         other => format!("error del emulador en pc = 0x{pc:08X}: {other:?}"),
     }
+}
+
+/// Atiende un acceso a memoria bajo hooks de watchpoint (RP7): si el
+/// acceso solapa algún watchpoint del tipo correcto, registra el disparo y
+/// frena. Para lecturas el valor se toma de la memoria (el parámetro del
+/// hook MEM_READ no trae el dato). Función libre porque corre dentro del
+/// hook, donde no hay `Machine`.
+fn atender_watch(
+    uc: &mut Unicorn<'_, MachData>,
+    addr: u64,
+    size: usize,
+    valor_escrito: u32,
+    es_escritura: bool,
+) {
+    let ini = addr as u32;
+    let fin = ini.wrapping_add(size as u32);
+    if uc.get_data().suppress_watch == Some((ini, es_escritura)) {
+        // Re-ejecución de la instrucción interrumpida por el disparo
+        // anterior: dejarla completar (una sola vez).
+        uc.get_data_mut().suppress_watch = None;
+        return;
+    }
+    let disparo = uc.get_data().watchpoints.iter().copied().find(|w| {
+        let w_fin = w.addr.wrapping_add(u32::from(w.len));
+        let solapa = ini < w_fin && w.addr < fin;
+        let tipo_ok = match w.kind {
+            WatchKind::Both => true,
+            WatchKind::Read => !es_escritura,
+            WatchKind::Write => es_escritura,
+        };
+        solapa && tipo_ok
+    });
+    let Some(_w) = disparo else { return };
+    let valor = if es_escritura {
+        valor_escrito
+    } else {
+        let mut buf = [0u8; 4];
+        let n = size.min(4);
+        if uc.mem_read(addr, &mut buf[..n]).is_err() {
+            0
+        } else {
+            u32::from_le_bytes(buf)
+        }
+    };
+    let pc = uc.reg_read(PC).unwrap_or(0) as u32;
+    let kind = if es_escritura {
+        WatchKind::Write
+    } else {
+        WatchKind::Read
+    };
+    uc.get_data_mut().hit_watchpoint = Some((ini, kind, valor, pc));
+    let _ = uc.emu_stop();
 }
 
 #[cfg(feature = "gdb")]
