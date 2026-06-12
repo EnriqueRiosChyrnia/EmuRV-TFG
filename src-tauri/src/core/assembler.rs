@@ -90,6 +90,8 @@ enum Tok {
     LParen,
     RParen,
     Colon,
+    /// `%` de los operadores %hi/%lo (RP5).
+    Percent,
 }
 
 #[derive(Debug, Clone)]
@@ -162,11 +164,11 @@ fn lex_line(src: &str, line_no: u32) -> Result<Vec<STok>, AsmError> {
                 i = next;
             }
             '%' => {
-                return Err(AsmError::new(
-                    line_no,
+                toks.push(STok {
+                    tok: Tok::Percent,
                     col,
-                    "los operadores %hi/%lo no están soportados; usá «la» para cargar direcciones",
-                ));
+                });
+                i += 1;
             }
             '-' | '+' => {
                 let (val, next) = lex_number(&chars, i, line_no)?;
@@ -423,6 +425,19 @@ enum OpKind {
     Imm(i64),
     Sym(String),
     Mem { off: i64, base: u8 },
+    /// `%hi(x)` / `%lo(x)` como inmediato (lui/addi/ori). La resolución es
+    /// en pasada 2 (las etiquetas pueden definirse después, como siempre).
+    HiLo { hi: bool, arg: HiLoArg },
+    /// `%lo(x)(base)` como operando de memoria de cargas/almacenamientos.
+    MemLo { arg: HiLoArg, base: u8 },
+}
+
+/// Argumento de %hi/%lo: etiqueta (se resuelve en pasada 2) o valor ya
+/// conocido (número literal o constante .eqv sustituida en pasada 1).
+#[derive(Debug, Clone, PartialEq)]
+enum HiLoArg {
+    Sym(String),
+    Val(i64),
 }
 
 #[derive(Debug, Clone)]
@@ -461,6 +476,10 @@ struct Pass1 {
     instrs: Vec<PInstr>,
     symbols: BTreeMap<String, u32>,
     sym_lines: HashMap<String, u32>,
+    /// Constantes simbólicas `.eqv`/`.equ` (RP5): valor y línea de
+    /// definición. Se sustituyen al parsear operandos (deben definirse
+    /// ANTES de usarse, a diferencia de las etiquetas).
+    consts: HashMap<String, (i64, u32)>,
     fixups: Vec<DataFixup>,
     errors: Vec<AsmError>,
 }
@@ -475,6 +494,7 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
         instrs: Vec::new(),
         symbols: BTreeMap::new(),
         sym_lines: HashMap::new(),
+        consts: HashMap::new(),
         fixups: Vec::new(),
         errors: Vec::new(),
     };
@@ -552,6 +572,13 @@ fn cur_addr(p: &Pass1) -> u32 {
 }
 
 fn define_label(p: &mut Pass1, name: &str, line: u32, col: u32) -> Result<(), AsmError> {
+    if let Some((_, prev)) = p.consts.get(name) {
+        return Err(AsmError::new(
+            line,
+            col,
+            format!("«{name}» ya es una constante .eqv (definida en la línea {prev}); no puede ser etiqueta"),
+        ));
+    }
     if let Some(prev) = p.sym_lines.get(name) {
         return Err(AsmError::new(
             line,
@@ -730,6 +757,21 @@ fn parse_directive(
                     [STok {
                         tok: Tok::Ident(sym),
                         col: scol,
+                    }] if p.consts.contains_key(sym) => {
+                        // Constante .eqv: vale en .word/.half/.byte.
+                        let v = p.consts[sym].0;
+                        if v < min || v > max {
+                            return Err(AsmError::new(
+                                line,
+                                *scol,
+                                format!("el valor {v} de «{sym}» no cabe en {name} ({min}..{max})"),
+                            ));
+                        }
+                        p.data.extend_from_slice(&v.to_le_bytes()[..size]);
+                    }
+                    [STok {
+                        tok: Tok::Ident(sym),
+                        col: scol,
                     }] if name == ".word" => {
                         p.fixups.push(DataFixup {
                             offset: p.data.len(),
@@ -755,6 +797,71 @@ fn parse_directive(
                     }
                 }
             }
+            Ok(())
+        }
+        ".eqv" | ".equ" => {
+            // Constante simbólica (RP5): `.eqv NOMBRE valor` (RARS) y
+            // `.equ NOMBRE, valor` (GNU). Se aceptan ambas grafías con o
+            // sin coma. Debe definirse antes de usarse; redefinir es error.
+            define_labels(p, labels, line)?;
+            let mut it = rest;
+            let (cname, ncol) = match it.first() {
+                Some(STok { tok: Tok::Ident(n), col }) => (n.clone(), *col),
+                _ => {
+                    return Err(AsmError::new(
+                        line,
+                        col,
+                        format!("{name} espera un nombre y un valor (ej.: {name} LIMITE, 10)"),
+                    ))
+                }
+            };
+            it = &it[1..];
+            if matches!(it.first(), Some(STok { tok: Tok::Comma, .. })) {
+                it = &it[1..];
+            }
+            let value = match it {
+                [STok { tok: Tok::Num(v), .. }] => *v,
+                [STok { tok: Tok::Ident(other), col: ocol }] => match p.consts.get(other) {
+                    // Encadenado: una constante puede definirse desde otra.
+                    Some((v, _)) => *v,
+                    None => {
+                        return Err(AsmError::new(
+                            line,
+                            *ocol,
+                            format!("«{other}» no es una constante conocida (las constantes deben definirse antes de usarse)"),
+                        ))
+                    }
+                },
+                _ => {
+                    return Err(AsmError::new(
+                        line,
+                        col,
+                        format!("{name} espera un valor numérico o una constante ya definida"),
+                    ))
+                }
+            };
+            if reg_number(&cname).is_some() {
+                return Err(AsmError::new(
+                    line,
+                    ncol,
+                    format!("«{cname}» es un nombre de registro: no puede usarse como constante"),
+                ));
+            }
+            if let Some(prev) = p.sym_lines.get(&cname) {
+                return Err(AsmError::new(
+                    line,
+                    ncol,
+                    format!("«{cname}» ya es una etiqueta (línea {prev}); no puede ser constante"),
+                ));
+            }
+            if let Some((_, prev)) = p.consts.get(&cname) {
+                return Err(AsmError::new(
+                    line,
+                    ncol,
+                    format!("constante redefinida: «{cname}» (ya definida en la línea {prev})"),
+                ));
+            }
+            p.consts.insert(cname, (value, line));
             Ok(())
         }
         ".ascii" | ".asciiz" | ".string" => {
@@ -783,7 +890,7 @@ fn parse_directive(
             col,
             format!(
                 "directiva desconocida: «{other}». Soportadas: .text .data .word .half .byte \
-                 .ascii .asciiz .string .space .align .globl"
+                 .ascii .asciiz .string .space .align .globl .eqv .equ"
             ),
         )),
     }
@@ -834,7 +941,7 @@ fn parse_instruction(
     let mnem = mnem.to_lowercase();
     let mut ops = Vec::new();
     for arg in split_args(rest) {
-        ops.push(parse_operand(arg, line)?);
+        ops.push(parse_operand(arg, line, &p.consts)?);
     }
     let size = instr_size(&mnem, &ops, line, col)?;
     let addr = TEXT_BASE + p.text_off;
@@ -849,8 +956,71 @@ fn parse_instruction(
     Ok(())
 }
 
-fn parse_operand(toks: &[STok], line: u32) -> Result<POp, AsmError> {
+fn parse_operand(
+    toks: &[STok],
+    line: u32,
+    consts: &HashMap<String, (i64, u32)>,
+) -> Result<POp, AsmError> {
+    // Resuelve el argumento de %hi/%lo: número, constante .eqv o etiqueta.
+    let hilo_arg = |name_or_num: &Tok| -> Option<HiLoArg> {
+        match name_or_num {
+            Tok::Num(v) => Some(HiLoArg::Val(*v)),
+            Tok::Ident(n) => Some(match consts.get(n) {
+                Some((v, _)) => HiLoArg::Val(*v),
+                None => HiLoArg::Sym(n.clone()),
+            }),
+            _ => None,
+        }
+    };
     match toks {
+        // %hi(x) / %lo(x) — inmediato para lui/addi/ori (RP5).
+        [STok { tok: Tok::Percent, col }, STok { tok: Tok::Ident(f), col: fcol }, STok { tok: Tok::LParen, .. }, arg, STok { tok: Tok::RParen, .. }] =>
+        {
+            let hi = match f.as_str() {
+                "hi" => true,
+                "lo" => false,
+                otro => {
+                    return Err(AsmError::new(
+                        line,
+                        *fcol,
+                        format!("tras «%» se esperaba hi o lo, no «{otro}»"),
+                    ))
+                }
+            };
+            let arg = hilo_arg(&arg.tok).ok_or_else(|| {
+                AsmError::new(line, arg.col, "%hi/%lo esperan una etiqueta, número o constante entre paréntesis")
+            })?;
+            Ok(POp {
+                kind: OpKind::HiLo { hi, arg },
+                col: *col,
+            })
+        }
+        // %lo(x)(base) — desplazamiento de carga/almacenamiento (RP5).
+        [STok { tok: Tok::Percent, col }, STok { tok: Tok::Ident(f), col: fcol }, STok { tok: Tok::LParen, .. }, arg, STok { tok: Tok::RParen, .. }, STok { tok: Tok::LParen, .. }, STok { tok: Tok::Ident(base), col: bcol }, STok { tok: Tok::RParen, .. }] =>
+        {
+            if f != "lo" {
+                return Err(AsmError::new(
+                    line,
+                    *fcol,
+                    "como desplazamiento de memoria solo vale %lo(...) (la parte alta va en el lui previo)",
+                ));
+            }
+            let arg = hilo_arg(&arg.tok).ok_or_else(|| {
+                AsmError::new(line, arg.col, "%lo espera una etiqueta, número o constante entre paréntesis")
+            })?;
+            let base = reg_number(base).ok_or_else(|| {
+                AsmError::new(line, *bcol, format!("registro inválido: «{base}»"))
+            })?;
+            Ok(POp {
+                kind: OpKind::MemLo { arg, base },
+                col: *col,
+            })
+        }
+        [STok { tok: Tok::Percent, col }, ..] => Err(AsmError::new(
+            line,
+            *col,
+            "uso de «%» mal formado: la sintaxis es %hi(simbolo) o %lo(simbolo)",
+        )),
         [STok {
             tok: Tok::Ident(name),
             col,
@@ -859,10 +1029,18 @@ fn parse_operand(toks: &[STok], line: u32) -> Result<POp, AsmError> {
                 kind: OpKind::Reg(r),
                 col: *col,
             }),
-            None => Ok(POp {
-                kind: OpKind::Sym(name.clone()),
-                col: *col,
-            }),
+            // Constante .eqv: se sustituye acá, ANTES de decidir tamaño en
+            // pasada 1 — por eso deben definirse antes de usarse.
+            None => match consts.get(name) {
+                Some((v, _)) => Ok(POp {
+                    kind: OpKind::Imm(*v),
+                    col: *col,
+                }),
+                None => Ok(POp {
+                    kind: OpKind::Sym(name.clone()),
+                    col: *col,
+                }),
+            },
         },
         [STok {
             tok: Tok::Num(v),
@@ -939,11 +1117,11 @@ fn instr_size(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<u32, AsmEr
         "la" | "lla" => 8,
         // cargas/almacenamientos con etiqueta expanden a lui+op
         "lb" | "lh" | "lw" | "lbu" | "lhu" => match &ops[1].kind {
-            OpKind::Sym(_) => 8,
+            OpKind::Sym(_) | OpKind::Imm(_) => 8,
             _ => 4,
         },
         "sb" | "sh" | "sw" => match &ops[1].kind {
-            OpKind::Sym(_) => 8,
+            OpKind::Sym(_) | OpKind::Imm(_) => 8,
             _ => 4,
         },
         _ => 4,
@@ -970,7 +1148,12 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
     let is_reg = |i: usize| matches!(ops[i].kind, Reg(_));
     let is_imm = |i: usize| matches!(ops[i].kind, Imm(_));
     let is_sym = |i: usize| matches!(ops[i].kind, Sym(_));
-    let is_mem = |i: usize| matches!(ops[i].kind, Mem { .. });
+    let is_mem = |i: usize| matches!(ops[i].kind, Mem { .. } | MemLo { .. });
+    // %hi/%lo valen como inmediato SOLO en lui, addi y ori (semántica
+    // estándar del par lui+addi/ori; en otras posiciones sería un error
+    // semántico silencioso — p. ej. %hi con auipc es %pcrel_hi, que no
+    // soportamos).
+    let is_hilo = |i: usize| matches!(ops[i].kind, HiLo { .. });
 
     match mnem {
         // R: rd, rs1, rs2
@@ -983,8 +1166,16 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 ));
             }
         }
-        // I aritmética: rd, rs1, imm
-        "addi" | "slti" | "sltiu" | "xori" | "ori" | "andi" | "slli" | "srli" | "srai" => {
+        // I aritmética: rd, rs1, imm — addi/ori aceptan además %hi/%lo (RP5).
+        "addi" | "ori" => {
+            want(3, "registro, registro, inmediato")?;
+            if !(is_reg(0) && is_reg(1) && (is_imm(2) || is_hilo(2))) {
+                return err(format!(
+                    "«{mnem}» espera registro, registro e inmediato (ej.: addi t0, t1, 10)"
+                ));
+            }
+        }
+        "slti" | "sltiu" | "xori" | "andi" | "slli" | "srli" | "srai" => {
             want(3, "registro, registro, inmediato")?;
             if !(is_reg(0) && is_reg(1) && is_imm(2)) {
                 return err(format!(
@@ -992,10 +1183,10 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 ));
             }
         }
-        // cargas: rd, off(base) | rd, etiqueta
+        // cargas: rd, off(base) | rd, etiqueta | rd, constante (dirección)
         "lb" | "lh" | "lw" | "lbu" | "lhu" => {
             want(2, "registro, desplazamiento(base) o etiqueta")?;
-            if !is_reg(0) || !(is_mem(1) || is_sym(1)) {
+            if !is_reg(0) || !(is_mem(1) || is_sym(1) || is_imm(1)) {
                 return err(format!(
                     "«{mnem}» espera registro y desplazamiento(base) o etiqueta \
                      (ej.: lw t0, 4(sp) o lw t0, dato)"
@@ -1011,7 +1202,7 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                     ));
                 }
             } else if n == 3 {
-                if !is_reg(0) || !is_sym(1) || !is_reg(2) {
+                if !is_reg(0) || !(is_sym(1) || is_imm(1)) || !is_reg(2) {
                     return err(format!(
                         "«{mnem}» con etiqueta espera registro, etiqueta y registro auxiliar \
                          (ej.: sw t0, dato, t1)"
@@ -1041,10 +1232,23 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 ));
             }
         }
-        "lui" | "auipc" => {
+        "lui" => {
+            want(2, "registro, inmediato")?;
+            if !(is_reg(0) && (is_imm(1) || is_hilo(1))) {
+                return err("«lui» espera registro e inmediato de 20 bits (o %hi(etiqueta))".into());
+            }
+        }
+        "auipc" => {
             want(2, "registro, inmediato")?;
             if !(is_reg(0) && is_imm(1)) {
-                return err(format!("«{mnem}» espera registro e inmediato de 20 bits"));
+                if is_hilo(1) {
+                    return err(
+                        "%hi con «auipc» sería %pcrel_hi (relativo al pc), que EmuRV no soporta; \
+                         %hi(etiqueta) va con «lui»"
+                            .into(),
+                    );
+                }
+                return err("«auipc» espera registro e inmediato de 20 bits".into());
             }
         }
         "jal" => match n {
@@ -1096,7 +1300,7 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
         }
         "la" | "lla" => {
             want(2, "registro, etiqueta")?;
-            if !(is_reg(0) && is_sym(1)) {
+            if !(is_reg(0) && (is_sym(1) || is_imm(1))) {
                 return err("«la» espera registro y etiqueta (ej.: la a0, mensaje)".into());
             }
         }
@@ -1207,13 +1411,38 @@ impl Ctx<'_> {
     fn imm(&self, i: usize) -> Result<i64, AsmError> {
         match self.ins.ops.get(i).map(|o| &o.kind) {
             Some(OpKind::Imm(v)) => Ok(*v),
+            // %hi → 20 bits altos con ajuste de signo; %lo → 12 bajos con
+            // signo. lui+addi con %hi/%lo reconstruye el valor EXACTO
+            // (misma matemática que la expansión de «la»: hi20/lo12).
+            Some(OpKind::HiLo { hi, arg }) => {
+                let v = self.resolve_hilo(i, arg)?;
+                Ok(if *hi { hi20(v) as i64 } else { lo12(v) as i64 })
+            }
             _ => Err(self.internal_err(i, "un inmediato")),
         }
     }
     fn mem(&self, i: usize) -> Result<(i64, u8), AsmError> {
         match self.ins.ops.get(i).map(|o| &o.kind) {
             Some(OpKind::Mem { off, base }) => Ok((*off, *base)),
+            Some(OpKind::MemLo { arg, base }) => {
+                let v = self.resolve_hilo(i, arg)?;
+                Ok((lo12(v) as i64, *base))
+            }
             _ => Err(self.internal_err(i, "un operando de memoria")),
+        }
+    }
+    /// Valor de 32 bits del argumento de %hi/%lo (etiqueta, número o
+    /// constante ya sustituida en pasada 1).
+    fn resolve_hilo(&self, i: usize, arg: &HiLoArg) -> Result<u32, AsmError> {
+        match arg {
+            HiLoArg::Val(v) => Ok(*v as u32),
+            HiLoArg::Sym(sym) => self.symbols.get(sym).copied().ok_or_else(|| {
+                AsmError::new(
+                    self.ins.line,
+                    self.ins.ops[i].col,
+                    format!("etiqueta no definida: «{sym}»"),
+                )
+            }),
         }
     }
     /// Resuelve una etiqueta (u offset numérico absoluto) a dirección.
@@ -1460,8 +1689,13 @@ fn encode_load(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
             let imm = c.check_imm12(1, *off)?;
             Ok(vec![enc_i(imm, *base, load_f3(c, m)?, rd, 0x03)])
         }
-        Some(OpKind::Sym(_)) => {
-            // lw rd, etiqueta  →  lui rd, %hi ; lw rd, %lo(rd)
+        Some(OpKind::MemLo { .. }) => {
+            // %lo(x)(base): c.mem ya resuelve el %lo a su valor con signo.
+            let (off, base) = c.mem(1)?;
+            Ok(vec![enc_i(off as i32, base, load_f3(c, m)?, rd, 0x03)])
+        }
+        Some(OpKind::Sym(_) | OpKind::Imm(_)) => {
+            // lw rd, etiqueta_o_constante  →  lui rd, %hi ; lw rd, %lo(rd)
             let addr = c.target(1)?;
             Ok(vec![
                 enc_u(hi20(addr), rd, 0x37),
@@ -1710,5 +1944,96 @@ mod tests {
     fn comentarios_y_lineas_vacias_se_ignoran() {
         let p = assemble("# encabezado\n\n  nop # al final\n").unwrap();
         assert_eq!(p.text.len(), 4);
+    }
+
+    // ---- RP5 Fase 1: constantes .eqv/.equ y operadores %hi/%lo ----
+
+    #[test]
+    fn constantes_eqv_equ_encadenadas() {
+        // .eqv estilo RARS (sin coma), .equ estilo GNU (con coma), y una
+        // constante definida desde otra.
+        let src = ".eqv BASE 0x100\n.equ DOBLE, 0x200\n.eqv ALIAS BASE\nli t0, BASE\nli t1, DOBLE\nli t2, ALIAS";
+        assert_eq!(
+            asm_words(src),
+            asm_words("li t0, 0x100\nli t1, 0x200\nli t2, 0x100")
+        );
+    }
+
+    #[test]
+    fn constante_redefinida_es_error() {
+        let e = first_error(".eqv N 1\n.eqv N 2\nnop");
+        assert!(e.msg.contains("redefinida"), "{}", e.msg);
+        assert_eq!(e.line, 2);
+    }
+
+    #[test]
+    fn constante_con_nombre_de_registro_es_error() {
+        let e = first_error(".eqv t0 5\nnop");
+        assert!(e.msg.contains("registro"), "{}", e.msg);
+    }
+
+    #[test]
+    fn constante_y_etiqueta_chocan_en_ambos_sentidos() {
+        let e = first_error(".eqv x 1\nx: nop");
+        assert!(e.msg.contains("constante"), "{}", e.msg);
+        let e = first_error(".text\nx: nop\n.eqv x 1");
+        assert!(e.msg.contains("etiqueta"), "{}", e.msg);
+    }
+
+    #[test]
+    fn constante_usable_en_word_y_la() {
+        let p = assemble(".eqv N 42\n.data\nv: .word N\n.text\nnop").expect("ensambla");
+        assert_eq!(&p.data[0..4], &42u32.to_le_bytes());
+        // la CONSTANTE == li de 8 bytes del mismo valor (ambos lui+addi).
+        let a = asm_words(".eqv DIR 0x12345\nla t0, DIR");
+        let b = asm_words("li t0, 0x12345");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn hi_lo_equivalen_a_la_con_ajuste_de_signo() {
+        // dato queda en DATA_BASE + 2052: el %lo (2052 > 2047) es NEGATIVO
+        // y el %hi compensa (+0x800 antes del shift) — el par lui+addi debe
+        // reconstruir la dirección EXACTA, byte a byte igual que «la».
+        let con_la = asm_words(
+            ".data\n.space 2052\ndato: .word 7\n.text\nla t0, dato",
+        );
+        let con_hilo = asm_words(
+            ".data\n.space 2052\ndato: .word 7\n.text\nlui t0, %hi(dato)\naddi t0, t0, %lo(dato)",
+        );
+        assert_eq!(con_la, con_hilo);
+    }
+
+    #[test]
+    fn hi_lo_con_referencia_hacia_adelante_y_lo_en_memoria() {
+        // La etiqueta se define DESPUÉS de usarse (pasada 2, como siempre)
+        // y %lo(dato)(t0) funciona como desplazamiento de carga.
+        let w = asm_words(
+            ".text\nlui t0, %hi(dato)\nlw t1, %lo(dato)(t0)\n.data\ndato: .word 7",
+        );
+        let w2 = asm_words(".text\nlw t1, dato\n.data\ndato: .word 7");
+        // lw rd, etiqueta expande a lui rd + lw — mismos words salvo el
+        // registro intermedio (acá t0 vs t1): comparar el lw final ajustado
+        // no vale; alcanza con que la dirección reconstruida coincida:
+        // lui t0,%hi + lw t1,%lo(t0) carga lo mismo que la expansión.
+        assert_eq!(w.len(), 2);
+        assert_eq!(w2.len(), 2);
+        // El offset inmediato del lw (bits 31:20) debe ser el mismo.
+        assert_eq!(w[1] >> 20, w2[1] >> 20);
+    }
+
+    #[test]
+    fn hi_con_auipc_es_error_didactico() {
+        let e = first_error("auipc t0, %hi(x)\nx: nop");
+        assert!(e.msg.contains("pcrel"), "{}", e.msg);
+    }
+
+    #[test]
+    fn lo_con_valor_negativo_ajusta_signo() {
+        // 0x12345FFF tiene low12 = 0xFFF (negativo como i12): lui+addi con
+        // %hi/%lo debe dar exactamente el li de 32 bits.
+        let a = asm_words("lui t0, %hi(0x12345FFF)\naddi t0, t0, %lo(0x12345FFF)");
+        let b = asm_words("li t0, 0x12345FFF");
+        assert_eq!(a, b);
     }
 }
