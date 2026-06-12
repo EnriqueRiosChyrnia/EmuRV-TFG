@@ -96,12 +96,24 @@ v: .word 0
         .expect("instalar");
     let r1 = m.run_slice(0, 100_000);
     assert!(
-        matches!(r1, StopReason::Watchpoint { access: WatchKind::Write, .. }),
+        matches!(
+            r1,
+            StopReason::Watchpoint {
+                access: WatchKind::Write,
+                ..
+            }
+        ),
         "primero la escritura: {r1:?}"
     );
     let r2 = m.run_slice_continuation(0, 100_000);
     assert!(
-        matches!(r2, StopReason::Watchpoint { access: WatchKind::Read, .. }),
+        matches!(
+            r2,
+            StopReason::Watchpoint {
+                access: WatchKind::Read,
+                ..
+            }
+        ),
         "después la lectura: {r2:?}"
     );
 }

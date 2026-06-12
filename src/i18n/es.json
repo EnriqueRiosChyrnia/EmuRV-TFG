@@ -25,6 +25,7 @@
   "registros.hex": "Hexadecimal",
   "registros.dec": "Decimal",
   "registros.editarHint": "Doble click en un valor para editarlo (con la máquina pausada)",
+  "registros.csrs.titulo": "CSRs (avanzado)",
 
   "edicion.valorInvalido": "Valor inválido: usá decimal (42, -7) o hexadecimal (0x2a).",
 
@@ -70,6 +71,7 @@
   "estado.watchpoint.accedio": "accedió a",
   "estado.ebreak": "Pausado por ebreak (línea {line})",
   "ayuda.directivas.rp5": "«.include \"archivo.s\"» inserta otro archivo (el programa debe estar guardado en disco); «.eqv NOMBRE valor» define constantes; «.macro nombre (%p)…/.end_macro» define macros; «%hi(x)»/«%lo(x)» parten una dirección para «lui»+«addi». Detalle: docs/ENSAMBLADOR.md §4.4.",
+  "ayuda.traps": "Avanzado: con «csrw mtvec, reg» el programa instala su propio manejador de excepciones — los ecall desconocidos, las instrucciones ilegales y los accesos inválidos saltan ahí (mcause dice qué pasó) y «mret» vuelve. El ejemplo «Manejador de excepciones» lo muestra completo; detalle en docs/TRAPS.md.",
   "ayuda.ebreak": "Además, la instrucción «ebreak» pausa el programa (pausa por software, como un breakpoint puesto desde el código): podés inspeccionar registros y memoria, y reanudar con «Ejecutar» o «Paso» desde la instrucción siguiente.",
   "estado.terminado": "Programa terminado (código {code})",
   "estado.pausado": "Ejecución pausada",
@@ -85,6 +87,7 @@
   "ejemplo.tetris": "Tetris gráfico",
   "ejemplo.eco": "Eco de teclado (tiempo real)",
   "ejemplo.tetrisRt": "Tetris en tiempo real",
+  "ejemplo.trap": "Manejador de excepciones (CSRs)",
 
   "error.posicion": "línea {line}, col {col}: {msg}",
 

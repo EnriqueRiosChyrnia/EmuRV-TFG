@@ -1,6 +1,7 @@
 // Vista de registros (RF-05): x0–x31 + pc con nombres ABI, valores en
 // hex y decimal, y resaltado de los registros modificados desde la
 // última actualización. Doble click en un valor lo edita en vivo (RP7).
+// Al pie, una sección plegable muestra los CSRs de máquina (RP8-F4).
 import { api, type MachineState } from "../api";
 import { t } from "../i18n";
 
@@ -9,6 +10,11 @@ const ABI: string[] = [
   "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
   "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11",
   "t3", "t4", "t5", "t6",
+];
+
+/** CSRs que expone get_csrs(), en el orden fijo del backend (RP8). */
+const CSRS: string[] = [
+  "mstatus", "mie", "mtvec", "mscratch", "mepc", "mcause", "mtval", "mip",
 ];
 
 const hex = (v: number) => `0x${(v >>> 0).toString(16).padStart(8, "0")}`;
@@ -34,6 +40,8 @@ export class Registros {
   private anterior: number[] | null = null;
   private pcAnterior: number | null = null;
   private errorEl: HTMLElement;
+  private csrDetalles: HTMLDetailsElement;
+  private csrCeldas: { hex: HTMLElement; dec: HTMLElement }[] = [];
 
   constructor(root: HTMLElement) {
     const tabla = document.createElement("table");
@@ -69,6 +77,35 @@ export class Registros {
     }
     tabla.appendChild(cuerpo);
     root.appendChild(tabla);
+
+    // Sección plegable de CSRs (RP8-F4), cerrada por defecto: recién al
+    // abrirla se piden valores (cerrada no genera tráfico con el backend).
+    this.csrDetalles = document.createElement("details");
+    this.csrDetalles.className = "registros-csrs";
+    const resumen = document.createElement("summary");
+    resumen.textContent = t("registros.csrs.titulo");
+    this.csrDetalles.appendChild(resumen);
+    const tablaCsr = document.createElement("table");
+    tablaCsr.className = "registros-tabla";
+    tablaCsr.title = t("registros.editarHint");
+    const cuerpoCsr = document.createElement("tbody");
+    CSRS.forEach((nombre, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${nombre}</td><td class="mono"></td><td class="mono"></td>`;
+      const hexEl = tr.children[1] as HTMLElement;
+      const decEl = tr.children[2] as HTMLElement;
+      this.hacerEditableCsr(hexEl, i);
+      this.hacerEditableCsr(decEl, i);
+      cuerpoCsr.appendChild(tr);
+      this.csrCeldas.push({ hex: hexEl, dec: decEl });
+    });
+    tablaCsr.appendChild(cuerpoCsr);
+    this.csrDetalles.appendChild(tablaCsr);
+    this.csrDetalles.addEventListener("toggle", () => {
+      if (this.csrDetalles.open) void this.refrescarCsrs();
+    });
+    root.appendChild(this.csrDetalles);
+
     this.errorEl = document.createElement("div");
     this.errorEl.className = "panel-error";
     this.errorEl.hidden = true;
@@ -99,6 +136,7 @@ export class Registros {
     );
     this.anterior = [...regs];
     this.pcAnterior = estado.pc;
+    void this.refrescarCsrs();
   }
 
   /** Estado inicial sin resaltados (tras ensamblar/reiniciar). */
@@ -115,18 +153,65 @@ export class Registros {
       c.hex.textContent = "—";
       c.dec.textContent = "—";
     }
+    for (const c of this.csrCeldas) {
+      c.hex.textContent = "—";
+      c.dec.textContent = "—";
+    }
   }
 
-  // ----- edición en vivo (RP7) -----
+  // ----- CSRs (RP8-F4) -----
+
+  /** Vuelca los CSRs en la sección plegable. Solo si está abierta (cerrada
+   *  = cero tráfico extra, importante con actualizar() a ~10 Hz durante una
+   *  ejecución larga) y sin pisar una edición inline en curso (mismo guard
+   *  que RP7). Sin sesión de emulación el rechazo se ignora en silencio. */
+  private async refrescarCsrs(): Promise<void> {
+    if (!this.csrDetalles.open) return;
+    if (this.csrDetalles.querySelector("input")) return;
+    let valores: number[];
+    try {
+      valores = await api.getCsrs();
+    } catch {
+      return; // sin sesión: la tabla conserva los «—»
+    }
+    for (let i = 0; i < this.csrCeldas.length && i < valores.length; i++) {
+      const c = this.csrCeldas[i];
+      // Un input abierto mientras esperábamos la respuesta no se pisa.
+      if (!c.hex.querySelector("input")) c.hex.textContent = hex(valores[i]);
+      if (!c.dec.querySelector("input")) c.dec.textContent = dec(valores[i]);
+    }
+  }
+
+  // ----- edición en vivo (RP7; los CSRs de RP8 reusan el mismo flujo) -----
 
   private hacerEditable(celda: HTMLElement, reg: string): void {
-    celda.addEventListener("dblclick", () => this.editar(celda, reg));
+    celda.addEventListener("dblclick", () =>
+      this.editar(
+        celda,
+        (val) => api.writeReg(reg, val),
+        async () => this.actualizar(await api.getState()),
+      ),
+    );
+  }
+
+  private hacerEditableCsr(celda: HTMLElement, indice: number): void {
+    celda.addEventListener("dblclick", () =>
+      this.editar(
+        celda,
+        (val) => api.writeCsr(indice, val),
+        () => this.refrescarCsrs(),
+      ),
+    );
   }
 
   /** Reemplaza la celda por un input inline prellenado: Enter aplica,
-   *  Esc o blur cancelan. El valor mostrado solo cambia vía actualizar()
-   *  tras un write_reg aceptado. */
-  private editar(celda: HTMLElement, reg: string): void {
+   *  Esc o blur cancelan. El valor mostrado solo cambia vía `refrescar`
+   *  tras una escritura aceptada. */
+  private editar(
+    celda: HTMLElement,
+    escribir: (val: number) => Promise<void>,
+    refrescar: () => Promise<void>,
+  ): void {
     if (celda.querySelector("input")) return;
     const original = celda.textContent ?? "";
     if (original === "—") return; // sin máquina todavía: nada que editar
@@ -157,19 +242,24 @@ export class Registros {
         this.mostrarError(t("edicion.valorInvalido"));
         return;
       }
-      void this.aplicar(reg, val, cerrar);
+      void this.aplicar(val, cerrar, escribir, refrescar);
     });
     input.addEventListener("blur", () => cerrar());
   }
 
-  private async aplicar(reg: string, val: number, cerrar: () => void): Promise<void> {
+  private async aplicar(
+    val: number,
+    cerrar: () => void,
+    escribir: (val: number) => Promise<void>,
+    refrescar: () => Promise<void>,
+  ): Promise<void> {
     try {
-      await api.writeReg(reg, val);
+      await escribir(val);
       cerrar();
       this.errorEl.hidden = true;
       // Refresco por el flujo normal: el resaltado de cambios (RF-05)
       // marca el registro recién editado.
-      this.actualizar(await api.getState());
+      await refrescar();
     } catch (e) {
       cerrar(); // rechazo (corriendo, x0, …): el valor no cambia
       this.mostrarError(String(e));

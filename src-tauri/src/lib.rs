@@ -19,6 +19,8 @@ pub fn run() {
             commands::set_watchpoints,
             commands::write_reg,
             commands::write_mem,
+            commands::get_csrs,
+            commands::write_csr,
             commands::read_mem,
             commands::read_framebuffer,
             commands::get_state,

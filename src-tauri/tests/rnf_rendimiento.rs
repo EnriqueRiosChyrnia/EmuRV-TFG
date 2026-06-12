@@ -192,8 +192,7 @@ fn rnf03_velocidad_con_breakpoint_activo() {
     let (_in_tx, in_rx) = channel();
     let mut m = Machine::new(programa, out_tx, in_rx).expect("máquina");
     // breakpoint en el ecall final: el hook corre en cada instrucción
-    m.set_breakpoints([0x0040_0010u32])
-        .unwrap();
+    m.set_breakpoints([0x0040_0010u32]).unwrap();
 
     let instrucciones: f64 = 2.0 * 2_000_000.0 + 3.0;
     let inicio = Instant::now();

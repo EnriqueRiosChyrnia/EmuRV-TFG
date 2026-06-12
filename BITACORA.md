@@ -798,3 +798,12 @@ Implementación del mecanismo decidido en F1, en dos sitios según la tabla del 
 Tests (rp8_traps.rs, 7): el criterio del ROADMAP literal (ecall 777 → handler lee mcause=11/mepc exacto, ajusta +4, mret, el programa sigue y termina); conocido no delegado; ilegal delegada (mcause=2, vía determinista: caída a los ceros de .text) + regresión sin mtvec; acceso inválido (mcause=5, mtval=0x20000000); doble falta corta sin colgarse; ebreak pausa; convivencia RP-7 (breakpoint DENTRO del handler + watchpoint sobre dato que el handler escribe, orden exacto).
 
 Compuerta F3 ✓: 26 suites verdes, clippy 0.
+
+## RP8 Fase 4 — Panel CSRs, ejemplo trap handler y docs (2026-06-12)
+
+- **Backend del panel**: `Machine::read_csrs()/write_csr()` (orden fijo mstatus…mip) + comandos `get_csrs`/`write_csr` (escritura con guard de pausa, mismo de RP-7).
+- **UI**: sección plegable «CSRs (avanzado)» al final del panel de registros (`<details>`, CERRADA por defecto), 8 filas hex+dec, edición inline reusando el mecanismo RP-7 generalizado a callbacks. **Cerrada = cero invokes** durante el refresco a ~10 Hz (el costo solo existe si el estudiante la abre). Flujos manuales pendientes anotados (apertura sin sesión, edición pausado/corriendo, no-pisado de input activo, estética).
+- **Ejemplo `12-trap-handler.asm`** (el germen de la lección 10 de RP-9): instala mtvec, dispara ecall 777, el manejador lee mcause/mepc, imprime, ajusta mepc+4 (comentario didáctico: «probalo comentando el ajuste») y mret. Sin `.include` → SÍ entra al menú de ejemplos de la app (11 ejemplos ahora). **Verificado por CLI con salida exacta** (test `run_ejemplo_trap_handler`) — el criterio del ROADMAP, literal.
+- **Docs**: `docs/TRAPS.md` (tabla de CSRs, política de delegación completa con su porqué, mepc fiel a la espec y el ajuste +4, doble falta, límites — sin interrupciones asíncronas, M-mode plano); ENSAMBLADOR §4.1 ampliada (Zicsr); Ayuda con párrafo de traps; README con sección y enlace.
+
+**Compuerta F4 (cierre RP8) ✓ [Seguro — corridas reales]:** `cargo test` + clippy 0 en AMBOS crates (26 suites src-tauri + CLI con el test nuevo) · tsc limpio · `ci-local.sh --skip-bundle` exit 0 · `cargo tauri build` ok · **bundle 22 MB ≤ 30**.

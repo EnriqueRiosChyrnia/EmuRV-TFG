@@ -204,6 +204,22 @@ html, body {
 .registros-tabla tr.cambiado td { background: rgba(255, 209, 102, 0.16); }
 .registros-tabla tr.cambiado td:first-child { color: var(--cambio); }
 
+/* CSRs (avanzado, RP8-F4): sección plegable al pie, cerrada por defecto */
+.registros-csrs { border-top: 1px solid var(--borde); }
+
+.registros-csrs summary {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-suave);
+  cursor: pointer;
+  user-select: none;
+}
+
+.registros-csrs summary:hover { color: var(--texto); }
+
 /* ---------- memoria ---------- */
 .memoria-controles {
   display: flex;

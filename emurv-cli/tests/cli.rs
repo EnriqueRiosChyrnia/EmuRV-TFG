@@ -371,3 +371,20 @@ fn asm_ejemplo_multiarchivo() {
     assert_eq!(bytes[4], 1, "ELFCLASS32");
     let _ = std::fs::remove_file(&salida);
 }
+
+/// RP8: el ejemplo del trap handler — ecall desconocido → manejador del
+/// guest → mret — corre por CLI con la salida exacta (criterio del ROADMAP).
+#[test]
+fn run_ejemplo_trap_handler() {
+    let out = run_con_stdin(&["run", "../ejemplos/12-trap-handler.asm"], "", limite());
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "antes del ecall desconocido\n  [manejador] atendiendo el servicio 777 (mcause=11)\ndespués: el programa siguió como si nada\n"
+    );
+}
