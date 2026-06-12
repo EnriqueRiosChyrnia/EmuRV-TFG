@@ -9,6 +9,10 @@
 //! | 11 | imprimir carácter | a0 = código        | —             |
 //! | 30 | tiempo en ms    | —                    | a0 = bits bajos, a1 = bits altos |
 //! | 32 | dormir          | a0 = ms (sin signo)  | —             |
+//! | 93 | terminar con código (Exit2) | a0 = código (i32) | —    |
+//!
+//! El 17 (Exit2 de MARS/MIPS) NO existe en RARS ni acá: se rechaza con un
+//! mensaje que apunta al 93 (RP10; fuente en BITACORA).
 //!
 //! `ecall` llega como interrupción de Unicorn con el número de causa
 //! RISC-V en `intno`. Verificado empíricamente con Unicorn 2.1.5
@@ -203,8 +207,7 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
         5 => read_int(uc),
         10 => {
             // Convención RARS: la syscall 10 termina SIEMPRE con código 0
-            // (no recibe argumento). Un código de salida variable llegaría
-            // con la syscall 93 (exit2 con código), trabajo futuro declarado.
+            // (no recibe argumento). El código variable es el 93 (Exit2).
             uc.get_data_mut().exit_code = Some(0);
             let _ = uc.emu_stop();
         }
@@ -221,6 +224,33 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
             let _ = uc.reg_write(A1, ms >> 32);
         }
         32 => dormir(uc),
+        93 => {
+            // Exit2 (RARS, número del ABI Linux RISC-V): termina con el
+            // código de a0. El núcleo guarda el i32 REAL; el acotamiento a
+            // rango seguro de shell (0..=125) es responsabilidad del CLI.
+            let code = uc.reg_read(A0).unwrap_or(0) as u32 as i32;
+            uc.get_data_mut().exit_code = Some(code);
+            let _ = uc.emu_stop();
+        }
+        17 => {
+            // El 17 era el Exit2 de MARS (MIPS); RARS lo reemplazó por el
+            // 93 y EmuRV sigue a RARS [BITACORA RP10-F1, wiki oficial de
+            // RARS «Environment Calls»]. Para la delegación RP-8 sigue
+            // siendo un servicio DESCONOCIDO: con mtvec el handler del
+            // guest tiene prioridad; el mensaje didáctico es el camino sin
+            // handler instalado.
+            if !delegar_trap(uc, 11, 0, pc as u32) {
+                fail(
+                    uc,
+                    format!(
+                        "syscall 17 (pc = 0x{pc:08X}): ese servicio era el Exit2 de MARS \
+                         (MIPS) y no existe en RARS ni en EmuRV. Para terminar con un \
+                         código de salida usá el servicio 93: cargá el código en a0 y \
+                         ejecutá «li a7, 93» + «ecall»"
+                    ),
+                );
+            }
+        }
         other => {
             // RP8: con mtvec configurado, un ecall DESCONOCIDO se delega al
             // handler del guest (mcause=11, ECALL desde M-mode según la
@@ -236,7 +266,8 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
                         "syscall desconocida: a7 = {other} (pc = 0x{pc:08X}). \
                          Servicios disponibles: 1 imprimir entero, 4 imprimir cadena, \
                          5 leer entero, 10 terminar, 11 imprimir carácter, \
-                         30 tiempo del sistema en ms, 32 dormir a0 ms"
+                         30 tiempo del sistema en ms, 32 dormir a0 ms, \
+                         93 terminar con código (a0)"
                     ),
                 );
             }

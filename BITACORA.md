@@ -968,3 +968,35 @@ predictivo / 3 ejercicios con desafío). Los ejemplos existentes intactos
 marcas de color + contador > 0 (headless ya probado por CI). (2) La prueba
 de fuego del plan: el primo del autor siguiendo las lecciones sin ayuda —
 las lecciones son el guion de ese test externo.
+
+## 2026-06-12 — RP10-F1: Exit2 (93) con código real y rechazo didáctico del 17
+
+[Seguro — fuente verificada por la coordinadora 2026-06-12: wiki oficial de
+RARS (repo TheThirdOne/rars), página «Environment Calls»] RESOLUCIÓN de la
+duda [SIN VERIFICAR] del Cap. VI §6.2.3: en RARS, Exit2 es el servicio
+**93** (número del ABI Linux RISC-V); ReadString=8, Sbrk=9, Exit=10. **El
+17 NO existe en RARS** — era el Exit2 de MARS (MIPS). Decisión: EmuRV
+implementa el 93 y RECHAZA el 17 con mensaje didáctico que apunta al 93
+(mejor que el genérico «syscall desconocida»: el 17 es el error típico de
+quien viene de material MIPS). La coordinadora sincroniza el Cap. VI.
+
+[Seguro] Núcleo: syscall 93 → `Exited { code: a0 as i32 }` (el núcleo
+conserva el i32 REAL; ni clamp ni máscara — eso es política del CLI). El 17
+delega PRIMERO si hay mtvec (para RP-8 es un desconocido más, mcause=11:
+test de ambos caminos); sin mtvec, el mensaje didáctico. Syscall 10 intacta
+(siempre código 0, regresión fijada).
+
+[Seguro] CLI (`codigo_salida_invitado`): primero `code & 0xFF` (estilo
+Unix: -1 → 255), después tope en 125 con aviso por stderr — 126/127/128+
+tienen significado propio del shell (no ejecutable / no encontrado /
+señales). Aplica a `run` y a `debug`. Colisión aceptada y documentada (F4
+la lleva al README): si el invitado elige 124, es indistinguible del
+timeout/--max-instr del CLI.
+
+[Seguro] UI: sin cambios — `estado.terminado` ya mostraba «Programa
+terminado (código {code})»; ahora el code es el real del 93.
+
+Tests: src-tauri/tests/rp10_syscalls.rs (6: 93 con 7/0/125/-3, 17 ambos
+caminos, regresión 10) + 6 de proceso en emurv-cli/tests/cli.rs (7 real,
+125 sin aviso, 126→125+aviso, -1→255→125+aviso, regresión 10, stdout
+limpio). Compuerta F1: suite completa AMBOS crates verde, clippy 0.

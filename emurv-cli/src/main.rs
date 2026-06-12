@@ -247,7 +247,7 @@ fn subcomando_run(args: &[String]) -> u8 {
             *r -= tramo;
         }
         match razon {
-            StopReason::Exited { .. } => break 0,
+            StopReason::Exited { code } => break codigo_salida_invitado(code),
             StopReason::RuntimeError { message } => {
                 eprintln!("{message}");
                 break 1;
@@ -371,9 +371,9 @@ fn subcomando_debug(args: &[String]) -> u8 {
     // salida normales — no nos colgamos esperándolo).
     let razon = maquina.run(0);
     let codigo = match razon {
-        StopReason::Exited { .. } => {
+        StopReason::Exited { code } => {
             eprintln!("programa terminado bajo el depurador");
-            0
+            codigo_salida_invitado(code)
         }
         StopReason::RuntimeError { message } => {
             eprintln!("{message}");
@@ -387,6 +387,25 @@ fn subcomando_debug(args: &[String]) -> u8 {
     drop(maquina);
     let _ = puente.join();
     codigo
+}
+
+/// Traduce el código de salida del invitado (syscall 93/10, i32 real) al
+/// código de proceso del CLI (RP10, diseño acordado): primero `code & 0xFF`
+/// (estilo Unix: -1 → 255), después tope en 125 — 126/127/128+ tienen
+/// significado propio del shell (no ejecutable, no encontrado, señales) y
+/// un exceso se reporta por stderr. Colisión documentada en README: si el
+/// invitado elige 124, es indistinguible del timeout propio del CLI.
+fn codigo_salida_invitado(code: i32) -> u8 {
+    let c = (code & 0xFF) as u8;
+    if c > 125 {
+        eprintln!(
+            "emurv-cli: el código de salida del programa ({code}) queda fuera del rango \
+             seguro del shell tras «& 0xFF» ({c}); se acota a 125"
+        );
+        125
+    } else {
+        c
+    }
 }
 
 /// Hilo puente de consola compartido por `run` y `debug`: salida del
