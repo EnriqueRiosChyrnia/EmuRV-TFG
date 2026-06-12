@@ -13,6 +13,7 @@
 //! puede usar su JIT a pleno y la velocidad cae en órdenes de magnitud.
 
 use super::assembler::Program;
+use super::cond::CondAst;
 use super::keyboard::KeyboardShared;
 use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::video::{FramebufferRGBA, VideoShared};
@@ -23,7 +24,7 @@ use super::{
     TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
 };
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -71,6 +72,20 @@ pub enum StopReason {
     RuntimeError { message: String },
 }
 
+/// Breakpoint con condición opcional (RP7). `From<u32>` mantiene intactos
+/// todos los usos previos (breakpoint incondicional).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BreakpointSpec {
+    pub addr: u32,
+    pub cond: Option<CondAst>,
+}
+
+impl From<u32> for BreakpointSpec {
+    fn from(addr: u32) -> Self {
+        BreakpointSpec { addr, cond: None }
+    }
+}
+
 /// Tipo de acceso vigilado por un watchpoint (RP7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -98,7 +113,8 @@ pub struct MachData {
     pub exit_code: Option<i32>,
     pub hit_breakpoint: Option<u32>,
     pub runtime_error: Option<String>,
-    pub breakpoints: HashSet<u32>,
+    /// Breakpoints activos: dirección → condición opcional (RP7).
+    pub breakpoints: HashMap<u32, Option<CondAst>>,
     /// Breakpoint a ignorar una vez (el del pc actual al reanudar).
     pub suppress_bp: Option<u32>,
     /// Watchpoints activos (RP7). Vec chico: la búsqueda lineal por acceso
@@ -188,7 +204,7 @@ impl Machine<'_> {
             exit_code: None,
             hit_breakpoint: None,
             runtime_error: None,
-            breakpoints: HashSet::new(),
+            breakpoints: HashMap::new(),
             suppress_bp: None,
             watchpoints: Vec::new(),
             hit_watchpoint: None,
@@ -519,9 +535,20 @@ impl Machine<'_> {
 
     /// Define el conjunto de breakpoints (direcciones de .text). Instala o
     /// retira el hook de código según haga falta (clave para RNF-03).
-    pub fn set_breakpoints(&mut self, addrs: HashSet<u32>) -> Result<(), String> {
-        let need_hook = !addrs.is_empty();
-        self.uc.get_data_mut().breakpoints = addrs;
+    pub fn set_breakpoints<I, B>(&mut self, bps: I) -> Result<(), String>
+    where
+        I: IntoIterator<Item = B>,
+        B: Into<BreakpointSpec>,
+    {
+        let mapa: HashMap<u32, Option<CondAst>> = bps
+            .into_iter()
+            .map(|b| {
+                let b = b.into();
+                (b.addr, b.cond)
+            })
+            .collect();
+        let need_hook = !mapa.is_empty();
+        self.uc.get_data_mut().breakpoints = mapa;
         match (need_hook, self.bp_hook) {
             (true, None) => {
                 let id = self
@@ -530,15 +557,32 @@ impl Machine<'_> {
                         TEXT_BASE as u64,
                         (TEXT_BASE + TEXT_SIZE) as u64,
                         |uc, addr, _| {
-                            let d = uc.get_data_mut();
                             let addr = addr as u32;
-                            if d.suppress_bp.take() == Some(addr) {
-                                return;
+                            {
+                                let d = uc.get_data_mut();
+                                if d.suppress_bp.take() == Some(addr) {
+                                    return;
+                                }
                             }
-                            if d.breakpoints.contains(&addr) {
-                                d.hit_breakpoint = Some(addr);
-                                let _ = uc.emu_stop();
+                            // Copia barata de la condición (Copy) para
+                            // soltar el préstamo de data antes de leer
+                            // registros con el uc.
+                            let cond = match uc.get_data().breakpoints.get(&addr) {
+                                None => return,
+                                Some(c) => *c,
+                            };
+                            if let Some(c) = cond {
+                                // Condición FALSA: el programa pasa de
+                                // largo — no es una parada, no toca
+                                // last_bp ni suprime nada (RP-1 F4).
+                                let cumple =
+                                    c.eval(|n| uc.reg_read(xreg(n)).unwrap_or(0) as u32);
+                                if !cumple {
+                                    return;
+                                }
                             }
+                            uc.get_data_mut().hit_breakpoint = Some(addr);
+                            let _ = uc.emu_stop();
                         },
                     )
                     .map_err(|e| format!("no se pudo instalar el hook de breakpoints: {e:?}"))?;
@@ -744,7 +788,7 @@ impl Machine<'_> {
         // reportarse (RP1-F4 5C). En una continuación tampoco se suprime.
         if suppress_bp_at_start
             && self.last_bp == Some(pc)
-            && self.uc.get_data().breakpoints.contains(&pc)
+            && self.uc.get_data().breakpoints.contains_key(&pc)
         {
             self.uc.get_data_mut().suppress_bp = Some(pc);
         }
@@ -1048,7 +1092,7 @@ mod tests {
         let (mut m, _o, _i) = machine_for(src);
         // breakpoint en la 3ª instrucción (li t2)
         let bp = TEXT_BASE + 8;
-        m.set_breakpoints(HashSet::from([bp])).unwrap();
+        m.set_breakpoints([bp]).unwrap();
         assert_eq!(m.run(0), StopReason::Breakpoint { addr: bp });
         assert_eq!(m.pc().unwrap(), bp);
         assert_eq!(m.registers().unwrap()[6], 2); // t1 ya asignado
@@ -1080,7 +1124,7 @@ mod tests {
         assert_eq!(m.run(0), StopReason::Exited { code: 0 });
         m.reset().unwrap();
         let bp = TEXT_BASE + 8; // tercera instrucción
-        m.set_breakpoints([bp].into()).unwrap();
+        m.set_breakpoints([bp]).unwrap();
         assert_eq!(m.run(0), StopReason::Breakpoint { addr: bp });
         assert_eq!(
             m.registers().unwrap()[5],

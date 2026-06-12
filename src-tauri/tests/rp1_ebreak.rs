@@ -422,7 +422,7 @@ fn ebreak_convive_con_breakpoint_de_ui() {
         let dir_bp_a = TEXT_BASE + 4; // li t1,2
         let dir_eb_a = TEXT_BASE + 12; // ebreak
         let (mut m, _out, _in) = machine_for(SRC_A);
-        m.set_breakpoints(HashSet::from([dir_bp_a])).expect("bp A");
+        m.set_breakpoints([dir_bp_a]).expect("bp A");
         assert_eq!(
             m.run_slice(0, 1_000),
             StopReason::Breakpoint { addr: dir_bp_a },
@@ -459,7 +459,7 @@ fn ebreak_convive_con_breakpoint_de_ui() {
         let dir_eb_b = TEXT_BASE + 4; // ebreak
         let dir_bp_b = TEXT_BASE + 12; // li t2,3
         let (mut m, _out, _in) = machine_for(SRC_B);
-        m.set_breakpoints(HashSet::from([dir_bp_b])).expect("bp B");
+        m.set_breakpoints([dir_bp_b]).expect("bp B");
         assert_eq!(
             m.run_slice(0, 1_000),
             StopReason::EbreakPause { addr: dir_eb_b },
@@ -498,7 +498,7 @@ fn ebreak_convive_con_breakpoint_de_ui() {
         let dir_eb_c = TEXT_BASE + 4; // ebreak
         let dir_bp_c = dir_eb_c + 4; // li t1,2 — exactamente donde cae el pc
         let (mut m, _out, _in) = machine_for(SRC_C);
-        m.set_breakpoints(HashSet::from([dir_bp_c])).expect("bp C");
+        m.set_breakpoints([dir_bp_c]).expect("bp C");
         assert_eq!(
             m.run_slice(0, 1_000),
             StopReason::EbreakPause { addr: dir_eb_c },
