@@ -11,6 +11,7 @@ import {
   setDoc,
   setErrors,
   setExecLine,
+  toggleBreakpointAtLine,
 } from "./editor";
 import { t } from "./i18n";
 import { Ayuda } from "./paneles/ayuda";
@@ -48,6 +49,9 @@ class App {
   private video: Video;
   private ayuda: Ayuda;
   private programa: AssembleOk | null = null;
+  /** El texto del editor cambió desde el último ensamblado exitoso:
+   *  line_to_addr ya no es confiable para validar breakpoints. */
+  private programaDesactualizado = false;
   private reinicioPedido = false;
   /** Cancelaciones de los listen() de Tauri (evita fugas al re-suscribir). */
   private unlisteners: UnlistenFn[] = [];
@@ -64,6 +68,9 @@ class App {
       ejHola,
       () => this.enviarBreakpoints(),
       (linea) => this.puedeAgregarBreakpoint(linea),
+      () => {
+        this.programaDesactualizado = true;
+      },
     );
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
@@ -238,6 +245,7 @@ class App {
     try {
       const ok = await api.assemble(getDoc(this.editor));
       this.programa = ok;
+      this.programaDesactualizado = false;
       this.consola.clear();
       this.consola.setInputMode(false);
       setErrors(this.editor, []);
@@ -245,6 +253,15 @@ class App {
       this.memoria.setPrograma(ok);
       this.registros.reiniciar(await api.getState());
       await this.memoria.irA(ok.data_base);
+      // Los puntos del margen que cayeron en líneas sin código ejecutable
+      // no representan un breakpoint real: se quitan y se avisa por consola
+      // en vez de filtrarlos en silencio.
+      for (const linea of getBreakpointLines(this.editor)) {
+        if (ok.line_to_addr[String(linea)] === undefined) {
+          toggleBreakpointAtLine(this.editor, linea);
+          this.consola.append(`${t("breakpoint.lineaSinCodigo", { linea })}\n`, "error");
+        }
+      }
       this.enviarBreakpoints(); // los del margen aplican a la sesión nueva
       this.setModo("listo", t("estado.ensamblado", { n: ok.text_len }), "ok");
     } catch (e) {
@@ -265,10 +282,11 @@ class App {
   }
 
   /** Un breakpoint nuevo solo vale en líneas con código ejecutable.
-   *  Si no hay programa ensamblado todavía no hay forma de saberlo, así
-   *  que se permite; con programa, se rechaza y se avisa por consola. */
+   *  Si no hay programa ensamblado, o el texto cambió desde el último
+   *  ensamblado (line_to_addr quedó obsoleto), no hay forma confiable de
+   *  saberlo y se permite; con programa vigente, se rechaza y se avisa. */
   private puedeAgregarBreakpoint(linea: number): boolean {
-    if (!this.programa) return true;
+    if (!this.programa || this.programaDesactualizado) return true;
     if (this.programa.line_to_addr[String(linea)] !== undefined) return true;
     this.consola.append(`${t("breakpoint.lineaSinCodigo", { linea })}\n`, "error");
     return false;
@@ -368,6 +386,10 @@ class App {
     b.detener.disabled = modo !== "corriendo" && modo !== "esperando";
     b.reiniciar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
     b.exportar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
+    // Abrir reemplazaría el editor (y Guardar leería un estado a medias)
+    // con el hilo de ejecución vivo: mismo criterio que Exportar.
+    b.abrir.disabled = modo === "corriendo" || modo === "esperando";
+    b.guardar.disabled = modo === "corriendo" || modo === "esperando";
   }
 }
 

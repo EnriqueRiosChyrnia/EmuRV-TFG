@@ -138,6 +138,7 @@ export function createEditor(
   doc: string,
   onBreakpointsChanged: (lineas: number[]) => void,
   puedeAgregarBreakpoint: (linea: number) => boolean = () => true,
+  onDocChanged?: () => void,
 ): EditorView {
   const bpGutter = gutter({
     class: "cm-breakpoint-gutter",
@@ -185,6 +186,9 @@ export function createEditor(
         // y setErrors hace view.dispatch; se difiere hasta que termine.
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
+            // Aviso sincrónico a la app: el texto cambió, así que el
+            // programa ensamblado (si lo hay) quedó desactualizado.
+            onDocChanged?.();
             setTimeout(() => {
               setErrors(view, []);
               onBreakpointsChanged(getBreakpointLines(view));

@@ -283,3 +283,29 @@ Notas:
 ### Bundle final (2026-06-11)
 
 `cargo tauri build` exitoso: **EmuRV.app 21 MB** y **EmuRV_0.1.0_aarch64.dmg 7.2 MB** — ambos bajo el límite RNF-04 de 30 MB. A diferencia de la corrida de v0.1, esta vez `bundle_dmg.sh` completó el DMG estilado sin el plan B de `hdiutil`. [Seguro — medido]
+
+## Etapa 7 — Revisión final multi-agente y cierre de sesión (2026-06-11)
+
+### Revisión adversarial del código de la sesión
+
+3 revisores por dimensión (núcleo Rust / frontend-frontera Tauri / tests-benchmarks) + 1 verificador adversarial por hallazgo (10 hallazgos reportados → 5 confirmados, 5 refutados). Los 5 confirmados se corrigieron en esta misma etapa:
+
+1. **[medio] «Abrir»/«Guardar» habilitados durante la ejecución** (`main.ts`): abrir un archivo con el emulador corriendo dejaba el hilo de emulación vivo sin botón «Detener». Fix: `setModo` los deshabilita en `corriendo`/`esperando` (mismo criterio que «Exportar»).
+2. **[bajo] Validación de breakpoints contra `line_to_addr` obsoleto tras editar**: flag `programaDesactualizado` (se setea con `docChanged` del editor, se limpia al ensamblar): con el texto editado se permite el alta (no hay forma confiable de validar) y el rechazo con aviso queda solo para programa vigente.
+3. **[bajo] Puntos rojos en líneas sin código filtrados en silencio al ensamblar**: tras un ensamblado exitoso se podan los marcadores sin entrada en `line_to_addr` con aviso por consola (`breakpoint.lineaSinCodigo`), antes de enviar los breakpoints.
+4. **[bajo] Carrera en `video.ts` al detener**: si el volcado final llegaba con una lectura en vuelo, se perdía. Fix: flag `repetirAlTerminar` que reejecuta `refrescar()` al terminar la lectura en curso.
+5. **[bajo] Assert de `fb4_fps` sobredeclaraba**: decía verificar "cada frame publicado exactamente una vez"; lo que verifica es que ningún frame distinto queda suprimido por el flag sucio (la supresión de frames idénticos la cubre `fb2_publicacion_con_flag_sucio`). Mensaje y comentario corregidos; esta entrada corrige también la frase "flag sucio correcto bajo carga" de la entrada de Etapa 4. Cifra re-medida tras los cambios: **840 FPS** (vs 835 de la primera corrida — estable).
+
+Refutados (ejemplos): "ebreak se ignora en Ejecutar" (el camino tiene el bug latente ya registrado, pero el reporte específico no aplicaba), "para_sesion_nueva resetea seq con mutex envenenado", "desuscripción no cubre promesas en vuelo".
+
+### Verificación de capítulos de tesis (fuera del repo, en `Tesis/partes/`)
+
+6 verificadores (uno por capítulo + índice/plantilla V). Resultado: **5/5 capítulos APROBADOS CON CORRECCIONES MENORES, 0 citas inválidas, 0 datos de evaluación inventados**. Las correcciones (≈15: teclado no es dispositivo emulado, instalador Windows inexistente aún, 35 tests eran de la suite v0.1 completa, atribuciones de "registrado en bitácora" que eran propuestas del capítulo, licenciamiento aún no definido, etc.) se aplicaron y se re-verificó la ausencia de las frases observadas.
+
+### Suite final de la sesión
+
+- `cargo test`: **55 pasan + 5 `#[ignore]` = 60** · `cargo clippy --all-targets`: 0 warnings · `npx tsc --noEmit`: limpio · `npx vite build`: ok.
+- `cargo test --release -- --ignored`: 5/5 benchmarks verdes (cifras en Etapa 4; fb4 re-medido 840 FPS).
+- `cargo tauri build` final con todos los fixes: **EmuRV.app 21 MB / DMG 7.2 MB**.
+
+Sesión ultracode completada: Etapas 0-7 del plan ejecutadas. Los capítulos I-IV y VI + REFERENCIAS.md (37 entradas: 31 verificadas, 5 corregidas, 1 descartada por inverificable) + INDICE-MEMORIA + plantilla vacía del Cap. V viven en `Tesis/partes/`, fuera de este repo. El Capítulo V NO se escribió (no hay datos de evaluación; la plantilla lo advierte). Esta rama NO se mergea a main (decisión humana pendiente).
