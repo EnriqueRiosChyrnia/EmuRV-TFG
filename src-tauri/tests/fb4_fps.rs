@@ -88,10 +88,14 @@ bucle:
          (repintado completo de 320×240 por frame, color distinto por pasada)"
     );
 
+    // Cada pasada usa un color distinto del anterior, así que TODAS deben
+    // publicarse: esto verifica que el flag sucio no suprime frames que sí
+    // cambiaron. (La supresión de frames idénticos la cubre
+    // `fb2_publicacion_con_flag_sucio`; acá no se ejercita.)
     assert_eq!(
         frames,
         u64::from(FRAMES),
-        "cada frame repintado debe publicarse exactamente una vez"
+        "ningún frame repintado (todos distintos) debe quedar suprimido por el flag sucio"
     );
     // El requisito efectivo es alimentar la UI a 30 Hz; el lado Rust debe
     // superarlo con margen amplio.

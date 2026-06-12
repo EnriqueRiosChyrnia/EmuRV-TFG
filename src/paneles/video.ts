@@ -20,6 +20,9 @@ export class Video {
   private imageData: ImageData; // reusado entre frames (RB-1)
   private timer: number | null = null;
   private leyendo = false;
+  // Llegó un pedido de refresco mientras otro estaba en vuelo (p. ej. el
+  // volcado final al detenerse): se repite al terminar para no perderlo.
+  private repetirAlTerminar = false;
   private seq = 0n; // última publicación pintada por ESTE consumidor
   private desacoplada = false;
 
@@ -77,7 +80,11 @@ export class Video {
 
   /** Pide un frame más nuevo que el último pintado; 0 bytes = sin cambios. */
   async refrescar(): Promise<void> {
-    if (!this.visible || this.leyendo) return;
+    if (!this.visible) return;
+    if (this.leyendo) {
+      this.repetirAlTerminar = true;
+      return;
+    }
     this.leyendo = true;
     try {
       const buf = await api.readFramebuffer(this.seq);
@@ -90,6 +97,10 @@ export class Video {
       // sin sesión de emulación: no hay nada que pintar
     } finally {
       this.leyendo = false;
+      if (this.repetirAlTerminar) {
+        this.repetirAlTerminar = false;
+        void this.refrescar();
+      }
     }
   }
 
