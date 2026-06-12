@@ -430,6 +430,7 @@ pub fn assemble(
                 line: 1,
                 col: 1,
                 msg: e,
+                file: None,
             }]
         })?;
 
@@ -462,6 +463,7 @@ fn asm_internal_error(msg: &str) -> Vec<AsmError> {
         line: 1,
         col: 1,
         msg: msg.into(),
+        file: None,
     }]
 }
 

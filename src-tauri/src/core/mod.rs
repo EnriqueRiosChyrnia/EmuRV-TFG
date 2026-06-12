@@ -8,6 +8,7 @@ pub mod assembler;
 pub mod elf_export;
 pub mod keyboard;
 pub mod machine;
+pub mod preprocess;
 pub mod syscalls;
 pub mod video;
 

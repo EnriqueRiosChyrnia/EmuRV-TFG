@@ -23,20 +23,28 @@ pub struct AsmError {
     pub line: u32,
     pub col: u32,
     pub msg: String,
+    /// Archivo de origen cuando el error está DENTRO de un include (RP5).
+    /// `None` = archivo principal (el buffer del editor). El display solo
+    /// antepone el nombre cuando es `Some`.
+    pub file: Option<String>,
 }
 
 impl AsmError {
-    fn new(line: u32, col: u32, msg: impl Into<String>) -> Self {
+    pub(crate) fn new(line: u32, col: u32, msg: impl Into<String>) -> Self {
         Self {
             line,
             col,
             msg: msg.into(),
+            file: None,
         }
     }
 }
 
 impl std::fmt::Display for AsmError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(file) = &self.file {
+            write!(f, "{file}: ")?;
+        }
         write!(f, "línea {}, columna {}: {}", self.line, self.col, self.msg)
     }
 }
@@ -68,6 +76,12 @@ pub struct Program {
     pub data: Vec<u8>,
     pub symbols: BTreeMap<String, u32>,
     pub source_map: SourceMap,
+    /// Procedencia REAL de cada palabra de .text: (dirección, índice de
+    /// archivo, línea en ese archivo). La UI actual no lo consume — queda
+    /// para la futura vista multi-archivo (RP5, diseño acordado).
+    pub origins: Vec<(u32, u16, u32)>,
+    /// Nombres de archivo de `origins`; `[0]` es el principal.
+    pub files: Vec<String>,
 }
 
 impl Program {
@@ -424,12 +438,21 @@ enum OpKind {
     Reg(u8),
     Imm(i64),
     Sym(String),
-    Mem { off: i64, base: u8 },
+    Mem {
+        off: i64,
+        base: u8,
+    },
     /// `%hi(x)` / `%lo(x)` como inmediato (lui/addi/ori). La resolución es
     /// en pasada 2 (las etiquetas pueden definirse después, como siempre).
-    HiLo { hi: bool, arg: HiLoArg },
+    HiLo {
+        hi: bool,
+        arg: HiLoArg,
+    },
     /// `%lo(x)(base)` como operando de memoria de cargas/almacenamientos.
-    MemLo { arg: HiLoArg, base: u8 },
+    MemLo {
+        arg: HiLoArg,
+        base: u8,
+    },
 }
 
 /// Argumento de %hi/%lo: etiqueta (se resuelve en pasada 2) o valor ya
@@ -450,7 +473,13 @@ struct POp {
 struct PInstr {
     mnem: String,
     ops: Vec<POp>,
+    /// Línea REAL en su archivo (errores de pasada 2).
     line: u32,
+    /// Archivo de origen (índice en files; 0 = principal).
+    file: u16,
+    /// Línea del principal a la que se atribuye (source_map). Igual a
+    /// `line` cuando no hay includes.
+    main_line: u32,
     addr: u32,
     size: u32,
 }
@@ -467,6 +496,7 @@ struct DataFixup {
     sym: String,
     line: u32,
     col: u32,
+    file: u16,
 }
 
 struct Pass1 {
@@ -482,11 +512,38 @@ struct Pass1 {
     consts: HashMap<String, (i64, u32)>,
     fixups: Vec<DataFixup>,
     errors: Vec<AsmError>,
+    /// Procedencia de la línea EN CURSO (la setea el bucle principal antes
+    /// de parsear cada PpLine; evita enhebrar 3 valores por cada firma).
+    cur_file: u16,
+    cur_main_line: u32,
 }
 
-/// Ensambla el código fuente completo. Devuelve el programa o TODOS los
-/// errores encontrados (no solo el primero), ordenados por línea.
+/// Ensambla un fuente SIN resolución de archivos (`.include` da error
+/// didáctico). Wrapper retrocompatible: los tests y llamadas existentes no
+/// cambian. El nombre del "archivo" solo aparece en errores de includes.
 pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
+    assemble_with_includes(source, None, "programa.s")
+}
+
+/// Ensambla el fuente completo, resolviendo `.include` relativo a
+/// `base_dir` (RP5). Devuelve el programa o TODOS los errores encontrados
+/// (no solo el primero), ordenados por archivo y línea.
+pub fn assemble_with_includes(
+    source: &str,
+    base_dir: Option<&std::path::Path>,
+    main_name: &str,
+) -> Result<Program, Vec<AsmError>> {
+    let pp = super::preprocess::preprocess(source, base_dir, main_name)?;
+    let files = pp.files;
+    // Adjunta el nombre de archivo a un error nacido en un include (los
+    // del principal quedan con file=None: el formato actual no cambia).
+    let con_archivo = |mut e: AsmError, file: u16| -> AsmError {
+        if file != 0 && e.file.is_none() {
+            e.file = Some(files[file as usize].clone());
+        }
+        e
+    };
+
     let mut p = Pass1 {
         segment: Segment::Text,
         text_off: 0,
@@ -497,18 +554,23 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
         consts: HashMap::new(),
         fixups: Vec::new(),
         errors: Vec::new(),
+        cur_file: 0,
+        cur_main_line: 0,
     };
 
-    for (idx, raw_line) in source.lines().enumerate() {
-        let line_no = (idx + 1) as u32;
-        let toks = match lex_line(raw_line, line_no) {
+    for pl in &pp.lines {
+        p.cur_file = pl.file;
+        p.cur_main_line = pl.main_line;
+        let toks = match lex_line(&pl.text, pl.line) {
             Ok(t) => t,
             Err(e) => {
+                let e = con_archivo(e, pl.file);
                 p.errors.push(e);
                 continue;
             }
         };
-        if let Err(e) = parse_line(&mut p, &toks, line_no) {
+        if let Err(e) = parse_line(&mut p, &toks, pl.line) {
+            let e = con_archivo(e, pl.file);
             p.errors.push(e);
         }
     }
@@ -521,21 +583,31 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
         ));
     }
 
-    // Pasada 2: codificación y resolución de símbolos.
+    // Pasada 2: codificación y resolución de símbolos. El source_map se
+    // construye con `main_line` (atribución al archivo principal: regla
+    // RP5); los errores usan `line`/`file` reales.
     let mut text = Vec::with_capacity((p.text_off as usize).max(4));
     let mut source_map = SourceMap::default();
+    let mut origins = Vec::with_capacity(p.instrs.len());
     for ins in &p.instrs {
         match encode_instr(ins, &p.symbols) {
             Ok(words) => {
                 debug_assert_eq!(words.len() as u32 * 4, ins.size);
                 for (k, w) in words.iter().enumerate() {
                     let addr = ins.addr + (k as u32) * 4;
-                    source_map.addr_to_line.insert(addr, ins.line);
+                    source_map.addr_to_line.insert(addr, ins.main_line);
+                    origins.push((addr, ins.file, ins.line));
                     text.extend_from_slice(&w.to_le_bytes());
                 }
-                source_map.line_to_addr.entry(ins.line).or_insert(ins.addr);
+                source_map
+                    .line_to_addr
+                    .entry(ins.main_line)
+                    .or_insert(ins.addr);
             }
-            Err(e) => p.errors.push(e),
+            Err(e) => {
+                let e = con_archivo(e, ins.file);
+                p.errors.push(e);
+            }
         }
     }
 
@@ -543,11 +615,11 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
     for f in &p.fixups {
         match p.symbols.get(&f.sym) {
             Some(&v) => p.data[f.offset..f.offset + 4].copy_from_slice(&v.to_le_bytes()),
-            None => p.errors.push(AsmError::new(
-                f.line,
-                f.col,
-                format!("etiqueta no definida: «{}»", f.sym),
-            )),
+            None => {
+                let e = AsmError::new(f.line, f.col, format!("etiqueta no definida: «{}»", f.sym));
+                let e = con_archivo(e, f.file);
+                p.errors.push(e);
+            }
         }
     }
 
@@ -557,9 +629,11 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
             data: p.data,
             symbols: p.symbols,
             source_map,
+            origins,
+            files,
         })
     } else {
-        p.errors.sort_by_key(|e| (e.line, e.col));
+        p.errors.sort_by_key(|e| (e.file.clone(), e.line, e.col));
         Err(p.errors)
     }
 }
@@ -778,6 +852,7 @@ fn parse_directive(
                             sym: sym.clone(),
                             line,
                             col: *scol,
+                            file: p.cur_file,
                         });
                         p.data.extend_from_slice(&[0; 4]);
                     }
@@ -806,7 +881,10 @@ fn parse_directive(
             define_labels(p, labels, line)?;
             let mut it = rest;
             let (cname, ncol) = match it.first() {
-                Some(STok { tok: Tok::Ident(n), col }) => (n.clone(), *col),
+                Some(STok {
+                    tok: Tok::Ident(n),
+                    col,
+                }) => (n.clone(), *col),
                 _ => {
                     return Err(AsmError::new(
                         line,
@@ -816,7 +894,13 @@ fn parse_directive(
                 }
             };
             it = &it[1..];
-            if matches!(it.first(), Some(STok { tok: Tok::Comma, .. })) {
+            if matches!(
+                it.first(),
+                Some(STok {
+                    tok: Tok::Comma,
+                    ..
+                })
+            ) {
                 it = &it[1..];
             }
             let value = match it {
@@ -950,6 +1034,8 @@ fn parse_instruction(
         mnem,
         ops,
         line,
+        file: p.cur_file,
+        main_line: p.cur_main_line,
         addr,
         size,
     });
@@ -974,8 +1060,17 @@ fn parse_operand(
     };
     match toks {
         // %hi(x) / %lo(x) — inmediato para lui/addi/ori (RP5).
-        [STok { tok: Tok::Percent, col }, STok { tok: Tok::Ident(f), col: fcol }, STok { tok: Tok::LParen, .. }, arg, STok { tok: Tok::RParen, .. }] =>
-        {
+        [STok {
+            tok: Tok::Percent,
+            col,
+        }, STok {
+            tok: Tok::Ident(f),
+            col: fcol,
+        }, STok {
+            tok: Tok::LParen, ..
+        }, arg, STok {
+            tok: Tok::RParen, ..
+        }] => {
             let hi = match f.as_str() {
                 "hi" => true,
                 "lo" => false,
@@ -988,7 +1083,11 @@ fn parse_operand(
                 }
             };
             let arg = hilo_arg(&arg.tok).ok_or_else(|| {
-                AsmError::new(line, arg.col, "%hi/%lo esperan una etiqueta, número o constante entre paréntesis")
+                AsmError::new(
+                    line,
+                    arg.col,
+                    "%hi/%lo esperan una etiqueta, número o constante entre paréntesis",
+                )
             })?;
             Ok(POp {
                 kind: OpKind::HiLo { hi, arg },
@@ -996,8 +1095,24 @@ fn parse_operand(
             })
         }
         // %lo(x)(base) — desplazamiento de carga/almacenamiento (RP5).
-        [STok { tok: Tok::Percent, col }, STok { tok: Tok::Ident(f), col: fcol }, STok { tok: Tok::LParen, .. }, arg, STok { tok: Tok::RParen, .. }, STok { tok: Tok::LParen, .. }, STok { tok: Tok::Ident(base), col: bcol }, STok { tok: Tok::RParen, .. }] =>
-        {
+        [STok {
+            tok: Tok::Percent,
+            col,
+        }, STok {
+            tok: Tok::Ident(f),
+            col: fcol,
+        }, STok {
+            tok: Tok::LParen, ..
+        }, arg, STok {
+            tok: Tok::RParen, ..
+        }, STok {
+            tok: Tok::LParen, ..
+        }, STok {
+            tok: Tok::Ident(base),
+            col: bcol,
+        }, STok {
+            tok: Tok::RParen, ..
+        }] => {
             if f != "lo" {
                 return Err(AsmError::new(
                     line,
@@ -1006,7 +1121,11 @@ fn parse_operand(
                 ));
             }
             let arg = hilo_arg(&arg.tok).ok_or_else(|| {
-                AsmError::new(line, arg.col, "%lo espera una etiqueta, número o constante entre paréntesis")
+                AsmError::new(
+                    line,
+                    arg.col,
+                    "%lo espera una etiqueta, número o constante entre paréntesis",
+                )
             })?;
             let base = reg_number(base).ok_or_else(|| {
                 AsmError::new(line, *bcol, format!("registro inválido: «{base}»"))
@@ -1016,7 +1135,10 @@ fn parse_operand(
                 col: *col,
             })
         }
-        [STok { tok: Tok::Percent, col }, ..] => Err(AsmError::new(
+        [STok {
+            tok: Tok::Percent,
+            col,
+        }, ..] => Err(AsmError::new(
             line,
             *col,
             "uso de «%» mal formado: la sintaxis es %hi(simbolo) o %lo(simbolo)",
@@ -1235,7 +1357,9 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
         "lui" => {
             want(2, "registro, inmediato")?;
             if !(is_reg(0) && (is_imm(1) || is_hilo(1))) {
-                return err("«lui» espera registro e inmediato de 20 bits (o %hi(etiqueta))".into());
+                return err(
+                    "«lui» espera registro e inmediato de 20 bits (o %hi(etiqueta))".into(),
+                );
             }
         }
         "auipc" => {
@@ -1995,9 +2119,7 @@ mod tests {
         // dato queda en DATA_BASE + 2052: el %lo (2052 > 2047) es NEGATIVO
         // y el %hi compensa (+0x800 antes del shift) — el par lui+addi debe
         // reconstruir la dirección EXACTA, byte a byte igual que «la».
-        let con_la = asm_words(
-            ".data\n.space 2052\ndato: .word 7\n.text\nla t0, dato",
-        );
+        let con_la = asm_words(".data\n.space 2052\ndato: .word 7\n.text\nla t0, dato");
         let con_hilo = asm_words(
             ".data\n.space 2052\ndato: .word 7\n.text\nlui t0, %hi(dato)\naddi t0, t0, %lo(dato)",
         );
@@ -2008,9 +2130,7 @@ mod tests {
     fn hi_lo_con_referencia_hacia_adelante_y_lo_en_memoria() {
         // La etiqueta se define DESPUÉS de usarse (pasada 2, como siempre)
         // y %lo(dato)(t0) funciona como desplazamiento de carga.
-        let w = asm_words(
-            ".text\nlui t0, %hi(dato)\nlw t1, %lo(dato)(t0)\n.data\ndato: .word 7",
-        );
+        let w = asm_words(".text\nlui t0, %hi(dato)\nlw t1, %lo(dato)(t0)\n.data\ndato: .word 7");
         let w2 = asm_words(".text\nlw t1, dato\n.data\ndato: .word 7");
         // lw rd, etiqueta expande a lui rd + lw — mismos words salvo el
         // registro intermedio (acá t0 vs t1): comparar el lw final ajustado
