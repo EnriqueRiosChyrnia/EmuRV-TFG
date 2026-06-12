@@ -1,10 +1,10 @@
 // Pantalla gráfica (framebuffer VGA 13h, 320×240): canvas con volcado por
-// putImageData sobre un ImageData reusado (RF1) y timer de ~30 Hz con flag
-// sucio por número de secuencia (RF2): el backend conserva el último frame
+// putImageData sobre un ImageData reusado (RB-1) y timer de ~30 Hz con flag
+// sucio por número de secuencia (RB-2): el backend conserva el último frame
 // y responde solo si hay uno más nuevo que el que este consumidor ya pintó,
 // así el panel embebido y la ventana desacoplada pueden convivir.
 // El panel está oculto hasta que el programa usa la VRAM o el usuario lo
-// muestra con el botón de la toolbar (RF4).
+// muestra con el botón de la toolbar (RB-4).
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api } from "../api";
 import { t } from "../i18n";
@@ -17,7 +17,7 @@ const VENTANA = "pantalla"; // label de la ventana desacoplada
 export class Video {
   private seccion: HTMLElement;
   private ctx: CanvasRenderingContext2D;
-  private imageData: ImageData; // reusado entre frames (RF1)
+  private imageData: ImageData; // reusado entre frames (RB-1)
   private timer: number | null = null;
   private leyendo = false;
   private seq = 0n; // última publicación pintada por ESTE consumidor

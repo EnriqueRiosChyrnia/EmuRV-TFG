@@ -22,13 +22,16 @@
     machine.rs      Unicorn: memoria, ejecución, hooks, breakpoints
     syscalls.rs     convención RARS (a7)
     elf_export.rs   ELF32 EM_RISCV con `object`
+    video.rs        framebuffer (añadido en la fase framebuffer, 2026-06; no estaba en el plan original)
   /src/commands.rs  comandos Tauri (assemble, run, step, reset, read_mem, export_elf, send_input)
+  /tests            integración (RNF-06)
 /src                frontend TS
-  /editor  /paneles (registros, memoria, consola)  /i18n/es.json
+  /editor  /paneles (registros, memoria, consola; video y ayuda añadidos en la fase framebuffer, 2026-06)  /i18n/es.json
 /ejemplos           .asm de RF-09
 /docs               esta carpeta
-/tests              integración (RNF-06)
 ```
+
+*(Corrección 2026-06-11: el árbol original ubicaba `/tests` en la raíz del repositorio; los tests de integración están y estuvieron siempre en `src-tauri/tests`, que es donde cargo los ejecuta.)*
 
 ## Diseños clave
 

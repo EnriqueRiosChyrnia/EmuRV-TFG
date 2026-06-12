@@ -209,3 +209,52 @@ Hallazgos verificados del análisis multi-agente, corregidos en esta tanda:
 **Decisión MMIO vsync [Probable]:** escribir en `VIDEO_CONTROL_BASE` NO dispara publicación inmediata del frame (no hay hook de escritura; la publicación ocurre al final de cada tramo de ejecución y en syscall 5, leyendo el registro de control). De las dos opciones del plan (implementar hook de publicación al escribir control=1, o corregir la documentación que promete "escribir 1 = frame listo"), se elige **corregir la documentación** (Etapa 3): menor riesgo, cero cambio de comportamiento en código verificado visualmente, y la semántica real (volcado a ritmo fijo ~30 Hz) es la que PLAN-FRAMEBUFFER ya justificaba en RB-2. Implementar el hook queda como mejora futura posible.
 
 **Gate de cierre Etapa 1:** `cargo test` **55 pasan + 4 `#[ignore]` = 59** (eran 55+3: −1 debug_fb_write borrado, −1 fb1_performance a ignore, +2 tests de alineación) · clippy 0 warnings · tsc limpio. Desvío declarado: `tests/integracion_ejemplos.rs` recibió un cambio de una línea (firma nueva de `registers()`) fuera de la lista original de archivos.
+
+## Etapa 3 — Notas de bitácora del saneamiento documental (2026-06-11)
+
+### Nota de equivalencia de nomenclatura RF→RB
+
+Los riesgos del plan de framebuffer se llamaban RF1..RF4, colisionando con los requisitos RF-01..RF-10 de SPEC.md. En `docs/PLAN-FRAMEBUFFER.md` y en los comentarios del frontend se renombran a **RB-1..RB-4** ("Riesgo de framebuffer"). Las entradas viejas de esta bitácora que dicen RF1..RF4 (en contexto de framebuffer) deben leerse como RB-1..RB-4; NO se editan, por la regla de append-only. [Seguro]
+
+### Desviación formal del gate FB1 (registro retroactivo)
+
+El gate FB1 exigía conversión framebuffer→RGBA en **<2 ms**; la medición de su momento dio **2-3 ms en build debug** y el gate se dio por cumplido sin registrar la desviación (✓ silencioso). Según la regla de desviaciones de PLAN.md corresponde dejar constancia: se consideró cumplido porque el build de evaluación real es release (la medición release se registra en la etapa de mediciones de esta sesión) y porque el presupuesto de frame a 30 Hz es 33 ms, donde 2-3 ms de conversión no comprometen el requisito. El test `fb1_performance_conversion` quedó `#[ignore]` en debug por esta misma razón (Etapa 1, punto 8). [Probable — el razonamiento es reconstrucción de esta sesión; la cifra 2-3 ms es la medida original]
+
+### Restauración de evidencia: GATE FINAL v0.1 (perdido en compactación)
+
+La entrada siguiente se restaura textual de main (`git show 00002a3:BITACORA.md`); se perdió en una compactación anterior de este archivo. Restaurada el 2026-06-11 sin modificaciones:
+
+### 2026-06-10 — GATE FINAL: checklist RF-01..RF-10 con evidencia
+
+| RF | Requisito | Evidencia |
+|----|-----------|-----------|
+| RF-01 | Editor con resaltado y números de línea | CodeMirror 6 + `StreamLanguage` RV32 propio (`src/editor/riscv.ts`); capturas `docs/capturas/f3-*.png`, `f4-*.png` |
+| RF-02 | Errores por línea/columna en español | Tests `errores_en_espanol_con_linea_y_columna`, `reporta_multiples_errores_ordenados`; verificación DOM F4: 2 subrayados anclados + mensajes en consola |
+| RF-03 | Ejecutar y Paso sobre Unicorn | Tests `paso_a_paso_actualiza_registros`, `ecall_avanza_pc_y_no_se_repite`; gates F2 (hola mundo GUI) y F3 (fibonacci paso a paso) |
+| RF-04 | Breakpoints por línea + línea actual resaltada | Test `breakpoint_detiene_sin_ejecutar_y_reanuda`; demo F4 (3 paradas en bucle con t0=1,2,3, `linea_resaltada=true`, captura) |
+| RF-05 | Registros ABI hex/dec con resaltado de cambios | Panel `registros.ts`; evidencia F3-T2: traza `s0=...,1*` (resaltado solo en el paso del cambio) |
+| RF-06 | Memoria navegable + accesos .text/.data/sp | Panel `memoria.ts` (hexdump 16×16 + ASCII); captura F3 mostrando .data en 0x10010000 |
+| RF-07 | Consola con syscalls RARS (1,4,5,10,11) | `syscalls.rs` + tests; F3-T1: suma interactiva punta a punta tipeando en la consola; reintento de entrada inválida testado; tabla en la Ayuda |
+| RF-08 | Export ELF32 RISC-V estándar | 3 tests de formato en `elf_export.rs`; `file`: "ELF 32-bit LSB executable, UCB RISC-V" (F5) |
+| RF-09 | ≥5 ejemplos en español en menú | `ejemplos/*.asm` (5), menú «Ejemplos» verificado en gates F3/F4/F5; RNF-06: 6 tests de integración |
+| RF-10 | Reiniciar al estado post-ensamblado | Test `reset_vuelve_al_estado_post_ensamblado` (registros y .data restaurados); botón verificado en GUI (F3) |
+
+**RNF**: RNF-01 arranque 0.34 s ✓ · RNF-02 ensamblado 500 líneas 0.37 ms ✓ · RNF-03 1460 M instr/s (109 M con bp) ✓ · RNF-04 bundle 21 MB (.app) / 7.9 MB (.dmg) < 30 MB ✓ · RNF-05 i18n `es.json` completo ✓ · RNF-06 un test de integración por ejemplo (6 en total) ✓
+
+**Estado final**: `cargo test` 34/34 verdes (+3 benchmarks RNF ejecutables aparte en release) · `cargo clippy --all-targets` 0 warnings · `cargo tauri build` exitoso · bundle en `src-tauri/target/release/bundle/`.
+
+**Pendiente de verificación presencial** (la sesión autónoma no puede desbloquear la pantalla): re-captura visual del bundle final con el fix del overlay — la evidencia actual es la regla CSS presente en el `dist/` embebido y la determinismo del selector. Pasos: abrir `EmuRV.app`, confirmar que la ayuda NO está abierta al inicio y que el botón «Ayuda» la abre/cierra.
+
+### Corrección de conteo (sin editar la entrada vieja)
+
+La entrada de la línea ~119 dice "Tests: 49/49 verde". Ese conteo quedó corto respecto del estado real del repo al inicio de esta sesión: **55 pasando + 3 `#[ignore]` = 58** (ver línea base de Etapa 0 de esta sesión). La entrada vieja no se edita (append-only); este asiento la corrige hacia adelante. [Seguro — medido]
+### Cierre de Etapa 3 (2026-06-11)
+
+Saneamiento documental ejecutado (3 agentes + hilo principal):
+
+- **Borrado `docs/PLAN_FRAMEBUFFER.md`** (guion bajo): borrador corrupto — mojibake binario desde la línea 28 — con mapa de memoria obsoleto (0x1002_xxxx). El plan vigente siempre fue `PLAN-FRAMEBUFFER.md` (guion medio). [Seguro]
+- **`PLAN-FRAMEBUFFER.md`:** direcciones corregidas a las reales (paleta 0x9002_0000, control 0x9003_0000) con nota de divergencia fechada que conserva los valores originales del plan; motivo inferido del código: el framebuffer ocupa 76 800 bytes > 64 KiB, así que la paleta en 0x9001_0000 habría caído dentro de la región de video mapeada (0x20000). Semántica real del registro de control documentada (sin hook de escritura; publicación al final de cada tramo; refresco por timer ~30 Hz). RF1..RF4 → RB-1..RB-4. "Modo 13h clásico" → "inspirado en el modo 13h de VGA (que es 320×200), con resolución 320×240". [Seguro — verificado contra core/mod.rs, machine.rs, commands.rs, syscalls.rs]
+- **`MEMORIA-GRAFICA.md`:** eliminada la contradicción interna de la base de paleta (4 menciones 0x9001→0x9002); ejemplo de paleta reescrito con código válido (entrada 10 = offset 30 dec = 0x1E; `li t0, base / li t1, 0xFF / sb t1, 0x1E(t0)`… — `sb` porque los canales son de 1 byte y 0x1E no está alineado a word; el original `sw 0xFF, dir` era sintaxis inválida); semántica del registro de control corregida en todo el doc con nota de divergencia; título reformulado (13h). [Seguro]
+- **`ENSAMBLADOR.md`:** "35/35 tests" y "6 ejemplos" anotados como estado al cierre de v0.1; estado actual fechado: 55 verdes + 4 `#[ignore]` = 59, y 7 ejemplos (06-tetris ASCII reemplazado por 08-tetris-grafico; 07-franjas agregado en FB2). **`docs/README.md`:** ruta `~/Desktop/...` → `~/Documents/UNI/Tesis/EmuRV-TFG`. **`ARQUITECTURA.md`:** `/tests` reubicado en el árbol a `src-tauri/tests` + agregado `video.rs` faltante, con notas fechadas. [Seguro]
+- **Frontend y núcleo:** comentarios RF1/RF2/RF4 → RB-1/RB-2/RB-4 en `src/pantalla.ts`, `src/main.ts`, `src/paneles/video.ts`; doc-comments de `core/mod.rs` actualizados (13h y semántica real del registro de control).
+- La Etapa 2 (frontend) cerró en el commit `3d515e1`; su detalle quedó en el mensaje de commit y los gates se registran acá: 55+4 tests, clippy 0 warnings, tsc limpio, `vite build` ok.
