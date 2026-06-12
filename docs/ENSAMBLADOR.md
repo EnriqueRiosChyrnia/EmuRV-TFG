@@ -37,6 +37,7 @@ Codifica los seis formatos de la especificación base más la extensión M (mult
 - **B** (salto condicional): beq, bne, blt, bge, bltu, bgeu.
 - **U** (inmediato superior): lui, auipc.
 - **J** (salto incondicional): jal.
+- **Sistema**: ecall, ebreak y fence. *(Nota 2026-06-12, RP-1: `ebreak` es una pausa por software estilo RARS/gdb — la ejecución se detiene mostrando el estado y al reanudar continúa en la instrucción siguiente, sin re-ejecutar el `ebreak`; ver BITACORA RP1.)*
 
 ### 4.2. Pseudo-instrucciones
 

@@ -17,6 +17,8 @@ Principio rector: UX familiar al ciclo de emu8086 — **editar → ensamblar →
 - **RF-09** Ejemplos incluidos (mínimo 5, en español): hola mundo, suma con entrada de usuario, bucle/contador, fibonacci, uso de pila/funciones. Accesibles desde un menú "Ejemplos".
 - **RF-10** Botón "Reiniciar": vuelve la máquina al estado post-ensamblado (registros y memoria iniciales).
 
+> **Nota (2026-06-12, RP-1 del roadmap):** la instrucción `ebreak` queda soportada como **pausa por software** (complemento de RF-03/RF-04): pausa la ejecución mostrando el estado y al reanudar se continúa en la instrucción siguiente, convención RARS/gdb. Declarado recién después del fix correspondiente (BITACORA RP1, tests `rp1_ebreak.rs`).
+
 ## Requisitos no funcionales (RNF)
 
 - **RNF-01** Arranque de la app < 2 s en Apple Silicon.
