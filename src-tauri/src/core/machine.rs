@@ -20,7 +20,7 @@ use super::video::{FramebufferRGBA, VideoShared};
 use super::{
     CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC, DATA_BASE,
     DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE, FRAMEBUFFER_SIZE,
-    GP_INIT, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
+    GP_INIT, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
     RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
     VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
 };
@@ -150,6 +150,10 @@ pub struct MachData {
     /// emulación entre tramos). Por ahora solo se cablea: la fase siguiente
     /// la usará para hacer interrumpible la syscall de sleep.
     pub stop_request: Arc<AtomicBool>,
+    /// Próxima dirección libre del heap (syscall 9, RP10): puntero
+    /// creciente desde `HEAP_BASE`, alineado a 4, sin free (como RARS).
+    /// `load()`/`reset()` lo devuelven a `HEAP_BASE`.
+    pub heap_next: u32,
 }
 
 /// La máquina NO es `Send` (Unicorn usa `Rc` internamente): debe crearse y
@@ -217,6 +221,7 @@ impl Machine<'_> {
             video_used: false,
             keyboard: Arc::default(),
             stop_request: Arc::default(),
+            heap_next: HEAP_BASE,
         };
         let mut uc = Unicorn::new_with_data(Arch::RISCV, Mode::RISCV32, data)
             .map_err(|e| format!("no se pudo iniciar el emulador: {e:?}"))?;
@@ -403,6 +408,18 @@ impl Machine<'_> {
         self.uc
             .mem_write(TEXT_BASE as u64, &self.program.text)
             .map_err(err)?;
+        // RP10: .data no puede llegar al heap (0x1004_0000, canónico RARS):
+        // sbrk repartiría memoria que el programa ya usa para sus datos.
+        let fin_data = DATA_BASE as u64 + self.program.data.len() as u64;
+        if fin_data > HEAP_BASE as u64 {
+            return Err(format!(
+                "tus datos pisan el heap: .data ocupa {} bytes y llega hasta \
+                 0x{fin_data:08X}, pero el heap (syscall 9) arranca en \
+                 0x{HEAP_BASE:08X}. Achicá .data (límite: {} bytes)",
+                self.program.data.len(),
+                HEAP_BASE - DATA_BASE
+            ));
+        }
         self.uc
             .mem_write(DATA_BASE as u64, &self.program.data)
             .map_err(err)?;
@@ -425,6 +442,7 @@ impl Machine<'_> {
         d.ebreak_pause = None;
         d.hit_watchpoint = None;
         d.suppress_watch = None;
+        d.heap_next = HEAP_BASE;
         // RP8: CSRs en estado conocido por sesión/reinicio (sin handlers
         // fantasma) y mstatus.MIE=1 — el protocolo de doble falta de la
         // delegación lo necesita encendido como punto de partida.

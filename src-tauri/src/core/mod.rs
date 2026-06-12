@@ -29,6 +29,11 @@ pub const DATA_REGION_BASE: u32 = 0x1000_0000;
 pub const DATA_REGION_SIZE: u32 = 0x0040_0000;
 /// Base del segmento .data visible al programa. Coincide con RARS.
 pub const DATA_BASE: u32 = 0x1001_0000;
+/// Base del heap (syscall 9, sbrk). Canónico RARS: 0x1004_0000, dentro de
+/// la región de datos (el heap crece hacia arriba desde acá; la pila vive
+/// en otra región — sin colisión heap/pila posible). La carga del programa
+/// rechaza un .data que llegue hasta acá («tus datos pisan el heap»).
+pub const HEAP_BASE: u32 = 0x1004_0000;
 
 /// Tope de la pila (no incluido en el mapeo: la pila crece hacia abajo).
 pub const STACK_TOP: u32 = 0x8000_0000;

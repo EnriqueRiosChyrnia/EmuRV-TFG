@@ -5,6 +5,8 @@
 //! | 1  | imprimir entero | a0 = valor (i32)     | —             |
 //! | 4  | imprimir cadena | a0 = dir. cadena NUL | —             |
 //! | 5  | leer entero     | —                    | a0 = valor    |
+//! | 8  | leer cadena     | a0 = buffer, a1 = máx (con NUL) | escribe ≤ a1−1 bytes + NUL |
+//! | 9  | sbrk            | a0 = bytes           | a0 = dirección |
 //! | 10 | terminar        | —                    | —             |
 //! | 11 | imprimir carácter | a0 = código        | —             |
 //! | 30 | tiempo en ms    | —                    | a0 = bits bajos, a1 = bits altos |
@@ -21,7 +23,11 @@
 //! llegan por este hook (no como error de `emu_start`).
 
 use super::machine::MachData;
-use super::{CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC};
+use super::{
+    CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC, DATA_REGION_BASE,
+    DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_SIZE, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE,
+    PALETTE_BASE, PALETTE_SIZE, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
+};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -205,6 +211,8 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
             }
         }
         5 => read_int(uc),
+        8 => leer_cadena(uc),
+        9 => sbrk(uc),
         10 => {
             // Convención RARS: la syscall 10 termina SIEMPRE con código 0
             // (no recibe argumento). El código variable es el 93 (Exit2).
@@ -265,7 +273,8 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
                     format!(
                         "syscall desconocida: a7 = {other} (pc = 0x{pc:08X}). \
                          Servicios disponibles: 1 imprimir entero, 4 imprimir cadena, \
-                         5 leer entero, 10 terminar, 11 imprimir carácter, \
+                         5 leer entero, 8 leer cadena, 9 reservar memoria (sbrk), \
+                         10 terminar, 11 imprimir carácter, \
                          30 tiempo del sistema en ms, 32 dormir a0 ms, \
                          93 terminar con código (a0)"
                     ),
@@ -343,6 +352,118 @@ fn read_int(uc: &mut Unicorn<'_, MachData>) {
             }
         }
     }
+}
+
+/// Valida que `[addr, addr+len)` caiga COMPLETO en una zona escribible por
+/// el programa — espejo de los rechazos didácticos de la edición en vivo
+/// (`Machine::write_mem`, RP-7), pero para un rango arbitrario (el buffer
+/// de la syscall 8).
+fn validar_buffer_escribible(addr: u32, len: u32) -> Result<(), String> {
+    let fin = addr.wrapping_add(len);
+    let en = |base: u32, size: u32| addr >= base && fin <= base.wrapping_add(size);
+    if en(TEXT_BASE, TEXT_SIZE) {
+        return Err(format!(
+            "el buffer (a0 = 0x{addr:08X}) apunta a .text y el código es \
+             inmutable. Reservá el buffer en .data (p. ej. «.space {len}») o \
+             pedilo al heap con el servicio 9"
+        ));
+    }
+    if en(KEYBOARD_BASE, KEYBOARD_SIZE) {
+        return Err(format!(
+            "el buffer (a0 = 0x{addr:08X}) apunta a la página del teclado \
+             MMIO: el dispositivo la maneja solo"
+        ));
+    }
+    let valida = en(DATA_REGION_BASE, DATA_REGION_SIZE)
+        || en(STACK_TOP - STACK_SIZE, STACK_SIZE)
+        || en(FRAMEBUFFER_BASE, FRAMEBUFFER_SIZE)
+        || en(PALETTE_BASE, PALETTE_SIZE);
+    if !valida {
+        return Err(format!(
+            "el buffer [0x{addr:08X}, 0x{fin:08X}) no cae completo en una \
+             zona escribible (.data/heap, pila, framebuffer o paleta)"
+        ));
+    }
+    Ok(())
+}
+
+/// Syscall 8 (ReadString, estilo RARS): lee una línea por el mismo canal
+/// que la 5 y la guarda en a0 como cadena C: a lo sumo a1−1 bytes + NUL;
+/// una línea más larga se TRUNCA sin error (al byte, no al carácter: un
+/// UTF-8 multibyte puede quedar partido — semántica de bytes, documentada).
+/// a1 ≤ 0 no escribe nada (ni pide entrada); a1 == 1 escribe solo el NUL.
+/// Apartamiento de RARS (fgets) registrado en BITACORA RP10-F2: NO se
+/// agrega el '\n' final — un salto de línea invisible dentro de la cadena
+/// es trampa para principiantes.
+fn leer_cadena(uc: &mut Unicorn<'_, MachData>) {
+    let buf = uc.reg_read(A0).unwrap_or(0) as u32;
+    let max = uc.reg_read(A1).unwrap_or(0) as u32 as i32;
+    if max <= 0 {
+        return;
+    }
+    if let Err(motivo) = validar_buffer_escribible(buf, max as u32) {
+        fail(uc, format!("syscall 8 (leer cadena): {motivo}"));
+        return;
+    }
+    // Mismo protocolo bloqueante que read_int (frame pendiente primero).
+    super::machine::publicar_frame(uc);
+    let _ = uc.get_data().out.send(ConsoleEvent::InputRequest);
+    let received = uc.get_data().input.recv();
+    match received {
+        Ok(InputMsg::Line(line)) => {
+            let mut bytes = line.into_bytes();
+            bytes.truncate(max as usize - 1);
+            bytes.push(0);
+            if uc.mem_write(u64::from(buf), &bytes).is_err() {
+                fail(
+                    uc,
+                    format!("syscall 8 (leer cadena): no se pudo escribir en 0x{buf:08X}"),
+                );
+            }
+        }
+        Ok(InputMsg::Cancel) | Err(_) => {
+            // Stop pedido por la UI (o canal cerrado): pausa limpia.
+            let _ = uc.emu_stop();
+        }
+    }
+}
+
+/// Syscall 9 (Sbrk, estilo RARS): reserva a0 bytes del heap y devuelve en
+/// a0 la dirección del bloque. Puntero creciente desde `HEAP_BASE`
+/// (0x1004_0000, canónico RARS), el siguiente bloque queda alineado a 4,
+/// sin free (como RARS). Apartamientos didácticos registrados en BITACORA
+/// RP10-F2: cantidad negativa y agotamiento NO devuelven -1 silencioso —
+/// cortan con un error claro.
+fn sbrk(uc: &mut Unicorn<'_, MachData>) {
+    let pedido = uc.reg_read(A0).unwrap_or(0) as u32 as i32;
+    if pedido < 0 {
+        fail(
+            uc,
+            format!(
+                "syscall 9 (sbrk): la cantidad es negativa ({pedido}). El heap \
+                 de EmuRV solo crece (no hay free), igual que en RARS"
+            ),
+        );
+        return;
+    }
+    let tope = DATA_REGION_BASE + DATA_REGION_SIZE;
+    let actual = uc.get_data().heap_next;
+    let libre = tope - actual;
+    if pedido as u32 > libre {
+        fail(
+            uc,
+            format!(
+                "syscall 9 (sbrk): el heap se agotó: pediste {pedido} bytes y \
+                 quedan {libre} (el heap va de 0x{HEAP_BASE:08X} a 0x{tope:08X})"
+            ),
+        );
+        return;
+    }
+    // El próximo bloque arranca alineado a 4; el redondeo puede pasarse
+    // del tope hasta 3 bytes — se recorta (no hay nada después del heap).
+    let nuevo = actual.saturating_add((pedido as u32).div_ceil(4) * 4).min(tope);
+    uc.get_data_mut().heap_next = nuevo;
+    let _ = uc.reg_write(A0, u64::from(actual));
 }
 
 /// Ancla del reloj de la syscall 30: par (instante monotónico, ms de época
