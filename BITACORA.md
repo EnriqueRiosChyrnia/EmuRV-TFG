@@ -633,3 +633,18 @@ Compuerta F3 ✓: suites completas verdes en ambos crates (19 + CLI 13/13), clip
 - Incidente menor de sesión sin consecuencias: la carpeta del ejemplo se creó primero en `src-tauri/ejemplos/` por un cwd heredado del shell; movida a `ejemplos/` antes de commitear.
 
 **Compuerta F4 (cierre RP5) ✓ [Seguro — corridas reales]:** `scripts/ci-local.sh` completo exit 0 — frontend (tsc+vite), `cargo test` + `clippy -D warnings` en AMBOS crates (20 suites src-tauri con rp5_include 6 y rp5_macros 6; emurv-cli 15/15), build release del CLI, `npx tauri build` y **bundle dentro del límite RNF-04**. El invariante del source_map queda demostrado por: suite TEC/FB/RP1/RNF intacta + tests específicos (breakpoint vía .include, atribución de N invocaciones de macro).
+
+## RP6 Fase 1 — Spike udbserver (PoC RSP) (2026-06-12)
+
+Plan `docs/PLAN-RP6-gdb.md`. Feature `gdb` opcional en la lib (`udbserver = "0.3"`, `dep:` sin default); `emurv-cli` la activa; re-export `emurv_lib::udbserver` para que CLI y tests usen la misma versión. **El crate Tauri sin la feature no arrastra nada: `cargo tree` da CERO menciones de udbserver/gdbstub** y compila idéntico. `Machine::unicorn_for_debug()` (solo con feature, `impl Machine<'static>` propio) documentada como puerta exclusiva del stub.
+
+**Spike verde (`emurv-cli/tests/spike_gdb.rs` — cliente RSP crudo por TCP, sin gdb externo), evidencia:**
+`qSupported → PacketSize=1000;…;swbreak+;hwbreak+;qXfer:features:read+` · `? → T05` · `g → 264 chars` (33 regs RV32; respuesta con run-length encoding del RSP — el cliente del test lo descomprime) · `pc = 0x00400000` ✓ · `m` lee la primera palabra REAL de .text (0x00100293 = `addi t0,x0,1`) ✓ · `Z0` → OK · `c` → S05 con **pc exacto en el breakpoint (0x00400008)** ✓.
+
+**Respuestas del spike [Seguro — código fuente de udbserver leído + spike corrido con los hooks de Machine instalados]:**
+1. **Convivencia con hooks propios:** udbserver agrega un code hook GLOBAL vacío, un MEM_READ GLOBAL vacío y hooks por-breakpoint; NO toca el hook INTR (syscalls) ni remueve hooks ajenos. El spike corrió con INTR + MEM_INVALID + teclado MMIO instalados por `Machine::new` y todo respondió. Orden: los nuestros primero (constructor), udbserver después — sin pisadas.
+2. **Modelo de ejecución:** CONFIRMADA la hipótesis del plan — `udbserver(uc, port, 0)` BLOQUEA sirviendo al cliente; al primer continue/step devuelve el control y el host corre `emu_start` LIBRE (count=0, una sola llamada); los hooks del stub retoman el control en cada breakpoint/step (`udbserver_resume` bloquea dentro del hook). El subcomando debug NO usa `run_slice`: es un modo de ejecución propio. Consecuencia: el code hook global del stub baja la velocidad a la clase ~100 M instr/s — irrelevante para depuración interactiva.
+3. **Z0 sobre RV32:** SÍ, funciona (verificado con dirección exacta).
+4. **Costo y licencias:** compilación incremental de udbserver+gdbstub en segundos; `unicorn-engine` UNIFICADO en 2.1.5 (sin duplicados en `cargo tree -d`: una sola compilación nativa). Licencias: udbserver **MIT**, gdbstub **MIT OR Apache-2.0** — compatibles con el stack (Unicorn GPLv2 sigue siendo el punto a consultar de siempre, sin cambios).
+
+**Decisión [Seguro]:** udbserver viable; plan B (mini-RSP propio sobre gdbstub) DESCARTADO — no hay incompatibilidad que lo justifique.

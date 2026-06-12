@@ -26,5 +26,11 @@ unicorn-engine = "2.1.5"
 thiserror = "2.0.18"
 object = { version = "0.39.1", default-features = false, features = ["write_core", "elf", "std"] }
 tauri-plugin-dialog = "2.7.1"
+# Stub GDB (RP6): SOLO detrás de la feature opcional `gdb` — la app Tauri
+# compila sin ella y su build/bundle no cambian un byte (gate RNF-04).
+udbserver = { version = "0.3", optional = true }
+
+[features]
+gdb = ["dep:udbserver"]
 
 

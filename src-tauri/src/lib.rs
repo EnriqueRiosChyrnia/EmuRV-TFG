@@ -26,3 +26,8 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+/// Re-export del stub GDB (RP6): disponible solo con la feature `gdb`,
+/// para que el CLI (y los tests) usen la MISMA versión que la lib.
+#[cfg(feature = "gdb")]
+pub use udbserver;
