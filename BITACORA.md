@@ -554,3 +554,21 @@ Plan `docs/PLAN-RP4-ci.md`. Restricción rectora: el repo es SOLO LOCAL hasta el
 - Triggers: push/PR a `main` y `feature/**`. Caché: `Swatinem/rust-cache@v2` por crate + npm (sin caché cada run compila Unicorn/CMake desde cero).
 
 Compuerta F1 ✓: actionlint limpio, YAML parsea; la revisión cruzada comando-a-comando contra el script espejo se cierra en F2 (el script se escribe ahí con los MISMOS comandos).
+
+## RP4 Fase 2 — Script espejo ci-local.sh verde (2026-06-12)
+
+`scripts/ci-local.sh` (bash, `set -euo pipefail`, `--skip-bundle` opcional) replica en secuencia los jobs `test-macos` y `bundle-macos` con los MISMOS comandos del ci.yml (revisión cruzada comando a comando hecha: npm ci / tsc / vite build / cargo test y clippy -D warnings en ambos crates / build release del CLI / npx tauri build / check-bundle-size.sh). Compuerta F1 cerrada del todo con esta revisión.
+
+Resumen de la corrida completa en esta máquina (exit 0):
+
+```
+== Frontend (npm ci + tsc + vite build)        ✓ (49 módulos, 400 ms)
+== Tests y clippy (src-tauri)                  ✓ (18 suites, clippy limpio)
+== Tests y clippy (emurv-cli)                  ✓ (13/13, clippy limpio)
+== Build release del CLI                       ✓
+== Bundle de la app (npx tauri build)          ✓ (.app + .dmg)
+== Peso del bundle ≤ 30 MB (RNF-04)            ✓ 22 MB
+== CI LOCAL: TODO VERDE
+```
+
+(El .app pasó de 21 a 22 MB por el redondeo de `du -sm` sobre el bundle con el frontend nuevo — sigue holgado contra el límite.) [Seguro — corrida real registrada]
