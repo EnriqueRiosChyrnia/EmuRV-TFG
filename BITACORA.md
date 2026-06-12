@@ -457,3 +457,19 @@ Diseño del fix que habilita esta evidencia (Fase 3): rescatar el caso en `inter
 - Limitación conocida registrada: en corrida libre (`run(0)`, sin count — solo tests/benchs legacy, ningún camino de UI) el pc del INSN_INVALID cae en ebreak+8 y el rescate no aplica: queda el mensaje genérico. No se rescata desde pc-4/pc-8 a propósito: esa heurística produce falsos positivos peligrosos (ebreak como última instrucción entraría en bucle de pausas eternas al confundir el fin del programa con un nuevo ebreak). [Seguro — analizado en F2/F3]
 
 **Compuerta F3 ✓:** test sonda de F1 VERDE (pausa con pc=ebreak+4, t0=1/t1=0 en pausa; reanudación → Exited{0} con t1=2, t2=3) · 18 suites verdes · clippy 0 · tsc limpio.
+
+## RP1 Fase 4 — Cobertura de bordes del ebreak (2026-06-12)
+
+Seis tests nuevos en `tests/rp1_ebreak.rs` (7 totales con el sonda):
+
+1. **ebreak como última instrucción**: pausa correcta; reanudar cae en el `RuntimeError` didáctico «siguió de largo» (la palabra después del ebreak no es EBREAK → el rescate no re-aplica), con assert explícito anti-bucle (jamás otra EbreakPause). Confirma el análisis de F3: rescatar desde pc-4 habría producido pausas eternas acá.
+2. **Dos ebreak consecutivos**: dos pausas exactas, una por cada dirección; el pc tras la primera queda exactamente sobre el segundo.
+3. **ebreak en bucle ×5**: exactamente 5 pausas, las 5 con la misma dirección, contador final correcto.
+4. **step() sobre el ebreak**: devuelve `EbreakPause` (no StepDone) con pc en la siguiente; el paso posterior ejecuta normal. Sin sorpresas.
+5. **Convivencia con breakpoints de UI**: bp antes del ebreak ✓, ebreak antes del bp ✓, y el sub-caso fino:
+
+**Hallazgo real del sub-caso 5C [Seguro — reproducido]:** en el camino REAL de la GUI (orden Run nueva → primer tramo `run_slice` con supresión del bp del pc de arranque), un breakpoint de UI puesto EXACTAMENTE en `dir_ebreak+4` se suprimía y jamás se reportaba: la supresión no distinguía si la pausa previa fue por ESE bp (supresión legítima) o por ebreak (incorrecta).
+
+**Fix aplicado (dentro del criterio del plan: "ninguno interfiere con el otro"):** `Machine` ahora recuerda `last_bp` — la dirección del último `Breakpoint` REPORTADO (None si la última parada fue por otra causa; `run_slice_imp` y `step` lo actualizan en cada parada). El primer tramo de una orden Run suprime el bp del pc de arranque SOLO si `last_bp == pc`. Beneficio adicional: también cierra el residuo del hallazgo de TEC6 («breakpoint en borde de count») para el caso Run→stop→Run entre ÓRDENES (el fix de TEC6 solo cubría continuaciones dentro de la misma orden). `step()` no cambia (un paso nunca frena en el bp del pc actual — semántica correcta). Test nuevo del camino GUI: `bp_en_la_siguiente_al_ebreak_se_reporta_en_run_nuevo` (rojo sin el fix, verde con él).
+
+**Compuerta F4 ✓:** 7/7 tests de rp1_ebreak + 18 suites verdes + clippy 0.
