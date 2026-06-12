@@ -1,0 +1,128 @@
+# CI de EmuRV (RP-4). Principio espejo: estos jobs ejecutan los MISMOS
+# comandos que scripts/ci-local.sh — lo que el script verifica hoy en la
+# máquina de desarrollo es lo que el runner de macOS verificará al activarse.
+#
+# El repo es solo local hasta el final del proyecto: este workflow está
+# validado estáticamente (actionlint) pero NUNCA corrió en GitHub.
+# Checklist de activación al final del archivo.
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main, "feature/**"]
+
+jobs:
+  # Job 1 — OBLIGATORIO verde: frontend + tests y clippy de ambos crates.
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri
+            emurv-cli
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Frontend (npm ci + tsc + vite build)
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npx vite build
+      - name: Tests y clippy (src-tauri)
+        working-directory: src-tauri
+        run: |
+          cargo test
+          cargo clippy --all-targets -- -D warnings
+      - name: Tests y clippy (emurv-cli)
+        working-directory: emurv-cli
+        run: |
+          cargo test
+          cargo clippy --all-targets -- -D warnings
+      - name: Build release del CLI
+        working-directory: emurv-cli
+        run: cargo build --release --bin emurv-cli
+
+  # Job 2 — obligatorio: el gate real de empaquetado + peso RNF-04.
+  bundle-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Bundle de la app
+        run: |
+          npm ci
+          npx tauri build
+      - name: Peso del bundle ≤ 30 MB (RNF-04)
+        run: bash scripts/check-bundle-size.sh
+
+  # Job 3 — EXPERIMENTAL (continue-on-error): su valor es el log de fallos
+  # como insumo del port a Linux (Cap. VI §6.2.1). Unicorn compila vía
+  # CMake y solo se probó en macOS ARM.
+  build-linux:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri
+            emurv-cli
+      - name: Dependencias de sistema (Tauri v2 + Unicorn)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config build-essential curl wget file \
+            libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+      - name: Build (src-tauri)
+        working-directory: src-tauri
+        run: cargo build
+      - name: Build (emurv-cli)
+        working-directory: emurv-cli
+        run: cargo build
+      - name: Tests del CLI (si el build pasó)
+        working-directory: emurv-cli
+        run: cargo test
+
+  # Job 4 — EXPERIMENTAL (continue-on-error): mismo propósito que el job 3.
+  build-windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri
+            emurv-cli
+      - name: Build (src-tauri)
+        working-directory: src-tauri
+        run: cargo build
+      - name: Build (emurv-cli)
+        working-directory: emurv-cli
+        run: cargo build
+
+# ---------------------------------------------------------------------------
+# CHECKLIST DE ACTIVACIÓN (cuando el autor cree el remote de GitHub):
+#   a) README: reemplazar el placeholder OWNER/REPO del badge por la ruta real.
+#   b) push de la rama y verificar los 4 jobs en la pestaña Actions
+#      (test-macos y bundle-macos deben quedar verdes; los experimentales
+#      pueden fallar — ese log es el insumo del port, Cap. VI §6.2.1).
+#   c) Registrar en BITACORA.md los fallos de Linux/Windows observados.
+#   d) Opcional: proteger main exigiendo test-macos + bundle-macos verdes.
+# ---------------------------------------------------------------------------
