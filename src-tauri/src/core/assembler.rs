@@ -429,6 +429,23 @@ pub fn reg_number(name: &str) -> Option<u8> {
     Some(n)
 }
 
+/// CSRs con nombre soportados (RP8): número de la espec privilegiada.
+/// Cualquier otro CSR puede darse por número crudo 0xNNN (solo estos ocho
+/// están garantizados por el backend de Unicorn — ver docs/TRAPS.md).
+pub fn csr_number(name: &str) -> Option<u32> {
+    Some(match name {
+        "mstatus" => 0x300,
+        "mie" => 0x304,
+        "mtvec" => 0x305,
+        "mscratch" => 0x340,
+        "mepc" => 0x341,
+        "mcause" => 0x342,
+        "mtval" => 0x343,
+        "mip" => 0x344,
+        _ => return None,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Parser de sentencias
 // ---------------------------------------------------------------------------
@@ -1442,13 +1459,47 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 return err("«jr» espera un registro (ej.: jr ra)".into());
             }
         }
-        "nop" | "ret" | "ecall" | "ebreak" | "fence" => {
+        "nop" | "ret" | "ecall" | "ebreak" | "fence" | "mret" => {
             want(0, "sin operandos")?;
+        }
+        // Zicsr (RP8): rd, csr, rs1 / rd, csr, uimm5. El CSR es un nombre
+        // conocido (Sym) o un número crudo (Imm, las constantes .eqv ya
+        // llegaron sustituidas).
+        "csrrw" | "csrrs" | "csrrc" => {
+            want(3, "registro, csr, registro")?;
+            if !(is_reg(0) && (is_sym(1) || is_imm(1)) && is_reg(2)) {
+                return err(format!(
+                    "«{mnem}» espera registro, csr y registro (ej.: {mnem} t0, mscratch, t1)"
+                ));
+            }
+        }
+        "csrrwi" | "csrrsi" | "csrrci" => {
+            want(3, "registro, csr, inmediato de 5 bits")?;
+            if !(is_reg(0) && (is_sym(1) || is_imm(1)) && is_imm(2)) {
+                return err(format!(
+                    "«{mnem}» espera registro, csr e inmediato 0-31 (ej.: {mnem} t0, mstatus, 8)"
+                ));
+            }
+        }
+        // Pseudo Zicsr (RARS/GNU): csrr rd, csr · csrw/csrs/csrc csr, rs.
+        "csrr" => {
+            want(2, "registro, csr")?;
+            if !(is_reg(0) && (is_sym(1) || is_imm(1))) {
+                return err("«csrr» espera registro y csr (ej.: csrr t0, mcause)".into());
+            }
+        }
+        "csrw" | "csrs" | "csrc" => {
+            want(2, "csr, registro")?;
+            if !((is_sym(0) || is_imm(0)) && is_reg(1)) {
+                return err(format!(
+                    "«{mnem}» espera csr y registro (ej.: {mnem} mtvec, t0)"
+                ));
+            }
         }
         other => {
             return err(format!(
                 "instrucción desconocida: «{other}». EmuRV soporta RV32IM \
-                 (enteros y multiplicación/división de 32 bits)"
+                 (enteros y multiplicación/división de 32 bits) y Zicsr (csrr/csrw/…)"
             ));
         }
     }
@@ -1485,6 +1536,11 @@ fn enc_b(off: i32, rs2: u8, rs1: u8, f3: u32) -> u32 {
         | (((o >> 11) & 1) << 7)
         | 0x63
 }
+/// Zicsr: formato I sobre SYSTEM (0x73); rs1field lleva rs1 o el uimm5.
+fn enc_csr(csr: u32, rs1field: u32, f3: u32, rd: u8) -> u32 {
+    (csr << 20) | (rs1field << 15) | (f3 << 12) | ((rd as u32) << 7) | 0x73
+}
+
 fn enc_u(imm20: u32, rd: u8, op: u32) -> u32 {
     (imm20 << 12) | ((rd as u32) << 7) | op
 }
@@ -1582,6 +1638,41 @@ impl Ctx<'_> {
             Some(OpKind::Imm(v)) => Ok(*v as u32),
             _ => Err(self.internal_err(i, "una etiqueta o un offset")),
         }
+    }
+    /// Número de CSR del operando `i`: nombre conocido o número crudo
+    /// 0..=0xFFF, con error didáctico que sugiere los soportados.
+    fn csr(&self, i: usize) -> Result<u32, AsmError> {
+        match self.ins.ops.get(i).map(|o| &o.kind) {
+            Some(OpKind::Sym(nombre)) => super::assembler::csr_number(nombre).ok_or_else(|| {
+                AsmError::new(
+                    self.ins.line,
+                    self.ins.ops[i].col,
+                    format!(
+                        "CSR desconocido: «{nombre}». Soportados por nombre: mstatus, mie, \
+                         mtvec, mscratch, mepc, mcause, mtval, mip (o un número 0x000-0xFFF)"
+                    ),
+                )
+            }),
+            Some(OpKind::Imm(v)) if (0..=0xFFF).contains(v) => Ok(*v as u32),
+            Some(OpKind::Imm(v)) => Err(AsmError::new(
+                self.ins.line,
+                self.ins.ops[i].col,
+                format!("número de CSR fuera de rango: {v} (valen 0x000 a 0xFFF)"),
+            )),
+            _ => Err(self.internal_err(i, "un CSR (nombre o número)")),
+        }
+    }
+    /// Inmediato de 5 bits sin signo de las variantes csr*i.
+    fn uimm5(&self, i: usize) -> Result<u32, AsmError> {
+        let v = self.imm(i)?;
+        if !(0..=31).contains(&v) {
+            return Err(AsmError::new(
+                self.ins.line,
+                self.ins.ops[i].col,
+                format!("el inmediato de las csr*i va de 0 a 31 (hay {v})"),
+            ));
+        }
+        Ok(v as u32)
     }
     fn check_imm12(&self, i: usize, v: i64) -> Result<i32, AsmError> {
         if !fits12(v) {
@@ -1756,6 +1847,20 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
         "ecall" => 0x0000_0073,
         "ebreak" => 0x0010_0073,
         "fence" => 0x0FF0_000F,
+        "mret" => 0x3020_0073,
+        // ---- Zicsr (RP8): (csr<<20)|(rs1|uimm5)<<15|(f3<<12)|(rd<<7)|0x73
+        "csrrw" => enc_csr(c.csr(1)?, c.reg(2)? as u32, 1, c.reg(0)?),
+        "csrrs" => enc_csr(c.csr(1)?, c.reg(2)? as u32, 2, c.reg(0)?),
+        "csrrc" => enc_csr(c.csr(1)?, c.reg(2)? as u32, 3, c.reg(0)?),
+        "csrrwi" => enc_csr(c.csr(1)?, c.uimm5(2)?, 5, c.reg(0)?),
+        "csrrsi" => enc_csr(c.csr(1)?, c.uimm5(2)?, 6, c.reg(0)?),
+        "csrrci" => enc_csr(c.csr(1)?, c.uimm5(2)?, 7, c.reg(0)?),
+        // pseudo: csrr rd, csr = csrrs rd, csr, x0
+        "csrr" => enc_csr(c.csr(1)?, 0, 2, c.reg(0)?),
+        // pseudo: csrw/csrs/csrc csr, rs = csrr{w,s,c} x0, csr, rs
+        "csrw" => enc_csr(c.csr(0)?, c.reg(1)? as u32, 1, 0),
+        "csrs" => enc_csr(c.csr(0)?, c.reg(1)? as u32, 2, 0),
+        "csrc" => enc_csr(c.csr(0)?, c.reg(1)? as u32, 3, 0),
         // ---- cargas / almacenamientos / li / la: pueden expandir a 2 words
         "lb" | "lh" | "lw" | "lbu" | "lhu" => return encode_load(&c, m),
         "sb" | "sh" | "sw" => return encode_store(&c, m),
@@ -2155,5 +2260,35 @@ mod tests {
         let a = asm_words("lui t0, %hi(0x12345FFF)\naddi t0, t0, %lo(0x12345FFF)");
         let b = asm_words("li t0, 0x12345FFF");
         assert_eq!(a, b);
+    }
+
+    // ---- RP8 Fase 2: Zicsr y mret ----
+
+    #[test]
+    fn zicsr_encodings_de_referencia() {
+        // Valores calculados a mano contra la espec privilegiada (formato I
+        // sobre SYSTEM 0x73) y CONSISTENTES con tests/spike_csr.rs, que los
+        // ejecutó nativos en Unicorn.
+        assert_eq!(asm_words("csrrw x0, mscratch, t0")[0], 0x3402_9073);
+        assert_eq!(asm_words("csrr t1, mscratch")[0], 0x3400_2373);
+        assert_eq!(asm_words("csrrwi x0, mscratch, 21")[0], 0x340A_D073);
+        assert_eq!(asm_words("csrw mtvec, t0")[0], 0x3052_9073);
+        assert_eq!(asm_words("csrs mstatus, t1")[0], 0x3003_2073);
+        assert_eq!(asm_words("csrrci t2, mip, 1")[0], 0x3440_F3F3);
+        assert_eq!(asm_words("mret")[0], 0x3020_0073);
+        // CSR por número crudo.
+        assert_eq!(asm_words("csrr t0, 0x340")[0], 0x3400_22F3);
+    }
+
+    #[test]
+    fn zicsr_errores_didacticos() {
+        let e = first_error("csrr t0, mfoo");
+        assert!(e.msg.contains("mfoo") && e.msg.contains("mstatus"), "{}", e.msg);
+        let e = first_error("csrrwi t0, mscratch, 32");
+        assert!(e.msg.contains("0 a 31"), "{}", e.msg);
+        let e = first_error("csrr t0, 0x1000");
+        assert!(e.msg.contains("fuera de rango"), "{}", e.msg);
+        let e = first_error("csrrw t0, mscratch");
+        assert!(e.msg.contains("espera 3 operandos"), "{}", e.msg);
     }
 }
