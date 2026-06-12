@@ -3,7 +3,14 @@
 // los comandos y eventos del backend.
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { EditorView } from "@codemirror/view";
-import { api, events, type AsmError, type AssembleOk, type StoppedEvent } from "./api";
+import {
+  api,
+  events,
+  type AsmError,
+  type AssembleOk,
+  type BpSpec,
+  type StoppedEvent,
+} from "./api";
 import {
   createEditor,
   getBreakpointLines,
@@ -16,6 +23,7 @@ import {
 import { t } from "./i18n";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
+import { Depuracion, type FilaBreakpoint } from "./paneles/depuracion";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
@@ -50,6 +58,7 @@ class App {
   private consola: Consola;
   private registros: Registros;
   private memoria: Memoria;
+  private depuracion: Depuracion;
   private video: Video;
   private ayuda: Ayuda;
   private programa: AssembleOk | null = null;
@@ -73,7 +82,7 @@ class App {
     this.editor = createEditor(
       document.getElementById("editor")!,
       ejHola,
-      () => this.enviarBreakpoints(),
+      () => this.alCambiarBreakpoints(),
       (linea) => this.puedeAgregarBreakpoint(linea),
       () => {
         this.programaDesactualizado = true;
@@ -82,6 +91,16 @@ class App {
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
+    this.depuracion = new Depuracion(document.getElementById("depuracion")!, {
+      // Condición editada: re-mandar el juego completo (el rechazo del
+      // backend vuelve al div de error del panel vía enviarBreakpoints).
+      onCondicionCambiada: () => this.enviarBreakpoints(),
+      // Quitar desde el panel = quitar el punto del margen del editor.
+      onQuitarBreakpoint: (linea) => {
+        toggleBreakpointAtLine(this.editor, linea);
+        this.alCambiarBreakpoints();
+      },
+    });
     this.video = new Video(
       document.getElementById("panel-video")!,
       document.getElementById("video-canvas") as HTMLCanvasElement,
@@ -210,8 +229,16 @@ class App {
     } else {
       this.registros.actualizar(ev.state);
     }
-    void this.memoria.refrescar();
-    // Línea actual resaltada mientras el programa sigue vivo (RF-04).
+    // En un watchpoint la vista navega a la dirección del acceso (no se
+    // dispara el refresco genérico en paralelo: ambos son async y el
+    // formateo usa la dirección vigente al resolver — se pisarían).
+    if (ev.reason.kind === "watchpoint") {
+      void this.memoria.irA(ev.reason.addr);
+    } else {
+      void this.memoria.refrescar();
+    }
+    // Línea actual resaltada mientras el programa sigue vivo (RF-04);
+    // "watchpoint" cuenta como vivo, igual que breakpoint/pausa.
     const sigueVivo = ev.reason.kind !== "exited" && ev.reason.kind !== "runtime_error";
     setExecLine(this.editor, sigueVivo ? ev.state.line : null);
     const linea = ev.state.line ?? 0;
@@ -222,6 +249,25 @@ class App {
       case "breakpoint":
         this.setModo("listo", t("estado.breakpoint", { line: linea }));
         break;
+      case "watchpoint": {
+        const accion =
+          ev.reason.access === "read"
+            ? t("estado.watchpoint.leyo")
+            : ev.reason.access === "write"
+              ? t("estado.watchpoint.escribio")
+              : t("estado.watchpoint.accedio");
+        const hex8 = (v: number) => (v >>> 0).toString(16).padStart(8, "0");
+        this.setModo(
+          "listo",
+          t("estado.watchpoint", {
+            accion,
+            value: hex8(ev.reason.value),
+            addr: hex8(ev.reason.addr),
+            line: linea,
+          }),
+        );
+        break;
+      }
       case "ebreak_pause":
         // Pausa por software (instrucción ebreak): el pc ya quedó en la
         // instrucción siguiente; Ejecutar/Paso continúan desde ahí.
@@ -275,7 +321,9 @@ class App {
           this.consola.append(`${t("breakpoint.lineaSinCodigo", { linea })}\n`, "error");
         }
       }
+      this.sincronizarPanelDepuracion(); // direcciones nuevas en el panel
       this.enviarBreakpoints(); // los del margen aplican a la sesión nueva
+      void this.depuracion.reaplicarWatchpoints(); // ídem watchpoints (RP7)
       this.setModo("listo", t("estado.ensamblado", { n: ok.text_len }), "ok");
     } catch (e) {
       const errores = e as AsmError[];
@@ -284,6 +332,7 @@ class App {
       this.consola.clear();
       setErrors(this.editor, errores);
       setExecLine(this.editor, null);
+      this.sincronizarPanelDepuracion(); // sin programa: direcciones fuera
       for (const err of errores) {
         this.consola.append(
           `${err.file ? `${err.file}: ` : ""}${t("error.posicion", { line: err.line, col: err.col, msg: err.msg })}\n`,
@@ -305,16 +354,40 @@ class App {
     return false;
   }
 
-  /** Traduce las líneas con breakpoint a direcciones y las manda al backend.
-   *  Las líneas sin código generado (comentarios, datos) se ignoran. */
+  /** Cambió el juego de breakpoints (margen del editor o botón quitar del
+   *  panel): sincronizar la lista del panel y reenviar al backend. */
+  private alCambiarBreakpoints(): void {
+    this.sincronizarPanelDepuracion();
+    this.enviarBreakpoints();
+  }
+
+  /** Refleja los puntos del margen en el panel de Depuración (RP7-F4):
+   *  línea + dirección si hay programa ensamblado vigente. */
+  private sincronizarPanelDepuracion(): void {
+    const conAddr = this.programa !== null && !this.programaDesactualizado;
+    const filas: FilaBreakpoint[] = getBreakpointLines(this.editor).map((linea) => ({
+      linea,
+      addr: conAddr ? (this.programa!.line_to_addr[String(linea)] ?? null) : null,
+    }));
+    this.depuracion.setFilasBreakpoints(filas);
+  }
+
+  /** Traduce las líneas con breakpoint a direcciones (con su condición del
+   *  panel de Depuración) y las manda al backend. Las líneas sin código
+   *  generado (comentarios, datos) se ignoran. Una condición mal escrita
+   *  vuelve como rechazo didáctico y se muestra en el panel; el texto
+   *  queda en el input para corregirlo. */
   private enviarBreakpoints(): void {
     if (!this.programa) return;
-    const addrs: number[] = [];
+    const bps: BpSpec[] = [];
     for (const linea of getBreakpointLines(this.editor)) {
       const addr = this.programa.line_to_addr[String(linea)];
-      if (addr !== undefined) addrs.push(addr);
+      if (addr !== undefined) bps.push({ addr, cond: this.depuracion.condicionDe(linea) });
     }
-    void api.setBreakpoints(addrs);
+    api
+      .setBreakpoints(bps)
+      .then(() => this.depuracion.limpiarError())
+      .catch((e) => this.depuracion.mostrarError(String(e)));
   }
 
   private async ejecutar(): Promise<void> {

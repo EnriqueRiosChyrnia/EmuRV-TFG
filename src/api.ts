@@ -27,9 +27,30 @@ export interface MachineState {
   line: number | null;
 }
 
+/** Breakpoint como lo manda la UI (RP7): dirección + condición textual
+ *  opcional (p. ej. "t0 == 5"). El parseo de la condición es del backend;
+ *  un error didáctico vuelve como rechazo del invoke. */
+export interface BpSpec {
+  addr: number;
+  cond: string | null;
+}
+
+/** Tipo de acceso vigilado por un watchpoint (RP7). */
+export type WatchKind = "read" | "write" | "both";
+
+/** Watchpoint sobre datos (RP7): vigila `len` bytes desde `addr`. */
+export interface Watchpoint {
+  addr: number;
+  len: 1 | 2 | 4;
+  kind: WatchKind;
+}
+
 export type StopReason =
   | { kind: "exited"; code: number }
   | { kind: "breakpoint"; addr: number }
+  /** Un watchpoint disparó: `addr`/`value` son del ACCESO real; `pc` es la
+   *  instrucción que accedió (la línea llega resuelta en `state.line`). */
+  | { kind: "watchpoint"; addr: number; access: WatchKind; value: number; pc: number }
   | { kind: "ebreak_pause"; addr: number }
   | { kind: "paused" }
   | { kind: "step_done" }
@@ -48,7 +69,17 @@ export const api = {
   step: () => invoke<void>("step"),
   reset: () => invoke<void>("reset"),
   stop: () => invoke<void>("stop"),
-  setBreakpoints: (addrs: number[]) => invoke<void>("set_breakpoints", { addrs }),
+  setBreakpoints: (bps: BpSpec[]) => invoke<void>("set_breakpoints", { bps }),
+  /** Instala watchpoints (semántica reemplazar-todo, como los breakpoints).
+   *  Un error didáctico de región vuelve como rechazo del invoke. */
+  setWatchpoints: (watchpoints: Watchpoint[]) =>
+    invoke<void>("set_watchpoints", { watchpoints }),
+  /** Edición en vivo de un registro (RP7): `reg` = nombre ABI, xN o "pc".
+   *  Solo con la máquina pausada; el rechazo trae el mensaje didáctico. */
+  writeReg: (reg: string, val: number) => invoke<void>("write_reg", { reg, val: val >>> 0 }),
+  /** Edición en vivo de memoria (RP7): 1, 2 o 4 bytes little-endian. */
+  writeMem: (addr: number, bytes: number[]) =>
+    invoke<void>("write_mem", { addr: addr >>> 0, bytes }),
   sendInput: (text: string) => invoke<void>("send_input", { text }),
   /** Encola una tecla en el dispositivo de teclado MMIO (TEC4). Disparar y
    *  olvidar: sin sesión de emulación no hay cola y la tecla se descarta. */

@@ -248,6 +248,101 @@ html, body {
   font-size: 12.5px;
 }
 
+/* ---------- depuración (RP7-F4) ---------- */
+#panel-depuracion .panel-cuerpo { max-height: 260px; }
+
+.panel-titulo-clickeable { cursor: pointer; user-select: none; }
+.panel.colapsado .panel-cuerpo { display: none; }
+
+.depuracion-seccion { padding: 6px 10px; }
+
+.depuracion-seccion h3 {
+  margin: 2px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-suave);
+}
+
+.depuracion-fila {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.depuracion-etiqueta { color: var(--texto-suave); white-space: nowrap; }
+.depuracion-dir { font-size: 11.5px; }
+
+.depuracion-fila input[type="text"],
+.depuracion-fila select,
+.depuracion-alta input[type="text"],
+.depuracion-alta select {
+  background: var(--fondo-claro);
+  border: 1px solid var(--borde);
+  border-radius: 5px;
+  color: var(--texto);
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.depuracion-cond { flex: 1; min-width: 60px; }
+.depuracion-alta { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.depuracion-alta input[type="text"] { width: 110px; }
+
+.depuracion-alta button {
+  background: var(--fondo-claro);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.depuracion-alta button:hover { border-color: var(--acento); }
+
+.depuracion-quitar {
+  background: none;
+  border: none;
+  color: var(--texto-suave);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.depuracion-quitar:hover { color: var(--error); }
+
+.depuracion-vacio { color: var(--texto-suave); font-size: 12px; }
+
+/* div de error reutilizable de los paneles (depuración/registros):
+   pegado abajo para que se vea aunque el cuerpo esté scrolleado */
+.panel-error {
+  position: sticky;
+  bottom: 0;
+  padding: 6px 10px;
+  color: var(--error);
+  font-size: 12.5px;
+  background: var(--fondo-panel);
+  border-top: 1px solid var(--borde);
+}
+
+/* input de edición inline (doble click en registros/memoria, RP7) */
+.edicion-inline {
+  background: var(--fondo-claro);
+  border: 1px solid var(--acento);
+  border-radius: 3px;
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: inherit;
+  padding: 0 3px;
+  width: 12ch;
+}
+
+.edicion-inline:focus { outline: none; }
+
 /* ---------- ayuda (overlay modal) ---------- */
 #ayuda-overlay {
   position: fixed;

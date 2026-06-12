@@ -260,6 +260,12 @@ fn subcomando_run(args: &[String]) -> u8 {
             StopReason::Breakpoint { addr } => {
                 eprintln!("breakpoint en 0x{addr:08X} — continuando");
             }
+            StopReason::Watchpoint { addr, value, .. } => {
+                // El CLI no instala watchpoints; brazo defensivo (RP7).
+                eprintln!(
+                    "watchpoint en 0x{addr:08X} (valor 0x{value:08X}) — continuando"
+                );
+            }
             StopReason::Paused | StopReason::StepDone => {
                 if eof_stdin.load(Ordering::SeqCst) {
                     eprintln!(
