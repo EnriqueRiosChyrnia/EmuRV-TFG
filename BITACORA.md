@@ -589,3 +589,15 @@ Compuerta F3 ✓.
 - Decisiones consolidadas del punto: matriz macOS-obligatorio + Linux/Windows-experimental [Seguro]; caché Swatinem/rust-cache@v2 por crate + npm [Seguro — sin caché cada run recompila Unicorn]; gate de 30 MB automatizado y compartido [Seguro]; actionlint vía brew v1.7.12 [Seguro]; `npx tauri build` como comando único local/CI [Seguro]. Propuesta fuera de alcance registrada: cargo-audit/dependabot cuando exista el remote.
 
 **Compuerta F4 (cierre RP4) ✓ [Seguro — corridas reales]:** `cargo test` + `clippy -D warnings` verdes en AMBOS crates (18 suites src-tauri + 13/13 emurv-cli, dentro del espejo) · `scripts/ci-local.sh` exit 0 con TODO VERDE incluido bundle 22 MB ≤ 30 · actionlint limpio.
+
+## RP5 Fase 1 — Constantes .eqv/.equ y operadores %hi/%lo (2026-06-12)
+
+Plan `docs/PLAN-RP5-multiarchivo.md` (punto de mayor riesgo del roadmap: el invariante es el source_map). Esta fase NO toca el flujo de archivos ni el source_map — solo el léxico y los operandos.
+
+- **Constantes**: tabla en Pass1; `.eqv NOMBRE valor` (RARS) y `.equ NOMBRE, valor` (GNU), ambas grafías con o sin coma. **Sustitución al parsear operandos** (Sym→Imm temprano): por eso deben definirse ANTES de usarse — la decisión de tamaño de pasada 1 (li corto/largo, lw absoluto) necesita el valor ya. Encadenadas (una constante desde otra) ✓. Errores didácticos: redefinición, nombre de registro, choque constante↔etiqueta en AMBOS sentidos. Usables en todo operando inmediato, en `.word/.half/.byte` (con chequeo de rango) y como dirección absoluta en `la`/cargas/almacenamientos (expanden lui+op, mismo camino que etiquetas). [Seguro]
+- **%hi/%lo**: token `%` nuevo (muere el rechazo didáctico del lexer); `%hi(x)`/`%lo(x)` como inmediato en `lui`, `addi`, `ori`, y `%lo(x)(base)` como desplazamiento de cargas/almacenamientos. Resolución en pasada 2 (referencias hacia adelante funcionan como etiquetas). Semántica = `hi20`/`lo12` EXISTENTES (las mismas funciones de la expansión de `la`): el par lui+addi reconstruye el valor exacto con ajuste de signo — test que lo demuestra byte a byte contra `la`, incluyendo el caso lo12 negativo (offset 2052 y 0x...FFF). [Seguro]
+- **Decisión didáctica [Seguro]:** `%hi` con `auipc` se RECHAZA con mensaje explicativo (sería `%pcrel_hi`, semántica relativa al pc que no soportamos — aceptarlo en silencio codificaría direcciones erróneas).
+- Gap cazado por los tests de la propia fase: `encode_load` no tenía brazo para el operando `%lo(x)(base)` (el de stores ya pasaba por `c.mem`); agregado.
+- 9 tests nuevos en el módulo del ensamblador (46 lib en total).
+
+Compuerta F1 ✓: 18 suites src-tauri + 13/13 emurv-cli, clippy 0 en ambos.
