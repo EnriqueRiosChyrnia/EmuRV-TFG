@@ -67,7 +67,9 @@ bucle:
     let (out_tx, _out_rx) = channel();
     let (in_tx, in_rx) = channel();
     for _ in 0..FRAMES {
-        in_tx.send(InputMsg::Line("0".into())).expect("encolar entrada");
+        in_tx
+            .send(InputMsg::Line("0".into()))
+            .expect("encolar entrada");
     }
     let mut m =
         Machine::new_with_video(program, out_tx, in_rx, Arc::clone(&shared)).expect("máquina");
