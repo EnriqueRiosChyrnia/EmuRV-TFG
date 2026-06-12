@@ -12,7 +12,7 @@
 
 use super::assembler::Program;
 use super::{DATA_BASE, TEXT_BASE};
-use object::write::elf::{FileHeader, ProgramHeader, SectionHeader, Writer};
+use object::write::elf::{FileHeader, ProgramHeader, SectionHeader, Sym, Writer};
 use object::{elf, Endianness};
 
 /// Alineación de página usada por los segmentos PT_LOAD.
@@ -46,11 +46,29 @@ pub fn export_elf(program: &Program) -> Result<Vec<u8>, String> {
     };
 
     w.reserve_null_section_index();
-    let _text_index = w.reserve_section_index();
-    if has_data {
-        w.reserve_section_index();
+    let text_index = w.reserve_section_index();
+    let data_index = if has_data {
+        Some(w.reserve_section_index())
+    } else {
+        None
+    };
+    // .symtab con las etiquetas del programa (RP6): permite «b etiqueta» e
+    // «info symbol» en una sesión gdb/lldb real. Orden de reservas del
+    // Writer de bajo nivel: índices → nombres → strtab/symtab → headers.
+    let etiquetas: Vec<(&String, &u32)> = program.symbols.iter().collect();
+    let mut nombres_sym = Vec::with_capacity(etiquetas.len());
+    for (nombre, _) in &etiquetas {
+        nombres_sym.push(w.add_string(nombre.as_bytes()));
     }
+    w.reserve_null_symbol_index();
+    for _ in &etiquetas {
+        w.reserve_symbol_index(None);
+    }
+    w.reserve_symtab_section_index();
+    w.reserve_strtab_section_index();
     w.reserve_shstrtab_section_index();
+    w.reserve_symtab();
+    w.reserve_strtab();
     w.reserve_shstrtab();
     w.reserve_section_headers();
 
@@ -95,6 +113,28 @@ pub fn export_elf(program: &Program) -> Result<Vec<u8>, String> {
         w.write(&program.data);
     }
 
+    // Símbolos: etiquetas de .text como FUNC y de .data como OBJECT,
+    // binding GLOBAL (alcanza para breakpoints por nombre; sin tamaños).
+    w.write_null_symbol();
+    let fin_text = TEXT_BASE.wrapping_add(program.text.len() as u32);
+    for (i, (_, &addr)) in etiquetas.iter().enumerate() {
+        let en_text = addr >= TEXT_BASE && addr < fin_text;
+        let (tipo, seccion) = if en_text {
+            (elf::STT_FUNC, Some(text_index))
+        } else {
+            (elf::STT_OBJECT, data_index)
+        };
+        w.write_symbol(&Sym {
+            name: Some(nombres_sym[i]),
+            section: seccion,
+            st_info: (elf::STB_GLOBAL << 4) | tipo,
+            st_other: elf::STV_DEFAULT,
+            st_shndx: 0,
+            st_value: addr as u64,
+            st_size: 0,
+        });
+    }
+    w.write_strtab();
     w.write_shstrtab();
 
     w.write_null_section_header();
@@ -124,6 +164,8 @@ pub fn export_elf(program: &Program) -> Result<Vec<u8>, String> {
             sh_entsize: 0,
         });
     }
+    w.write_symtab_section_header(1); // sh_info: primer símbolo NO-local (solo el nulo es local)
+    w.write_strtab_section_header();
     w.write_shstrtab_section_header();
 
     debug_assert_eq!(w.reserved_len(), buffer.len());

@@ -1,0 +1,13 @@
+/target
+build
+dist
+udbserver.egg-info
+Cargo.lock
+
+*.so
+*.o
+*.class
+*.jar
+
+bindings/c/example
+bindings/java/udbserver_Udbserver.h

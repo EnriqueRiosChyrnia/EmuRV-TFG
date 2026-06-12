@@ -1,0 +1,47 @@
+name: ⚙️ Build Rust
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Cargo Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: '📥 Checkout Repository'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: '🦀 Install Rust Toolchain'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: '📦 Install Dependencies'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdb-multiarch
+
+      - name: '🔨 Build'
+        run: cargo build --verbose --examples
+
+      - name: '✨ Format'
+        run: cargo fmt --check
+
+      - name: '📎 Lint'
+        run: cargo clippy --verbose --examples
+
+      - name: '🧪 Test'
+        run: cargo test --verbose --examples
+
+      - name: '🔖 Release'
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.AUTO_RELEASE_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
