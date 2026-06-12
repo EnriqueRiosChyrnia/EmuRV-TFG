@@ -82,12 +82,19 @@ pub struct Program {
     pub origins: Vec<(u32, u16, u32)>,
     /// Nombres de archivo de `origins`; `[0]` es el principal.
     pub files: Vec<String>,
+    /// Punto de entrada real (RP11): el ensamblador siempre produce
+    /// TEXT_BASE; un ELF importado puede traer otro e_entry dentro de .text.
+    pub entry: u32,
+    /// El programa vino de un binario importado (RP11): sin fuente ni
+    /// source_map — la UI muestra el listado desensamblado.
+    pub from_binary: bool,
 }
 
 impl Program {
-    /// Punto de entrada: siempre el comienzo de .text (convención RARS).
+    /// Punto de entrada (convención RARS: comienzo de .text; un ELF
+    /// importado puede sobreescribirlo — RP11).
     pub fn entry(&self) -> u32 {
-        TEXT_BASE
+        self.entry
     }
 }
 
@@ -648,6 +655,8 @@ pub fn assemble_with_includes(
             source_map,
             origins,
             files,
+            entry: TEXT_BASE,
+            from_binary: false,
         })
     } else {
         p.errors.sort_by_key(|e| (e.file.clone(), e.line, e.col));

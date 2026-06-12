@@ -249,3 +249,50 @@ fn debug_multiarchivo_breakpoint_en_etiqueta_de_include() {
         "¡Hola desde varios archivos!\n¡Hola desde varios archivos!\n¡Hola desde varios archivos!\nListo.\n"
     );
 }
+
+/// RP11: el stub gdb funciona IGUAL sobre un ELF importado — breakpoint
+/// en la dirección de un símbolo que viene del .symtab del binario.
+#[test]
+fn debug_sobre_elf_importado_breakpoint_por_simbolo() {
+    let fuente = "
+.text
+  li t0, 1
+  li t1, 2
+meta:
+  li t2, 3
+  li a7, 10
+  ecall
+";
+    // Exportar el ELF (round-trip) y quedarnos SOLO con el binario.
+    let programa = emurv_lib::core::assembler::assemble(fuente).expect("ensambla");
+    let bytes = emurv_lib::core::elf_export::export_elf(&programa).expect("exporta");
+    let dir = std::env::temp_dir().join("rp11_debug_elf");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("carpeta");
+    let ruta = dir.join("prog.elf");
+    std::fs::write(&ruta, &bytes).expect("escribir elf");
+
+    // El símbolo sale del .symtab IMPORTADO (no del fuente): el contrato
+    // del plan RP11 («breakpoint por símbolo del .symtab importado»).
+    let importado = emurv_lib::core::elf_import::import_elf(&bytes).expect("importa");
+    let dir_meta = importado.symbols["meta"];
+
+    let port = puerto_libre();
+    let hijo = cli_debug(ruta.to_str().unwrap(), port);
+    let mut rsp = Rsp::conectar(port);
+    let _ = rsp.enviar("qSupported:swbreak+");
+
+    assert_eq!(rsp.enviar(&format!("Z0,{dir_meta:x},4")), "OK");
+    let r = rsp.enviar("c");
+    assert!(r.starts_with('S') || r.starts_with('T'), "stop: {r}");
+    let g = rsp.enviar("g");
+    assert_eq!(Rsp::reg_de_g(&g, 32), dir_meta, "pc clavado en «meta»");
+    assert_eq!(Rsp::reg_de_g(&g, 5), 1, "t0 ya ejecutado");
+    assert_eq!(Rsp::reg_de_g(&g, 7), 0, "t2 todavía no");
+
+    assert_eq!(rsp.enviar(&format!("z0,{dir_meta:x},4")), "OK");
+    let _ = rsp.s.set_read_timeout(Some(Duration::from_millis(500)));
+    let _ = std::io::Write::write_all(&mut rsp.s, b"$c#63");
+    let out = esperar(hijo, limite());
+    assert_eq!(out.status.code(), Some(0));
+}
