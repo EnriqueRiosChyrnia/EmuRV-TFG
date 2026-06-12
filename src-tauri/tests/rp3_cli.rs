@@ -194,3 +194,133 @@ fn run_bucle_infinito_corta_por_max_instr() {
     assert!(out.stdout.is_empty(), "stdout limpio en el bucle infinito");
     let _ = std::fs::remove_file(&fuente);
 }
+
+// ---------------------------------------------------------------------------
+// RP3 Fase 3 — bordes headless.
+// ---------------------------------------------------------------------------
+
+/// 07-franjas termina SOLO (dibuja y sale): exit 0 incluso con límite amplio.
+/// 08-tetris-grafico es por turnos (syscall 5): sin stdin termina por EOF
+/// con exit 1 y diagnóstico — sin pánico. (Documentado: 07 termina solo;
+/// 08 termina por EOF de entrada en headless.)
+#[test]
+fn run_ejemplos_graficos_acotados() {
+    let out = run_con_stdin(
+        &["run", "../ejemplos/07-franjas.asm", "--max-instr", "50000000"],
+        "",
+        limite(),
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "07 termina solo; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let out = run_con_stdin(
+        &["run", "../ejemplos/08-tetris-grafico.asm", "--max-instr", "50000000"],
+        "",
+        limite(),
+    );
+    assert_eq!(out.status.code(), Some(1), "08 sin stdin termina por EOF");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("EOF") || stderr.contains("se agotó"), "stderr: {stderr}");
+    assert!(!stderr.contains("panic"), "sin pánico: {stderr}");
+}
+
+/// 09 y 10 (tiempo real): en headless la cola MMIO está vacía y duermen en
+/// su bucle de polling — el corte llega por --timeout-s, exit 124 limpio.
+#[test]
+fn run_tiempo_real_corta_por_timeout() {
+    for ejemplo in ["../ejemplos/09-eco-teclado.asm", "../ejemplos/10-tetris-tiempo-real.asm"] {
+        let out = run_con_stdin(&["run", ejemplo, "--timeout-s", "1"], "", limite());
+        assert_eq!(
+            out.status.code(),
+            Some(124),
+            "{ejemplo} debía cortar por timeout; stderr: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(!stderr.contains("panic"), "{ejemplo} sin pánico: {stderr}");
+    }
+}
+
+/// ebreak en headless: aviso por stderr, continúa, exit 0, stdout intacto.
+#[test]
+fn run_ebreak_headless_avisa_y_continua() {
+    let dir = std::env::temp_dir().join("rp3_run_ebreak");
+    let _ = std::fs::create_dir_all(&dir);
+    let fuente = dir.join("pausa.s");
+    std::fs::write(
+        &fuente,
+        ".data\nmsg: .asciiz \"antes-\"\nmsg2: .asciiz \"despues\\n\"\n.text\n  li a7, 4\n  la a0, msg\n  ecall\n  ebreak\n  la a0, msg2\n  ecall\n  li a7, 10\n  ecall\n",
+    )
+    .expect("escribir fuente");
+    let out = run_con_stdin(&["run", fuente.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "antes-despues\n",
+        "la salida del programa debe quedar intacta"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("ebreak en 0x") && stderr.contains("continuando"),
+        "stderr debía avisar la pausa: {stderr}"
+    );
+    let _ = std::fs::remove_file(&fuente);
+}
+
+/// --timeout-s con un programa que duerme (syscall 32, 60 s): corta en 124
+/// sin esperar el sueño completo (stop_request interrumpe el sleep).
+#[test]
+fn run_timeout_corta_sleep_largo() {
+    let dir = std::env::temp_dir().join("rp3_run_sleep");
+    let _ = std::fs::create_dir_all(&dir);
+    let fuente = dir.join("dormilon.s");
+    std::fs::write(
+        &fuente,
+        ".text\n  li a0, 60000\n  li a7, 32\n  ecall\n  li a7, 10\n  ecall\n",
+    )
+    .expect("escribir fuente");
+    let inicio = std::time::Instant::now();
+    let out = run_con_stdin(
+        &["run", fuente.to_str().unwrap(), "--timeout-s", "1"],
+        "",
+        limite(),
+    );
+    assert_eq!(out.status.code(), Some(124));
+    assert!(
+        inicio.elapsed() < Duration::from_secs(15),
+        "el corte no debe esperar los 60 s del sleep"
+    );
+    let _ = std::fs::remove_file(&fuente);
+}
+
+/// Rutas malas: entrada inexistente y salida sin permiso → exit 1 con
+/// mensaje claro, sin pánico ni backtrace.
+#[test]
+fn rutas_invalidas_salen_1_sin_panico() {
+    let out = cli()
+        .args(["run", "/no/existe/jamas.s"])
+        .output()
+        .expect("lanzar");
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("no se pudo leer"), "stderr: {stderr}");
+    assert!(!stderr.contains("panic") && !stderr.contains("backtrace"), "{stderr}");
+
+    let out = cli()
+        .args([
+            "asm",
+            "../ejemplos/01-hola-mundo.asm",
+            "-o",
+            "/no/existe/jamas/salida.elf",
+        ])
+        .output()
+        .expect("lanzar");
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("no se pudo escribir"), "stderr: {stderr}");
+    assert!(!stderr.contains("panic"), "{stderr}");
+}

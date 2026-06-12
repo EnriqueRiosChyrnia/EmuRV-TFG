@@ -507,3 +507,17 @@ Compuerta F1 ✓: 3/3 nuevos + 19 suites verdes, clippy 0.
 - Tests como proceso (5 nuevos, guardián anticuelgue propio con try_wait+kill): 01 stdout EXACTO; 02 con pipe "8\n34\n" → 42; 03/04/05 salidas conocidas; EOF prematuro → exit 1 con diagnóstico; bucle infinito + --max-instr 1M → exit 124 acotado con stdout limpio.
 
 Compuerta F2 ✓: 8/8 rp3_cli + 20 suites verdes, clippy 0.
+
+## RP3 Fase 3 — Bordes headless del CLI (2026-06-12)
+
+Cinco tests nuevos (13 totales en rp3_cli):
+
+- **Gráficos acotados, documentado quién termina cómo:** 07-franjas termina SOLO (exit 0). 08-tetris-grafico es por turnos: sin stdin termina por **EOF de entrada con exit 1** y diagnóstico — sin pánico (no por límite de instrucciones: el programa se bloquea pidiendo jugada antes de agotar cualquier presupuesto razonable).
+- **09/10 en headless → exit 124 limpio por `--timeout-s 1`:** la cola MMIO está siempre vacía y ambos duermen en su bucle de polling, así que el presupuesto de instrucciones se consume lentísimo — el límite ÚTIL para tiempo real es el de tiempo de pared, no `--max-instr` (el temporizador corta los sleeps vía stop_request). Sin pánico.
+- **ebreak headless:** aviso «ebreak en 0x… — continuando» por stderr, exit 0, stdout EXACTO («antes-despues\n») — la pausa no contamina la salida del invitado.
+- **`--timeout-s` vs sleep de 60 s:** corta en ~1 s (stop_request interrumpe el sleep en ≤10 ms), exit 124, sin esperar el sueño.
+- **Rutas inválidas:** entrada inexistente y `-o` sin directorio → exit 1 con mensaje claro, sin pánico ni backtrace.
+
+Detalle de la fase: el fuente del test de ebreak usaba `.asciz` (grafía GNU) y el ensamblador soporta `.asciiz` (grafía RARS, coherente con el resto del proyecto) — el propio mensaje didáctico del ensamblador lo aclaró. [Seguro]
+
+Compuerta F3 ✓: 13/13 rp3_cli + 20 suites verdes, clippy 0.
