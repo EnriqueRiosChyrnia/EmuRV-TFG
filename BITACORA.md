@@ -521,3 +521,23 @@ Cinco tests nuevos (13 totales en rp3_cli):
 Detalle de la fase: el fuente del test de ebreak usaba `.asciz` (grafía GNU) y el ensamblador soporta `.asciiz` (grafía RARS, coherente con el resto del proyecto) — el propio mensaje didáctico del ensamblador lo aclaró. [Seguro]
 
 Compuerta F3 ✓: 13/13 rp3_cli + 20 suites verdes, clippy 0.
+
+## RP3 Fase 4 — Documentación y cierre del CLI (2026-06-12)
+
+- README: sección «Uso por línea de comandos» con subcomandos, flags, reglas de canal, códigos de salida, dos ejemplos reales y el caso de uso de corrección automática por diff.
+- **La compuerta final cazó la regresión que vigilaba [Seguro]:** con el `[[bin]]` nuevo, `cargo tauri build` falló («failed to find main binary») — con dos binarios Tauri exige `default-run`. Fix: `default-run = "emurv"` en `[package]`. Re-build verde (.app + .dmg). Exactamente el motivo por el que el plan exigía `cargo tauri build` en el cierre.
+- Deuda menor registrada (anticipada por el plan): compilar `emurv-cli` arrastra las dependencias de Tauri del crate (son dependencias normales del paquete). Aceptado en esta versión; feature-gate o workspace con crate `emurv-core` separado quedan como PROPUESTAS FUERA DE ALCANCE.
+- Decisiones ya registradas en F1-F3: parsing manual sin clap, stdout exclusivo del invitado, semántica headless de ebreak/breakpoint (aviso + continuar; flag `--pause-on-ebreak` = propuesta futura), código 124 estilo timeout(1), --timeout-s como límite útil para tiempo real.
+- Verificación humana sugerida (el coordinador la corre): `echo "8\n34" | emurv-cli run ejemplos/02-suma-interactiva.asm` → "La suma es: 42"; smoke ya hecho en esta sesión con el binario release real.
+
+**Compuerta F4 (cierre RP3) ✓:** `cargo test` 20 suites verdes (13/13 rp3_cli) · clippy 0 warnings · `cargo build --release --bin emurv-cli` ok · `cargo tauri build` ok (.app 21 MB + .dmg). 
+
+### RP3 Fase 4 — addendum: el CLI se movió a un crate propio (2026-06-12)
+
+La compuerta final destapó una cadena de problemas que obligó a una desviación estructural del plan, documentada acá con la evidencia completa:
+
+1. `cargo tauri build` falló con el `[[bin]]` nuevo («failed to find main binary») → fix `default-run = "emurv"`. Pero el build siguiente empaquetó **ambos** binarios: la .app pasó de 21 MB a **34 MB**, violando RNF-04 (<30 MB, gate medido de v0.1). [Seguro — medido]
+2. Intentos en orden, todos verificados empíricamente: (a) `beforeBundleCommand` que borra el artefacto antes de empaquetar → el bundler EXIGE el artefacto y corta con error (hook corre desde la raíz del repo, confirmado). (b) `required-features = ["cli"]` → evita compilarlo, pero el bundler lee los targets de la metadata de cargo sin mirar features: con el artefacto presente lo empaqueta (34 MB de nuevo) y sin él corta con error. **Conclusión [Seguro]: un `[[bin]]` adicional no puede convivir con el paquete Tauri sin terminar dentro de la .app.**
+3. Salida elegida: **crate separado `emurv-cli/`** (raíz del repo) que depende de la lib existente por path (`emurv = { path = "../src-tauri" }`) — CERO cambios al crate Tauri (revertidos default-run y feature; un solo bin otra vez). NO es un workspace ni un refactor del núcleo: el plan prohibía "refactor a workspace/crates separados", pero la alternativa era violar RNF-04 (SPEC manda) o un hack semántico (CLI como example de cargo). El diseño acordado (subcomandos, puente, códigos de salida, semántica headless) quedó INTACTO; solo cambió dónde vive el binario. [Seguro — justificación: conflicto entre plan y SPEC se resuelve a favor de SPEC]
+4. Detalle de build: el crate nuevo sin lockfile resolvió versiones transitivas más nuevas y pisó una incompatibilidad de compilación del crate `time` (E0119); se sembró `Cargo.lock` desde el de src-tauri (mismas versiones probadas). [Seguro]
+5. **Comandos finales (cambian respecto del plan, avisar al coordinador):** compilar: `cd emurv-cli && cargo build --release`; tests del CLI: `cd emurv-cli && cargo test` (13 tests, los mismos); la suite de src-tauri vuelve a 18 suites y `cargo tauri build` queda limpio (.app 21 MB, solo el binario de la app). Smoke release verificado: `echo "8\n34" | emurv-cli run ejemplos/02-suma-interactiva.asm` → «La suma es: 42».

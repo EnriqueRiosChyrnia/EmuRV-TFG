@@ -1,0 +1,13 @@
+# emurv-cli — binario headless de EmuRV (RP-3), crate SEPARADO del paquete
+# Tauri a propósito: el bundler de Tauri empaqueta TODO [[bin]] del paquete
+# (verificado 2026-06-12: la .app pasó de 21 a 34 MB violando RNF-04, y no
+# hay opt-out — sin el artefacto el bundler corta con error). Ver BITACORA
+# RP3-F4. No es un workspace: este crate consume la lib existente por path,
+# sin tocarla.
+[package]
+name = "emurv-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+emurv = { path = "../src-tauri" }
