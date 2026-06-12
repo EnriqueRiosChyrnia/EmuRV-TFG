@@ -785,3 +785,16 @@ Compuerta F1 ✓: spike 12/12 + suite completa intacta (24 suites), clippy 0.
 - Tests: encodings de referencia calculados a mano contra la espec privilegiada y CONSISTENTES con el spike F1 (que los ejecutó nativos — la misma palabra 0x34029073 que el spike validó); 4 errores didácticos; **round-trip con Machine**: csrw+csrr+csrrwi dan la vuelta completa (0x1234 y 9 en registros) y `mret` ensamblado salta a mepc salteando la instrucción intermedia.
 
 Compuerta F2 ✓: 25 suites verdes (la nueva rp8_zicsr incluida), clippy 0.
+
+## RP8 Fase 3 — Delegación didáctica de traps (2026-06-12)
+
+Implementación del mecanismo decidido en F1, en dos sitios según la tabla del spike:
+
+- **`delegar_trap` (syscalls.rs)** — reinyección desde el hook INTR para **ecall desconocido** (mcause=11 de la ESPEC, no el intno 8 de Unicorn; mepc = dirección del ecall, FIEL a la espec: el handler ajusta mepc+4 antes de mret, como un kernel real — decisión didáctica registrada) e **instrucción ilegal** (mcause=2, mtval=palabra culpable). Escribe mepc/mcause/mtval, protocolo mstatus (MPIE←MIE, MIE←0), pc←mtvec, SIN frenar.
+- **`interpret()` (machine.rs)** — **accesos a memoria inválidos** (READ/WRITE × UNMAPPED/PROT) con mtvec≠0: mcause 5/7, mtval=dirección (de `bad_mem`), mepc=pc, y devuelve `Paused`: el bucle de tramos (GUI, CLI run y los tests) reanuda ejecutando el handler — el spike P3f probó que el camino del hook MEM_INVALID no sirve.
+- **Doble falta**: si al delegar mstatus.MIE ya está en 0 (estamos dentro de un handler; `load()` la inicializa en 1 y `mret` nativo la restaura — autolimpiante, sin estado fantasma del host) → RuntimeError didáctico «excepción dentro del manejador de excepciones (doble falta)…». `load()` además limpia mtvec/mepc/mcause/mtval entre sesiones/reinicios.
+- **Política dura intacta**: mtvec==0 ⇒ caminos de siempre (regresión fijada por test con el mensaje literal); ecall conocido JAMÁS delegado (test: imprime normal y el handler no corre); ebreak JAMÁS delegado (test: EbreakPause con mtvec configurado — RP-1 intacto). Evento de consola «trap delegado» DESCARTADO: contaminaría el stdout exclusivo del CLI (regla RP-3 > nice-to-have; el panel de CSRs muestra mcause).
+
+Tests (rp8_traps.rs, 7): el criterio del ROADMAP literal (ecall 777 → handler lee mcause=11/mepc exacto, ajusta +4, mret, el programa sigue y termina); conocido no delegado; ilegal delegada (mcause=2, vía determinista: caída a los ceros de .text) + regresión sin mtvec; acceso inválido (mcause=5, mtval=0x20000000); doble falta corta sin colgarse; ebreak pausa; convivencia RP-7 (breakpoint DENTRO del handler + watchpoint sobre dato que el handler escribe, orden exacto).
+
+Compuerta F3 ✓: 26 suites verdes, clippy 0.

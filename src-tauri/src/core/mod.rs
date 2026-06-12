@@ -76,3 +76,16 @@ pub const RECEIVER_CONTROL: u32 = 0xFFFF_0000;
 /// pendiente. Leerlo CONSUME la tecla: la siguiente lectura de
 /// RECEIVER_CONTROL devuelve 0 si la cola quedó vacía.
 pub const RECEIVER_DATA: u32 = 0xFFFF_0004;
+
+/// IDs de los CSRs M-mode en el binding de Unicorn 2.1.5 (verificados por
+/// el spike RP8-F1: el guest escribe con csrw y el host lee el mismo valor
+/// por estos números). Solo para uso interno de la delegación de traps y
+/// del panel de CSRs.
+pub const CSR_ID_MSTATUS: i32 = 116;
+pub const CSR_ID_MIE: i32 = 120;
+pub const CSR_ID_MTVEC: i32 = 121;
+pub const CSR_ID_MSCRATCH: i32 = 127;
+pub const CSR_ID_MEPC: i32 = 128;
+pub const CSR_ID_MCAUSE: i32 = 129;
+pub const CSR_ID_MTVAL: i32 = 130;
+pub const CSR_ID_MIP: i32 = 131;
