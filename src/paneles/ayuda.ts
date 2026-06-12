@@ -41,6 +41,7 @@ export class Ayuda {
             <pre class="ayuda-ejemplo">    li   a7, 4        # servicio: imprimir cadena
     la   a0, mensaje  # argumento
     ecall             # llamada al sistema</pre>
+            <p>${t("ayuda.ebreak")}</p>
           </section>
           <section>
             <h3>${t("ayuda.memoria.titulo")}</h3>

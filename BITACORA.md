@@ -473,3 +473,15 @@ Seis tests nuevos en `tests/rp1_ebreak.rs` (7 totales con el sonda):
 **Fix aplicado (dentro del criterio del plan: "ninguno interfiere con el otro"):** `Machine` ahora recuerda `last_bp` — la dirección del último `Breakpoint` REPORTADO (None si la última parada fue por otra causa; `run_slice_imp` y `step` lo actualizan en cada parada). El primer tramo de una orden Run suprime el bp del pc de arranque SOLO si `last_bp == pc`. Beneficio adicional: también cierra el residuo del hallazgo de TEC6 («breakpoint en borde de count») para el caso Run→stop→Run entre ÓRDENES (el fix de TEC6 solo cubría continuaciones dentro de la misma orden). `step()` no cambia (un paso nunca frena en el bp del pc actual — semántica correcta). Test nuevo del camino GUI: `bp_en_la_siguiente_al_ebreak_se_reporta_en_run_nuevo` (rojo sin el fix, verde con él).
 
 **Compuerta F4 ✓:** 7/7 tests de rp1_ebreak + 18 suites verdes + clippy 0.
+
+## RP1 Fase 5 — Documentación y cierre (2026-06-12)
+
+- **SPEC.md**: nota fechada — `ebreak` soportado como pausa por software (complemento de RF-03/RF-04, convención RARS/gdb), declarado RECIÉN después del fix, como exige el criterio de aceptación del roadmap.
+- **ENSAMBLADOR.md §4.1**: agregada la fila de instrucciones de sistema (ecall, ebreak, fence) con la nota fechada del comportamiento de pausa.
+- **Ayuda integrada**: párrafo nuevo en la sección de syscalls («ebreak pausa el programa… reanudar con Ejecutar o Paso desde la instrucción siguiente»), clave i18n `ayuda.ebreak`.
+- **Ejemplo didáctico opcional**: NO se agregó (decisión registrada: el ejemplo + test de integración + menú + i18n supera los 15 minutos del criterio del plan; el repertorio de 10 ejemplos ya cubre los conceptos y `ebreak` queda documentado en Ayuda y ENSAMBLADOR). Queda como propuesta para cuando se agregue material de depuración.
+- **docs/ROADMAP-PRO.md**: NO tocado (lo gestiona la sesión coordinadora).
+
+**Convención de pc cerrada [Seguro]:** Unicorn 2.1.5 no entrega el trap de `ebreak` al hook INTR; el caso real es `Err(INSN_INVALID)` de `emu_start` con el pc EXACTAMENTE en el `ebreak` (camino con count = producción). El rescate vive en `Machine::interpret()` (palabra en pc == 0x0010_0073 → pc=dir+4 una sola vez → `StopReason::EbreakPause{addr}`); la rama `CAUSE_BREAKPOINT` del hook queda como defensa documentada para versiones futuras. Tests: `rp1_ebreak.rs` (7) — sonda de F1 en verde, bordes de F4 y camino GUI del fix `last_bp`.
+
+**Compuerta F5 (cierre RP1) ✓:** `cargo test` 18 suites verdes (incl. 7/7 rp1_ebreak) · `cargo clippy --all-targets` 0 warnings · `npx tsc --noEmit` limpio · `cargo tauri build` exitoso (EmuRV.app 21 MB).

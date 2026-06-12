@@ -43,6 +43,7 @@
   "estado.paso_sin_linea": "Paso ejecutado",
   "estado.breakpoint": "Detenido en breakpoint (línea {line})",
   "estado.ebreak": "Pausado por ebreak (línea {line})",
+  "ayuda.ebreak": "Además, la instrucción «ebreak» pausa el programa (pausa por software, como un breakpoint puesto desde el código): podés inspeccionar registros y memoria, y reanudar con «Ejecutar» o «Paso» desde la instrucción siguiente.",
   "estado.terminado": "Programa terminado (código {code})",
   "estado.pausado": "Ejecución pausada",
   "estado.error_ejecucion": "Error de ejecución: {message}",
