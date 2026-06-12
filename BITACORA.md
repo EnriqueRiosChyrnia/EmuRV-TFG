@@ -614,3 +614,13 @@ La fase de mayor riesgo del punto de mayor riesgo: el source_map sobrevive por d
 - Tests (`rp5_include.rs`, 6): símbolos en ambas direcciones, anidado + en .data, ciclo con cadena, faltante + sin base_dir, error dentro del include con archivo:línea REALES, y **el INVARIANTE: breakpoint sobre la línea del `.include` frena en la PRIMERA instrucción traída por el include** (test a nivel Machine, verde a la primera).
 
 Compuerta F2 ✓: 19 suites src-tauri (TEC/FB/RP1/RNF intactas = invariante vivo) + 13/13 CLI, clippy 0 ambos.
+
+## RP5 Fase 3 — Macros RARS con atribución a la invocación (2026-06-12)
+
+- `.macro NOMBRE (%p1, %p2)` … `.end_macro`/`.endm` (paréntesis y comas opcionales, sintaxis RARS) en el preprocesador: definición recolectada (las líneas del cuerpo NO van al ensamblador), sustitución textual de `%param` (parámetros más largos primero, para que %a no pise %abc), invocación = primer token de la línea que coincide con una macro conocida, **con etiquetas opcionales delante** (`et: macro arg` — la etiqueta se emite como línea propia y define la dirección de la primera instrucción expandida; salió del propio rnf02 extendido).
+- **Atribución (invariante):** las líneas expandidas llevan `main_line` de la INVOCACIÓN (heredando la regla si la invocación vino de un include) y `file/line` REALES del cuerpo para errores. Test clave: 3 invocaciones de la misma macro → 3 grupos de direcciones en `line_to_addr` apuntando a las 3 líneas de invocación, y las direcciones intermedias vuelven a su línea. [Seguro]
+- Macros en includes visibles tras el punto de inclusión (preprocesado secuencial); macro dentro de macro: invocar SÍ, definir NO (error); recursión cortada por **profundidad** de expansión (límite 64). **Corrección de diseño cazada por rnf02 [Seguro]:** la primera versión contaba invocaciones TOTALES — 230 invocaciones secuenciales legítimas reventaban el límite; el límite correcto es de ANIDAMIENTO (el plan decía "cortar recursión": N invocaciones planas no son recursión).
+- Limitación documentada (también en el doc del módulo): una macro que define etiquetas e invocada 2+ veces da «etiqueta duplicada» (RARS renombra por expansión; queda como propuesta fuera de alcance).
+- `rnf02_ensamblar_500_lineas_con_include_y_macro` (release): **520 líneas en 1.90 ms** (< 200 ms, gate del plan; la variante original: 1.34 ms). [Seguro — medido]
+
+Compuerta F3 ✓: suites completas verdes en ambos crates (19 + CLI 13/13), clippy 0, rnf02 extendido verde.
