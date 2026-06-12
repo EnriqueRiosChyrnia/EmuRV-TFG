@@ -807,3 +807,42 @@ Compuerta F3 ✓: 26 suites verdes, clippy 0.
 - **Docs**: `docs/TRAPS.md` (tabla de CSRs, política de delegación completa con su porqué, mepc fiel a la espec y el ajuste +4, doble falta, límites — sin interrupciones asíncronas, M-mode plano); ENSAMBLADOR §4.1 ampliada (Zicsr); Ayuda con párrafo de traps; README con sección y enlace.
 
 **Compuerta F4 (cierre RP8) ✓ [Seguro — corridas reales]:** `cargo test` + clippy 0 en AMBOS crates (26 suites src-tauri + CLI con el test nuevo) · tsc limpio · `ci-local.sh --skip-bundle` exit 0 · `cargo tauri build` ok · **bundle 22 MB ≤ 30**.
+
+## 2026-06-12 — RP9-F1: estructura de lecciones y lecciones 1-3
+
+[Seguro] Estructura creada: `lecciones/NN-tema/leccion.s` + `lecciones/README.md`
+(índice esqueleto; el mapa completo llega en F3). Los ejemplos existentes NO se
+movieron ni renombraron (la UI los embebe).
+
+[Seguro] Lecciones escritas y verificadas por CLI con salida exacta:
+- 01-registros: li/mv/la, nombres ABI, x0, servicios 1/11/4/10.
+  Salida: `40\nregistros listos\n`.
+- 02-aritmetica: add/sub/mul/div/rem, complemento a 2 DEMOSTRADO
+  (0x7FFFFFFF+1 → -2147483648 ante los ojos del lector), and/or/xor sobre
+  0xF0/0x3C, srai vs srli con -8. Salida: `3 resto 2\n-2147483648\n48 252 204\n-4\n`.
+- 03-memoria: .word/.byte/.asciiz, lw/sw/lbu/sb, endianness DEMOSTRADO
+  (leer los bytes 0 y 3 de 0x11223344 → 68 y 17), navegación del panel
+  «Memoria» con el botón «.data» (0x10010000). Salida: `68 17\n42\nhola\n`.
+
+[Seguro] Tests: `emurv-cli/tests/lecciones.rs` — un test por lección, stdout
+EXACTO por assert_eq, guard de timeout (60 s debug / 20 s release) con kill.
+3/3 verdes.
+
+[Seguro] Tropiezo y arreglo: escribí `sra/srl` con inmediato; el ensamblador
+(correctamente) exige 3 registros para las formas R. Cambiado a `srai/srli` y
+la lección ahora EXPLICA la diferencia de mnemónicos (la «i» final) — el error
+se volvió contenido didáctico.
+
+[Probable] Autorrevisión didáctica («¿un principiante absoluto puede seguirla
+solo?»): cada lección abre con OBJETIVOS y QUÉ PANEL mirar usando los nombres
+exactos de la UI («Registros», «Memoria», «Consola», «Ensamblar», «Paso»);
+cada bloque tiene el comentario ANTES del código y predice lo que el panel va
+a mostrar (el lector verifica, no adivina); los conceptos con trampa
+(complemento a 2, endianness, srl vs sra) se DEMUESTRAN con un experimento de
+un Paso, no se enuncian; los 3 ejercicios van de modificación trivial a
+desafío con pista. Riesgo restante: el primo no sabe qué es hexadecimal — la
+lección 2 lo amortigua («cada dígito son 4 bits: F = 1111»), pero la
+validación real es la prueba con el tester humano (pendiente, checklist).
+
+Compuerta F1: 3/3 lecciones con salida exacta por CLI ✓ · suite emurv-cli +
+src-tauri verdes ✓ · clippy ambos crates sin avisos ✓.
