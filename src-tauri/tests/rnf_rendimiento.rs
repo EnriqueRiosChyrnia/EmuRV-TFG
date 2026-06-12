@@ -81,6 +81,47 @@ fn rnf02_ensamblar_500_lineas_con_include_y_macro() {
     assert!(ms < 200.0, "RNF-02 exige <200 ms; midió {ms:.2} ms");
 }
 
+/// RNF-03 con WATCHPOINT activo (RP7): bucle con una carga de memoria por
+/// iteración (el caso que los hooks MEM_READ/MEM_WRITE globales encarecen)
+/// y un watchpoint vigilando OTRA dirección. Gate: ≥ 10 M instr/s.
+#[test]
+#[ignore]
+fn rnf03_velocidad_con_watchpoint_activo() {
+    use emurv_lib::core::machine::{WatchKind, Watchpoint};
+    let src = "
+.data
+v: .word 1
+otro: .word 0
+.text
+  li t1, 4000000
+  la t2, v
+bucle:
+  lw t0, 0(t2)
+  addi t1, t1, -1
+  bnez t1, bucle
+  li a7, 10
+  ecall
+";
+    let program = assemble(src).expect("debe ensamblar");
+    let (out_tx, _o) = channel();
+    let (_, in_rx) = channel();
+    let mut m = Machine::new(program, out_tx, in_rx).expect("máquina");
+    m.set_watchpoints(vec![Watchpoint {
+        addr: emurv_lib::core::DATA_BASE + 4, // «otro»: jamás accedido
+        len: 4,
+        kind: WatchKind::Both,
+    }])
+    .expect("instalar watchpoint");
+    let instrucciones = 4_000_000u64 * 3 + 4;
+    let inicio = Instant::now();
+    let reason = m.run(0);
+    let segs = inicio.elapsed().as_secs_f64();
+    assert_eq!(reason, StopReason::Exited { code: 0 });
+    let mips = instrucciones as f64 / segs / 1e6;
+    println!("RNF-03 (con watchpoint): {instrucciones} instr en {segs:.3} s → {mips:.1} M instr/s");
+    assert!(mips >= 10.0, "RNF-03 exige ≥10 M instr/s; midió {mips:.1}");
+}
+
 /// RNF-03: ejecución continua ≥ 10 M instrucciones/segundo efectivas.
 #[test]
 #[ignore]
