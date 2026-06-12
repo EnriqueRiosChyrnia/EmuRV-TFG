@@ -1095,3 +1095,45 @@ el '\n' de fgets. ROADMAP-PRO.md y Cap. VI intactos (coordinadora).
 [PENDIENTE HUMANO] (heredados de F3): botón «Limpiar» en la app y syscall
 60 en terminal real (TTY). Nuevo: «echo $?» tras un 93 (el dueño del repo
 dijo que lo verifica él mismo con un programa propio).
+
+## 2026-06-12 — RP11-F1: spike capstone vs decoder propio (medición de peso)
+
+[Seguro — números medidos en esta máquina, cargo tauri build + du -sk
+sobre EmuRV.app, rama spike/rp11-capstone commit 3f0a167, NO mergeada]
+- Base (HEAD rp10-fase-4): **22032 KB** (~21,5 MiB; binario 21956 KB).
+- capstone 0.14 default (todas las arquitecturas, full): **29044 KB** →
+  delta **+6,9 MB**. Pasa el límite de 30 pero VIOLA la regla del margen
+  (≥3 MB libres): quedaban ~1 MB. DESCARTADO así.
+- capstone diet (default-features=false, std+arch_riscv): 22084 KB
+  (+52 KB)… pero DIET elimina los mnemónicos (mnemonic() = None, el
+  listado muestra «?»): INSERVIBLE para un desensamblador didáctico.
+  Documentado para que nadie lo «redescubra».
+- **capstone full + arch_riscv solo** (default-features=false, features
+  std+full+arch_riscv): **22132 KB → delta +100 KB**, mnemónicos completos
+  (las 10 palabras del spike: addi/lw/add/sub/mul/beq/jal/csrrw/ecall
+  decodificadas). Margen sobre RNF-04: ~8,4 MB ≥ 3 MB. Compilación de
+  capstone-sys: ~40 s la primera vez (aceptable, cachea).
+
+DECISIÓN [Seguro]: **capstone con default-features=false y features
+["std","full","arch_riscv"]**. La regla del plan se cumple con margen
+holgado; el decoder propio (plan B) queda descartado por innecesario —
+más trabajo para el mismo resultado. La interfaz disasm() encapsula la
+elección por si esto cambiara.
+
+[Seguro] PoC object read_core: parsea nuestro ELF round-trip (formato
+Elf32, arch Riscv, entry 0x00400000, 2 segmentos, símbolos main y v del
+.symtab de RP-6). Es agregar el feature read_core a la dep existente:
+cero dependencias nuevas para el import.
+
+[Seguro] `brew install riscv64-elf-gcc`: FUNCIONÓ. Fixture real compilada
+con los flags canónicos (-march=rv32im -mabi=ilp32 -Ttext=0x00400000
+-Tdata=0x10010000 -nostdlib): ELF32 EXEC RISC-V con **entry 0x400068**
+(≠ TEXT_BASE pero dentro de .text → el caso «entry variable» del diseño
+es REAL, no teórico) y **PT_LOAD con p_vaddr 0x003ff000**: gcc mapea la
+página de cabeceras ELF por debajo de TEXT_BASE. Implicación de diseño
+para F2 [Probable→a validar]: cargar por SECCIONES ALLOC cuando existan
+(evita la página de cabeceras); segmentos como fallback con regla de
+intersección. La fixture y su Makefile entran en F2.
+
+Compuerta F1: números medidos ✓ · decisión fundamentada ✓ · rama spike
+sin mergear (queda como evidencia) ✓.
