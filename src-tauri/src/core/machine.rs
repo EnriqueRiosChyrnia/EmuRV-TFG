@@ -2,9 +2,11 @@
 //!
 //! Modelo de ejecución (ARQUITECTURA.md §Diseños clave 3): la máquina se usa
 //! desde un único hilo (en la GUI, el hilo de emulación dedicado). "Paso" es
-//! `emu_start` con count=1; "Ejecutar" corre en tramos con timeout para que
-//! el hilo pueda refrescar la UI (~10 Hz) y atender la señal de stop sin
-//! tocar Unicorn desde otro hilo.
+//! `emu_start` con count=1; "Ejecutar" corre en tramos acotados por count
+//! (`run_slice`, TEC1) para que el hilo pueda refrescar la UI, atender la
+//! señal de stop y la entrada sin tocar Unicorn desde otro hilo. El count es
+//! el único corte confiable: el timeout de Unicorn NO corta bucles apretados
+//! sin syscalls (verificado en tests/spike_count.rs).
 //!
 //! El hook de código que compara el pc contra los breakpoints SOLO se
 //! instala cuando hay breakpoints activos: con el hook puesto Unicorn no
@@ -438,9 +440,19 @@ impl Machine<'_> {
     }
 
     /// Ejecuta hasta breakpoint/salida/error o hasta agotar `timeout_ms`
-    /// (0 = sin límite). El llamador decide refrescar la UI y volver a
-    /// llamar mientras reciba `Paused` sin señal de stop.
+    /// (0 = sin límite). OJO: sin tope de instrucciones un bucle apretado
+    /// sin syscalls puede no retornar jamás (el timeout de Unicorn no lo
+    /// corta); producción usa `run_slice` por eso (TEC1).
     pub fn run(&mut self, timeout_ms: u64) -> StopReason {
+        self.run_slice(timeout_ms, 0)
+    }
+
+    /// Ejecuta hasta breakpoint/salida/error, o hasta agotar `timeout_ms`
+    /// (0 = sin límite) o `max_instr` instrucciones (0 = sin límite), lo
+    /// que llegue primero. El count agotado devuelve `Paused`: tramo
+    /// terminado, NO pausa de usuario. El llamador decide refrescar la UI
+    /// y volver a llamar mientras reciba `Paused` sin señal de stop.
+    pub fn run_slice(&mut self, timeout_ms: u64, max_instr: u64) -> StopReason {
         if let Some(code) = self.uc.get_data().exit_code {
             return StopReason::Exited { code };
         }
@@ -453,7 +465,12 @@ impl Machine<'_> {
         if self.uc.get_data().breakpoints.contains(&pc) {
             self.uc.get_data_mut().suppress_bp = Some(pc);
         }
-        let result = self.uc.emu_start(pc as u64, NEVER, timeout_ms * 1000, 0);
+        let result = self
+            .uc
+            .emu_start(pc as u64, NEVER, timeout_ms * 1000, max_instr as usize);
+        // Conservador a propósito: el spike (PoC3b) mostró que tras corridas
+        // con count>0 un paso count=1 sí se respeta, pero el flush barato de
+        // step() sigue cubriendo el caso histórico (count=0) sin distinguir.
         self.tb_de_corrida = true;
         self.uc.get_data_mut().suppress_bp = None;
         self.interpret(result, StopReason::Paused)

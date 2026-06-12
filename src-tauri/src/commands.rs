@@ -3,8 +3,11 @@
 //! La emulación vive SIEMPRE en su propio hilo (riesgo R4 de
 //! ARQUITECTURA.md): los comandos le hablan por canales y los resultados
 //! vuelven a la UI como eventos Tauri. Durante una ejecución larga, el
-//! hilo corre la máquina en tramos de 100 ms y emite `emu://registros`
-//! (~10 Hz, RNF-03); las vistas nunca se refrescan por instrucción.
+//! hilo corre la máquina en tramos acotados por count (~2 ms, TEC1: así
+//! «Detener» responde incluso en bucles apretados sin syscalls, que el
+//! timeout de Unicorn no corta) y emite `emu://registros` como máximo
+//! cada 100 ms (~10 Hz, RNF-03); las vistas nunca se refrescan por
+//! instrucción.
 
 use crate::core::assembler::{self, AsmError, Program};
 use crate::core::machine::{Machine, StopReason};
@@ -16,10 +19,23 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
 
-/// Tramo de ejecución entre refrescos de UI (≈10 Hz).
+/// Tope de tiempo por tramo. Quedó como red de seguridad: el corte real es
+/// por count (el timeout de Unicorn no corta bucles apretados sin syscalls).
 const RUN_SLICE_MS: u64 = 100;
+
+/// Instrucciones por tramo de ejecución (TEC1). El spike
+/// (tests/spike_count.rs, release) midió ~430 M instr/s con slicing y
+/// ~4,2 µs de overhead por re-entrada: 1 M instr ≈ 2,3 ms por tramo, así
+/// «Detener» se atiende con esa latencia incluso en bucles apretados.
+const RUN_SLICE_COUNT: u64 = 1_000_000;
+
+/// Cadencia mínima entre refrescos de registros a la UI (~10 Hz, RNF-03).
+/// Va desacoplada del tramo: con tramos de ~2 ms, emitir por tramo
+/// inundaría la UI a ~500 Hz.
+const UI_REFRESH: Duration = Duration::from_millis(100);
 
 // ---------------------------------------------------------------------------
 // Tipos de la sesión
@@ -167,33 +183,50 @@ fn emu_thread(
             }
             EmuCmd::Run => {
                 stop_flag.store(false, Ordering::SeqCst);
+                // El refresco de la UI va desacoplado del tramo: el tramo
+                // es corto para la latencia de Detener; la cadencia de
+                // eventos a la UI la marca este Instant.
+                let mut ultimo_refresco = Instant::now();
                 loop {
-                    let reason = machine.run(RUN_SLICE_MS);
+                    let reason = machine.run_slice(RUN_SLICE_MS, RUN_SLICE_COUNT);
+                    // publish_frame queda por tramo a propósito: el flag
+                    // sucio corta enseguida si la VRAM no cambió, y así el
+                    // último frame nunca queda sin publicar al detenerse
+                    // (un Instant extra no paga su complejidad acá).
                     machine.publish_frame();
                     check_video(&mut video_notificado);
                     match reason {
                         StopReason::Paused => {
+                            // Count/timeout agotado: NO es pausa de usuario.
+                            // Solo se reporta a la UI si Detener fue pedido.
                             if stop_flag.load(Ordering::SeqCst) {
                                 emit_stopped(&app, &machine, StopReason::Paused);
                                 break;
                             }
-                            // Tramo cumplido: refresco periódico (RNF-03)
-                            // y atención de órdenes auxiliares sin bloquear.
-                            match machine_state(&machine) {
-                                Ok(st) => {
-                                    let _ = app.emit("emu://registros", st);
-                                }
-                                Err(message) => {
-                                    // No se pudieron leer los registros:
-                                    // cortar la corrida reportando el fallo.
-                                    emit_stopped(
-                                        &app,
-                                        &machine,
-                                        StopReason::RuntimeError { message },
-                                    );
-                                    break;
+                            // Refresco periódico (RNF-03): como máximo cada
+                            // UI_REFRESH aunque haya ~500 tramos/s.
+                            if ultimo_refresco.elapsed() >= UI_REFRESH {
+                                match machine_state(&machine) {
+                                    Ok(st) => {
+                                        let _ = app.emit("emu://registros", st);
+                                        ultimo_refresco = Instant::now();
+                                    }
+                                    Err(message) => {
+                                        // No se pudieron leer los registros:
+                                        // cortar la corrida reportando el
+                                        // fallo.
+                                        emit_stopped(
+                                            &app,
+                                            &machine,
+                                            StopReason::RuntimeError { message },
+                                        );
+                                        break;
+                                    }
                                 }
                             }
+                            // Las órdenes auxiliares y el stop_flag se
+                            // atienden en CADA tramo: esa es la gracia del
+                            // slicing (latencia de Detener ~2 ms).
                             match cmd_rx.try_recv() {
                                 Ok(cmd) => {
                                     if let Err(e) = handle_aux(&mut machine, cmd) {

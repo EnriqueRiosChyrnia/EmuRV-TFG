@@ -334,3 +334,15 @@ Sesión ultracode sobre rama nueva `feature/teclado` (desde `feature/framebuffer
 3. El refresco `emu://registros` se desacopla del tramo (con tramos de ~2 ms inundaría la UI): cadencia ~100 ms por `Instant`, a definir en TEC1.
 
 Limitaciones registradas por los propios PoC: B5 no mide guests con muchas cargas a RAM normal (chequeo de rango del hook en camino lento); el patrón combinado con los hooks existentes de `machine.rs` se prueba recién en TEC2. Gate TEC0 ✓: 67 tests + 5 ignore, clippy 0, tsc limpio.
+
+## TEC1 — Detener responde siempre: tramos por count (2026-06-12)
+
+- `Machine::run_slice(timeout_ms, max_instr)` nuevo; `run(timeout_ms)` delega con max_instr=0 (cero call sites rotos). Count agotado → `Paused` (tramo terminado, NO pausa de usuario; el bucle solo emite pausa real bajo `stop_flag`, lógica intacta).
+- `commands.rs`: `RUN_SLICE_COUNT = 1_000_000` (~2-3 ms/tramo); `stop_flag` y comandos auxiliares se atienden en CADA tramo → **latencia de Detener ~2-3 ms** incluso en `loop: j loop` puro. El refresco `emu://registros` se desacopló a cadencia de 100 ms por `Instant` (sin eso: ~500 Hz de eventos). `publish_frame` queda por tramo (el flag sucio lo abarata y el último frame nunca queda sin publicar al detenerse). `RUN_SLICE_MS=100` queda como red de seguridad.
+- `tb_de_corrida`/flush se conserva intacto (conservador: el spike mostró que tras count>0 no haría falta, pero el flush de `step()` es barato y cubre el caso histórico count=0). [Seguro]
+- Tests nuevos (`tec1_detener.rs`): `detener_interrumpe_bucle_apretado` (bucle apretado retorna Paused, guardián anticuelgue), `slicing_no_pierde_instrucciones` (contador exacto: 300 000), `run_sin_limite_sigue_funcionando`. Regresiones de la familia JIT: `paso_funciona_inmediatamente_despues_de_reset` ✓, `breakpoint_puesto_despues_de_correr_frena` ✓, integración 6/6, fb2 5/5, fb3 2/2.
+- **RNF-03 re-medido (release)**: corrida libre 1124.5-2310.4 M instr/s; **con slicing 302.5-397.0 M instr/s** (benchmark nuevo `rnf03_velocidad_con_slicing`, #[ignore]; el viejo usa `run(0)` y no refleja el cambio); con breakpoint 91.6-157.1 M. Gate ≥10 M: superado ~30-40×. Costo del slicing ~3-6× por re-entrada al JIT — esperado por el spike. [Seguro — medido]
+- **Cierre del hallazgo de Etapa 4 (2026-06-11)**: "el timeout de run() no interrumpe bucles apretados → Detener podría no responder" queda RESUELTO por diseño con los tramos por count (pendiente la verificación visual humana con la app).
+- Edge case preexistente registrado (no tocado, fuera de alcance): borde de tramo cayendo exacto sobre un breakpoint puede suprimirlo una vez (`suppress_bp`); ya existía con tramos por timeout y con breakpoints el hook baja la velocidad ~100×, así que el tramo corta por timeout igual que antes. [Probable]
+
+Gate TEC1 ✓: 70 tests + 6 ignore, clippy 0, tsc limpio.
