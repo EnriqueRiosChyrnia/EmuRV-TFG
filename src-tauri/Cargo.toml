@@ -28,8 +28,3 @@ object = { version = "0.39.1", default-features = false, features = ["write_core
 tauri-plugin-dialog = "2.7.1"
 
 
-# Binario CLI/headless (RP-3): convive con el bin Tauri por defecto.
-# `cargo build --bin emurv-cli` no requiere el frontend compilado.
-[[bin]]
-name = "emurv-cli"
-path = "src/bin/emurv-cli.rs"

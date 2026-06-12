@@ -125,6 +125,53 @@ Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando 
 
 Tabla completa, mapa de memoria y directivas: botón **Ayuda** dentro de la app.
 
+## Uso por línea de comandos (`emurv-cli`)
+
+El binario `emurv-cli` ensambla y ejecuta programas **sin interfaz gráfica** — útil para
+corrección automática de tareas (diff sobre la salida), scripting y CI.
+
+```sh
+cd emurv-cli
+cargo build --release
+# el binario queda en emurv-cli/target/release/emurv-cli
+```
+
+(El CLI vive en un crate propio que consume el núcleo `emurv_lib` por path:
+el empaquetador de Tauri incluye en la app TODO binario del paquete y eso
+inflaba el bundle por encima del límite de RNF-04 — detalle en BITACORA.)
+
+Subcomandos:
+
+```sh
+# Ensamblar y exportar un ELF32 RISC-V estándar:
+emurv-cli asm ejemplos/01-hola-mundo.asm -o hola.elf
+
+# Ensamblar y ejecutar, con la consola del programa en stdin/stdout:
+echo "8
+34" | emurv-cli run ejemplos/02-suma-interactiva.asm
+# → imprime los textos del programa y "La suma es: 42"
+```
+
+Flags de `run`: `--max-instr N` (presupuesto de instrucciones) y `--timeout-s S`
+(tiempo de pared; es el límite útil para los ejemplos de tiempo real, que en
+headless no tienen teclado y duermen en su bucle de polling).
+
+Reglas de canal: **stdout lleva exclusivamente la salida del programa invitado**
+(apto para corrección por `diff`); todos los diagnósticos —errores de ensamblado
+con su formato didáctico, errores de runtime, avisos de `ebreak`— van por stderr.
+
+Códigos de salida: `0` programa terminado · `1` error de runtime o de E/S (incluye
+EOF de stdin con el programa pidiendo entrada) · `2` error de ensamblado · `3` uso
+inválido · `124` límite agotado (convención de `timeout(1)`).
+
+Ejemplo de corrección automática:
+
+```sh
+echo "8
+34" | emurv-cli run entrega-alumno.asm > salida.txt 2>/dev/null
+diff salida.txt esperado.txt && echo "APROBADO"
+```
+
 ## Estructura del proyecto
 
 ```
