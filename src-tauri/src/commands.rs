@@ -10,6 +10,7 @@
 //! instrucción.
 
 use crate::core::assembler::{self, AsmError, Program};
+use crate::core::keyboard::KeyboardShared;
 use crate::core::machine::{Machine, StopReason};
 use crate::core::syscalls::{ConsoleEvent, InputMsg};
 use crate::core::video::VideoShared;
@@ -70,6 +71,9 @@ struct Session {
     /// por el hilo de emulación (que puede estar bloqueado en una syscall
     /// de entrada).
     video: Arc<Mutex<VideoShared>>,
+    /// Cola de teclas del dispositivo MMIO (TEC2): `push_key` empuja acá
+    /// sin pasar por el hilo de emulación (mismo criterio que `video`).
+    keyboard: Arc<Mutex<KeyboardShared>>,
 }
 
 /// Estado global gestionado por Tauri.
@@ -357,15 +361,20 @@ pub fn assemble(
     let program_copy = program.clone();
 
     // La máquina se construye DENTRO del hilo: Unicorn no es Send (usa Rc).
-    // El canal init confirma la creación o devuelve el error.
-    let (init_tx, init_rx) = channel::<Result<(), String>>();
+    // El canal init confirma la creación (devolviendo la cola de teclado,
+    // que la sesión necesita para `push_key`) o devuelve el error.
+    let (init_tx, init_rx) = channel::<Result<Arc<Mutex<KeyboardShared>>, String>>();
     std::thread::spawn({
         let app = app.clone();
         let stop = Arc::clone(&stop_flag);
         let video = Arc::clone(&video);
         move || match Machine::new_with_video(program, out_tx, in_rx, video) {
-            Ok(machine) => {
-                let _ = init_tx.send(Ok(()));
+            Ok(mut machine) => {
+                // Espejo de la señal de stop de la sesión dentro de la
+                // máquina (mismo Arc): la fase del sleep interrumpible la
+                // consultará desde el hook de syscalls.
+                machine.set_stop_request(Arc::clone(&stop));
+                let _ = init_tx.send(Ok(machine.keyboard_shared()));
                 emu_thread(app, machine, cmd_rx, stop);
             }
             Err(e) => {
@@ -373,7 +382,7 @@ pub fn assemble(
             }
         }
     });
-    init_rx
+    let keyboard = init_rx
         .recv()
         .unwrap_or_else(|_| Err("el hilo de emulación murió al iniciar".into()))
         .map_err(|e| {
@@ -402,6 +411,7 @@ pub fn assemble(
         waiting_input,
         program: program_copy,
         video,
+        keyboard,
     });
     Ok(ok)
 }
@@ -510,6 +520,24 @@ pub fn set_breakpoints(addrs: Vec<u32>, manager: State<'_, EmuManager>) -> Resul
         s.cmd_tx
             .send(EmuCmd::SetBreakpoints(addrs.into_iter().collect()))
             .map_err(|_| "la sesión de emulación terminó".into())
+    })
+}
+
+/// Tecla presionada en la pantalla gráfica (TEC2): empuja el código a la
+/// cola del dispositivo de teclado MMIO. No pasa por el hilo de emulación
+/// (puede estar corriendo un tramo): el hook MEM_READ la consume cuando el
+/// programa lee RECEIVER_DATA. Cola llena = se descarta la tecla más vieja,
+/// nunca es un error.
+#[tauri::command]
+pub fn push_key(code: u8, manager: State<'_, EmuManager>) -> Result<(), String> {
+    with_session(&manager, |s| {
+        // Lock envenenado: se recupera igual (la cola es POD, sin
+        // invariantes a medias), mismo criterio que el estado de video.
+        s.keyboard
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(code);
+        Ok(())
     })
 }
 
