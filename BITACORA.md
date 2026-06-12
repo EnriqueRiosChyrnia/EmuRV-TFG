@@ -723,3 +723,12 @@ Tests (rp7_watchpoints.rs, 6): write con valor y pc exactos; read con valor leí
 **Medición [Seguro]:** RNF-03 con watchpoint activo y bucle CON carga de memoria por iteración (el caso caro): **71.4 M instr/s** (12 M instr en 0.168 s) — gate ≥10 M superado ~7×. Sin watchpoints: cero hooks (el test lo fija), corrida libre intacta.
 
 Compuerta F1 ✓: 21 suites verdes, clippy 0.
+
+## RP7 Fase 2 — Breakpoints condicionales (2026-06-12)
+
+- **`core/cond.rs`**: gramática mínima `REG OP VALOR` (OP ∈ == != < <= > >=, comparación SIGNED i32; VALOR decimal con signo, hex 0x… —0xFFFFFFFF es -1, coherente—, o segundo registro). Parseo AL DEFINIR con errores didácticos («"t9" no es un registro; valen los nombres ABI…», «"=" solo no compara: usá "=="», «sobra texto al final», `<>` rechazado como operador). El hook evalúa un `CondAst` Copy ya validado: costo por instrucción mínimo.
+- **`set_breakpoints` genérico** (`impl IntoIterator<Item: Into<BreakpointSpec>>` + `From<u32>`): los ~10 usos existentes compilan sin cambios (HashSet<u32> y arrays de u32 entran directo); `MachData.breakpoints` pasa de HashSet a `HashMap<u32, Option<CondAst>>`.
+- **Regla de oro respetada (RP-1 F4):** condición FALSA = el programa pasa de largo — NO es parada, no setea `last_bp`, no consume supresión. Test dedicado: corte por count en medio del bucle (Paused) → la continuación frena EXACTO cuando t0==2, sin supresión espuria. Suite completa intacta (los tests de RP-1 vigilan y pasan).
+- Tests (rp7_condicionales.rs, 5): **el caso estrella «parar cuando t0 == 5» en un bucle** (frena con t0==5 exacto; reanudar termina); registro contra registro; hex signed; 6 errores de parseo; convivencia condicional+watchpoint en la misma corrida con orden de paradas exacto (w1,w2,w3,b3,w4 — la condición se evalúa al ENTRAR a la vuelta, antes del addi: trazado documentado en el test).
+
+Compuerta F2 ✓: 22 suites verdes, clippy 0.

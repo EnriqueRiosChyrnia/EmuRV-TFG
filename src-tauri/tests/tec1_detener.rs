@@ -138,7 +138,7 @@ fn breakpoint_en_borde_de_count_se_reporta_en_la_continuacion() {
         // exactamente en esa dirección.
         let (mut m, _out, _inp) = machine_for("nop\nnop\nnop\nli t0, 7\nli a7, 10\necall");
         let bp = TEXT_BASE + 12;
-        m.set_breakpoints([bp].into()).expect("breakpoints");
+        m.set_breakpoints([bp]).expect("breakpoints");
         let tramo = m.run_slice(0, 3);
         let pc = m.pc().expect("leer pc");
         // Continuación de la MISMA orden Run (no es reanudación del

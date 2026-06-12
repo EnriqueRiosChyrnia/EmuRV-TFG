@@ -5,6 +5,7 @@
 //! didáctico existente en español sin cambiar direcciones.
 
 pub mod assembler;
+pub mod cond;
 pub mod elf_export;
 pub mod keyboard;
 pub mod machine;
