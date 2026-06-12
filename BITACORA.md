@@ -702,3 +702,12 @@ Remote connection closed
 Nota: lldb (intento previo) conecta y frena (SIGTRAP) pero su soporte riscv32 por gdb-remote no inicializa el contexto de registros en batch — bloqueo documentado; el cliente canónico es gdb y funciona completo.
 
 Compuerta F3 ✓: 20 suites src-tauri + 20 tests CLI, clippy 0 ambos, transcript real pegado.
+
+## RP6 Fase 4 — Documentación y cierre del stub GDB (2026-06-12)
+
+- `docs/DEPURACION-GDB.md`: arranque, conexión con gdb (canónico, probado) y VS Code (`launch.json` con `miDebuggerServerAddress`), nota sobre lldb (conecta pero no inicializa registros riscv32 — usar gdb), transcript de la sesión real, tabla del protocolo verificado por tests, modelo de ejecución, convivencia y limitaciones (sin DWARF — direcciones y SÍMBOLOS; un cliente; vendor documentado).
+- README: sección «Depuración remota (GDB)» enlazando a la guía.
+- Decisiones consolidadas del punto: udbserver 0.3 viable y elegido (plan B descartado con evidencia del spike) [Seguro]; feature `gdb` sin default — la app Tauri fuera del grafo [Seguro]; vendor con 2 cambios mínimos por linkeo dinámico forzado y stdout contaminado [Seguro]; símbolos .symtab en el ELF exportado — `break etiqueta` real [Seguro]; licencias MIT / MIT+Apache compatibles [Seguro].
+- Propuesta fuera de alcance registrada: integración del depurador en la UI Tauri (fase visual) y `--pause-on-ebreak` siguen pendientes de otros puntos.
+
+**Compuerta F4 (cierre RP6) ✓ [Seguro — corridas reales]:** `cargo test` + clippy 0 en AMBOS crates (20 suites + 21 tests CLI) · `scripts/ci-local.sh --skip-bundle` exit 0 · `cargo tauri build` ok · **bundle 22 MB ≤ 30 con SOLO el binario de la app adentro** (la feature gdb no entró: verificado en Contents/MacOS) · tsc limpio.
