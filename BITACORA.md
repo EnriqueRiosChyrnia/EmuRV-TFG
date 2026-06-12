@@ -846,3 +846,39 @@ validación real es la prueba con el tester humano (pendiente, checklist).
 
 Compuerta F1: 3/3 lecciones con salida exacta por CLI ✓ · suite emurv-cli +
 src-tauri verdes ✓ · clippy ambos crates sin avisos ✓.
+
+## 2026-06-12 — RP9-F2: lecciones 4-7
+
+[Seguro] Cuatro lecciones nuevas, mismas plantilla y voz que las 1-3:
+- 04-condicionales: beq/bne, if/else con saltos (el «if» no existe: se salta
+  por encima), máximo de dos números, trampa blt vs bltu con -1 (conecta con
+  el complemento a 2 de la 02). Observación didáctica: el pc en «Registros»
+  brinca cuando el salto se toma.
+- 05-bucles: suma 1..10 (=55), tablita del 3 con bucle anidado SIN mul (suma
+  repetida: el anidamiento es genuino). REQUISITO F2 cumplido: bloque dedicado
+  «frenar SOLO en la vuelta 5» que explica EN TEXTO el breakpoint condicional
+  `t0 == 5` con el flujo exacto del panel «Depuración» (verificado contra
+  docs/DEPURACION.md y es.json); el contador del programa ES t0.
+- 06-funciones: jal/ret, ra, a0-a7, función hoja (duplicar) y no-hoja
+  (cuadruple) con prólogo/epílogo; comentario explica QUÉ se rompe sin
+  guardar ra (el 2.º jal lo pisa → bucle infinito) y el ejercicio 3 lo hace
+  observable. Mirar la pila en «Memoria» botón «pila (sp)»: ra guardado en
+  0x7FFFFFEC. Referencia al ejemplo «Pila y funciones» para el factorial.
+- 07-syscalls: tabla SOLO de servicios existentes (1/4/5/10/11/30/32 — nada
+  de 8/9/93, regla del plan), ciclo leer-validar-procesar con reintento
+  (stdin de prueba 25→7), y 30/32 en modo seguro: dormir 100 ms y comprobar
+  con bge que pasaron ≥100, imprimiendo cadena FIJA (jamás la hora cruda —
+  el determinismo del test depende de eso).
+
+[Seguro] Ejecución: las 4 deterministas (doble corrida idéntica), exit 0.
+Tests exactos agregados a emurv-cli/tests/lecciones.rs: 7/7 verdes.
+Retoque mío post-agente: tilde en «máximo» (UTF-8 en .asciiz ya probado).
+
+[Probable] Autorrevisión didáctica F2: cada lección abre la puerta con lo ya
+visto (04 cita a 02; 05 cita a 04; 07 cita a 02 y 04) — el orden del
+currículo se sostiene solo. Riesgo: la 06 es el primer salto conceptual
+fuerte (pila); se amortigua con la predicción byte a byte de 0x7FFFFFEC.
+
+Compuerta F2: 4/4 con salida exacta por CLI ✓ · lección 5 demuestra el
+breakpoint condicional en texto ✓ · suite emurv-cli (7 lecciones) +
+src-tauri (26 ok / 0 fail) ✓ · clippy sin avisos ✓.
