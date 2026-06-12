@@ -778,3 +778,10 @@ Plan `docs/PLAN-RP8-csrs-traps.md`. `tests/spike_csr.rs` (12 PoC, encodings a ma
 4. ebreak: jamás se delega (política + comportamiento nativo coinciden). mtvec==0 ⇒ todo como hoy.
 
 Compuerta F1 ✓: spike 12/12 + suite completa intacta (24 suites), clippy 0.
+
+## RP8 Fase 2 — Zicsr y mret en el ensamblador (2026-06-12)
+
+- Instrucciones: csrrw/csrrs/csrrc + variantes inmediatas (uimm5 0-31 con error didáctico) + `mret`; pseudos csrr/csrw/csrs/csrc. Encoding `enc_csr` (formato I sobre SYSTEM 0x73, f3 1-3/5-7). Tabla de nombres: mstatus, mie, mtvec, mscratch, mepc, mcause, mtval, mip (`csr_number` pública) + número crudo 0x000-0xFFF para el resto (solo los 8 con nombre están garantizados por Unicorn — irá en docs). CSR desconocido → error que SUGIERE los soportados.
+- Tests: encodings de referencia calculados a mano contra la espec privilegiada y CONSISTENTES con el spike F1 (que los ejecutó nativos — la misma palabra 0x34029073 que el spike validó); 4 errores didácticos; **round-trip con Machine**: csrw+csrr+csrrwi dan la vuelta completa (0x1234 y 9 en registros) y `mret` ensamblado salta a mepc salteando la instrucción intermedia.
+
+Compuerta F2 ✓: 25 suites verdes (la nueva rp8_zicsr incluida), clippy 0.
