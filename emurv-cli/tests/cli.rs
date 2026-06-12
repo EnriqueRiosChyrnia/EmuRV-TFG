@@ -388,3 +388,64 @@ fn run_ejemplo_trap_handler() {
         "antes del ecall desconocido\n  [manejador] atendiendo el servicio 777 (mcause=11)\ndespués: el programa siguió como si nada\n"
     );
 }
+
+// ---------------------------------------------------------------------------
+// RP10 Fase 1 — exit2 (93): el código del invitado llega al shell, acotado.
+// ---------------------------------------------------------------------------
+
+/// Escribe un fuente temporal y devuelve su ruta (cada test usa la suya).
+fn fuente_temporal(nombre: &str, contenido: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join("rp10_exit2");
+    let _ = std::fs::create_dir_all(&dir);
+    let ruta = dir.join(nombre);
+    std::fs::write(&ruta, contenido).expect("escribir fuente temporal");
+    ruta
+}
+
+/// EL criterio del ROADMAP, como proceso real: `echo $?` vería el 7.
+#[test]
+fn exit2_codigo_real_del_proceso() {
+    let f = fuente_temporal("siete.s", ".text\n  li a0, 7\n  li a7, 93\n  ecall\n");
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(7), "exit code real del invitado");
+    assert!(out.stdout.is_empty(), "stdout limpio");
+    assert!(out.stderr.is_empty(), "sin avisos para un código en rango");
+}
+
+/// Borde superior permitido: 125 pasa sin aviso.
+#[test]
+fn exit2_125_pasa_sin_aviso() {
+    let f = fuente_temporal("tope.s", ".text\n  li a0, 125\n  li a7, 93\n  ecall\n");
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(125));
+    assert!(out.stderr.is_empty(), "125 está dentro del rango seguro");
+}
+
+/// 126 excede el rango seguro del shell: se acota a 125 con aviso.
+#[test]
+fn exit2_126_se_acota_con_aviso() {
+    let f = fuente_temporal("exceso.s", ".text\n  li a0, 126\n  li a7, 93\n  ecall\n");
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(125), "acotado al tope");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("125"), "el aviso explica el acote: {stderr}");
+}
+
+/// Negativo: «& 0xFF» estilo Unix (-1 → 255) y DESPUÉS el tope → 125 con
+/// aviso. Documenta el diseño acordado: ningún código negativo escapa.
+#[test]
+fn exit2_negativo_estilo_unix() {
+    let f = fuente_temporal("neg.s", ".text\n  li a0, -1\n  li a7, 93\n  ecall\n");
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(125), "-1 & 0xFF = 255 → acotado");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("255"), "el aviso muestra el valor enmascarado: {stderr}");
+}
+
+/// Regresión: syscall 10 sigue saliendo con 0 aunque a0 tenga basura.
+#[test]
+fn exit_10_sigue_dando_cero_como_proceso() {
+    let f = fuente_temporal("diez.s", ".text\n  li a0, 99\n  li a7, 10\n  ecall\n");
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(0));
+}
