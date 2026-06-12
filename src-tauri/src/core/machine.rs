@@ -609,6 +609,75 @@ impl Machine<'_> {
         Ok(())
     }
 
+    /// Edición en vivo (RP7): escribe el registro `n` (1..=31). `x0` se
+    /// rechaza con explicación; para el pc usá [`Machine::write_pc`].
+    /// Pensado para usarse con la máquina PAUSADA (el guard de estado vive
+    /// en commands.rs, que conoce la sesión).
+    pub fn write_reg(&mut self, n: u8, val: u32) -> Result<(), String> {
+        if n == 0 {
+            return Err(
+                "x0 (zero) es cero por diseño del ISA: no se puede escribir; \
+                 usá otro registro"
+                    .to_string(),
+            );
+        }
+        if n > 31 {
+            return Err(format!("registro inválido: x{n} (valen x0–x31)"));
+        }
+        self.uc
+            .reg_write(xreg(n), u64::from(val))
+            .map_err(|e| format!("no se pudo escribir x{n}: {e:?}"))
+    }
+
+    /// Edición en vivo del pc (RP7). Resetea `last_bp`: el próximo Run
+    /// arranca de un lugar elegido a mano y no debe suprimir ningún
+    /// breakpoint (coherencia con RP-1 F4).
+    pub fn write_pc(&mut self, val: u32) -> Result<(), String> {
+        self.uc
+            .reg_write(PC, u64::from(val))
+            .map_err(|e| format!("no se pudo escribir el pc: {e:?}"))?;
+        self.last_bp = None;
+        Ok(())
+    }
+
+    /// Edición en vivo de memoria (RP7): regiones válidas .data, pila,
+    /// framebuffer y paleta. `.text` y la página del teclado se rechazan
+    /// con explicación didáctica. No toca código → sin flush de TB.
+    pub fn write_mem(&mut self, addr: u32, bytes: &[u8]) -> Result<(), String> {
+        if bytes.is_empty() || bytes.len() > 4 {
+            return Err("se escriben de 1 a 4 bytes por vez".to_string());
+        }
+        let fin = addr.wrapping_add(bytes.len() as u32);
+        let en = |base: u32, size: u32| addr >= base && fin <= base.wrapping_add(size);
+        if en(TEXT_BASE, TEXT_SIZE) {
+            return Err(
+                "el programa es inmutable mientras corre: editá el fuente y \
+                 volvé a ensamblar"
+                    .to_string(),
+            );
+        }
+        if en(KEYBOARD_BASE, KEYBOARD_SIZE) {
+            return Err(
+                "esa dirección es del teclado MMIO: el dispositivo la maneja \
+                 solo (las teclas se inyectan tipeando, no escribiendo memoria)"
+                    .to_string(),
+            );
+        }
+        let valida = en(DATA_REGION_BASE, DATA_REGION_SIZE)
+            || en(STACK_TOP - STACK_SIZE, STACK_SIZE)
+            || en(FRAMEBUFFER_BASE, FRAMEBUFFER_SIZE)
+            || en(PALETTE_BASE, PALETTE_SIZE);
+        if !valida {
+            return Err(format!(
+                "0x{addr:08X} no está en una zona editable (.data, pila, \
+                 framebuffer o paleta)"
+            ));
+        }
+        self.uc
+            .mem_write(u64::from(addr), bytes)
+            .map_err(|e| format!("no se pudo escribir en 0x{addr:08X}: {e:?}"))
+    }
+
     /// Instala watchpoints (RP7), semántica REEMPLAZAR-TODO como
     /// `set_breakpoints`. Hooks MEM_READ/MEM_WRITE instalados SOLO si hay
     /// alguno y removidos al vaciar, con flush de la caché JIT en ambas
