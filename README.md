@@ -78,6 +78,16 @@ sudo apt install -y cmake pkg-config build-essential curl wget file \
 
 (En Fedora: `webkit2gtk4.1-devel openssl-devel libappindicator-gtk3-devel librsvg2-devel`; en Arch: `webkit2gtk-4.1 base-devel openssl appmenu-gtk-module libappindicator-gtk3 librsvg`.)
 
+### Dependencias de build por plataforma (resumen)
+
+| Plataforma | Dependencias | Estado |
+|---|---|---|
+| macOS (Apple Silicon) | Xcode Command Line Tools (`xcode-select --install`) + `cmake` + `pkg-config` (Homebrew) | **Probado** — plataforma de desarrollo |
+| Linux (Debian/Ubuntu) | Lista oficial de Tauri v2 (`libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`) **+ `cmake` y `pkg-config`** | **SIN PROBAR** — pierna experimental del CI |
+| Windows | Microsoft C++ Build Tools («Desktop development with C++») + WebView2 Runtime + CMake | **SIN PROBAR** — pierna experimental del CI |
+
+`cmake` y `pkg-config` no los pide Tauri: los exige la compilación de **Unicorn Engine** (núcleo de emulación, build C vía CMake) — es el riesgo principal del port fuera de macOS ARM. Fuente de las listas: [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/) (verificada 2026-06-12).
+
 **Compilar y ejecutar (igual en todas las plataformas):**
 
 ```bash

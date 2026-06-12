@@ -572,3 +572,12 @@ Resumen de la corrida completa en esta máquina (exit 0):
 ```
 
 (El .app pasó de 21 a 22 MB por el redondeo de `du -sm` sobre el bundle con el frontend nuevo — sigue holgado contra el límite.) [Seguro — corrida real registrada]
+
+## RP4 Fase 3 — Piernas experimentales y deps por plataforma (2026-06-12)
+
+- **Lista de deps Linux verificada contra la doc oficial de Tauri v2** (tauri.app/start/prerequisites, consultada 2026-06-12): la lista del diseño coincidía con la oficial; el ci.yml agrega además `cmake` y `pkg-config`, que NO los pide Tauri sino la compilación C de Unicorn Engine — distinción documentada en el README (es el riesgo principal del port, Cap. VI §6.2.1). [Seguro — fuente citada]
+- README §Instalación: tabla de dependencias por plataforma (macOS probado / Linux y Windows SIN PROBAR — piernas experimentales del CI) con fuente y fecha. Windows según doc oficial: MS C++ Build Tools + WebView2 Runtime (+ CMake por Unicorn; preinstalado en los runners de GitHub).
+- Los jobs experimentales quedaron como en F1 (`continue-on-error: true`); su valor declarado es el LOG de fallos como insumo del port — no se promete que pasen.
+- actionlint re-corrido tras los cambios: limpio.
+
+Compuerta F3 ✓.
