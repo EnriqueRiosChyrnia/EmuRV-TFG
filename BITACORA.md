@@ -434,3 +434,15 @@ Plan `docs/PLAN-RP1-ebreak.md` (punto RP-1 del roadmap). Test `tests/rp1_ebreak.
 - Dato nuevo respecto del registro original del bug (Etapa 4 del 2026-06-11, que observó caída en «instrucción inválida» más allá de la siguiente): en el camino `run_slice` con count el pc queda EN el `ebreak` (no avanzado); el "doble avance" del registro original se observó por el camino `run(0)`. La Fase 2 debe explicar ambas observaciones con una sola causa raíz.
 
 Estado de la suite: 17 suites verdes intactas + SOLO el sonda en rojo (permitido por la compuerta F1). Clippy 0 warnings.
+
+## RP1 Fase 2 — Causa raíz del bug de ebreak (2026-06-12)
+
+Instrumentación temporal de la rama `CAUSE_BREAKPOINT` (eprintln del pc entregado, palabra en pc y pc-4) + sonda descartable con `run_slice`, `run_slice_continuation` y `step()`. Evidencia [Seguro — reproducible]:
+
+- **El hook de interrupción JAMÁS se dispara para `ebreak`**: cero trazas de la rama instrumentada en ningún camino. La rama `CAUSE_BREAKPOINT` de `handle_trap` es **código muerto desde que existe** — por eso "nunca se vio": no es que el pc se avanzara dos veces; es que el flujo nunca pasó por ahí.
+- Lo que ocurre de verdad: **Unicorn 2.1.5 (RISC-V) no traduce `ebreak` en una llamada al hook `INTR`; `emu_start` aborta con `uc_error::INSN_INVALID`**. `interpret()` lo convierte en el mensaje didáctico de "instrucción inválida" (camino `Err` genérico).
+- Valores exactos: con count instalado (camino de PRODUCCIÓN: `run_slice` y `step` siempre llevan count) el pc del error queda **EN la dirección del `ebreak`** (`run_slice` → `RuntimeError{instrucción inválida en 0x00400004}`, pc=0x00400004; `step` → ídem en 0x00400000). En corrida libre (`run(0)`, sin count hook — solo tests/benchs) el pc cae en ebreak+8 (observado en el spike del 2026-06-11: error en 0x00400024 con ebreak en 0x0040001C).
+- La continuación desde ese estado re-ejecuta el `ebreak` y repite el error para siempre.
+- **Corrección del diagnóstico original (Etapa 4, 2026-06-11):** la entrada vieja atribuía el bug a un "doble avance de pc" — interpretación errónea del pc del mensaje en corrida libre. No se edita (append-only); esta entrada la corrige hacia adelante. [Seguro]
+
+Diseño del fix que habilita esta evidencia (Fase 3): rescatar el caso en `interpret()` — si `emu_start` falla con `INSN_INVALID` y la palabra en pc es exactamente `EBREAK` (0x0010_0073), es una pausa por software: fijar pc = dir+4 UNA vez y devolver una razón de pausa propia. La rama del hook se conserva como defensa documentada por si futuras versiones de Unicorn sí entregan el trap. Instrumentación y sonda temporal eliminadas.
