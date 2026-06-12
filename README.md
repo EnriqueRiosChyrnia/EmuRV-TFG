@@ -201,6 +201,17 @@ BITACORA.md           registro de decisiones técnicas (material de tesis)
 cd src-tauri && cargo test     # suite completa (núcleo + integración de ejemplos)
 ```
 
+## Integración continua
+
+El workflow `.github/workflows/ci.yml` define 4 jobs: **test-macos** (obligatorio: frontend `tsc`+`vite build`, `cargo test` y `clippy -D warnings` en `src-tauri/` y `emurv-cli/`, build release del CLI), **bundle-macos** (obligatorio: `npx tauri build` + gate automático de peso ≤ 30 MB, RNF-04) y **build-linux**/**build-windows** (experimentales, `continue-on-error`: su log de fallos es el insumo del port fuera de macOS).
+
+El repo es solo local por ahora: el workflow está validado con `actionlint` pero nunca corrió en GitHub (checklist de activación al final del propio `ci.yml`). El **espejo local** ejecuta los mismos comandos en esta máquina:
+
+```sh
+scripts/ci-local.sh                # todo (tests + clippy + bundle + gate de peso)
+scripts/ci-local.sh --skip-bundle  # solo tests y clippy (el bundle tarda)
+```
+
 ## Licencia / alcance
 
 Prototipo académico (v0.1). Primera iteración: macOS Apple Silicon; la base es multiplataforma (Tauri) pero los builds de Windows/Linux quedan fuera de esta versión.

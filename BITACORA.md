@@ -581,3 +581,11 @@ Resumen de la corrida completa en esta máquina (exit 0):
 - actionlint re-corrido tras los cambios: limpio.
 
 Compuerta F3 ✓.
+
+## RP4 Fase 4 — Docs de CI, checklist de activación y cierre (2026-06-12)
+
+- README: sección «Integración continua» (qué corre cada job, qué es experimental, cómo correr el espejo local con y sin bundle).
+- **Checklist de activación al crear el remote** (también como comentario al final de ci.yml): (a) reemplazar placeholder OWNER/REPO del badge; (b) push y verificar los 4 jobs en Actions (test-macos y bundle-macos deben quedar verdes; los experimentales pueden fallar y ese log se conserva); (c) registrar en BITACORA los fallos de Linux/Windows como insumo del port (Cap. VI §6.2.1); (d) opcional: proteger main exigiendo los dos jobs obligatorios.
+- Decisiones consolidadas del punto: matriz macOS-obligatorio + Linux/Windows-experimental [Seguro]; caché Swatinem/rust-cache@v2 por crate + npm [Seguro — sin caché cada run recompila Unicorn]; gate de 30 MB automatizado y compartido [Seguro]; actionlint vía brew v1.7.12 [Seguro]; `npx tauri build` como comando único local/CI [Seguro]. Propuesta fuera de alcance registrada: cargo-audit/dependabot cuando exista el remote.
+
+**Compuerta F4 (cierre RP4) ✓ [Seguro — corridas reales]:** `cargo test` + `clippy -D warnings` verdes en AMBOS crates (18 suites src-tauri + 13/13 emurv-cli, dentro del espejo) · `scripts/ci-local.sh` exit 0 con TODO VERDE incluido bundle 22 MB ≤ 30 · actionlint limpio.
