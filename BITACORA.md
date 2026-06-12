@@ -882,3 +882,49 @@ fuerte (pila); se amortigua con la predicción byte a byte de 0x7FFFFFEC.
 Compuerta F2: 4/4 con salida exacta por CLI ✓ · lección 5 demuestra el
 breakpoint condicional en texto ✓ · suite emurv-cli (7 lecciones) +
 src-tauri (26 ok / 0 fail) ✓ · clippy sin avisos ✓.
+
+## 2026-06-12 — RP9-F3: lecciones 8-9 e índice completo
+
+[Seguro] Lección 08 (multiarchivo): proyecto de 3 archivos en
+lecciones/08-multiarchivo/ (main.s + constantes.s + utiles.s) — cuenta de
+entradas de cine: 7 .eqv con nombre, macro «escribir %etiqueta», función
+entero_nl llamada con jal; el texto enseña macro-se-copia vs
+función-se-salta con el observable real (la línea de la macro queda
+resaltada 3 Pasos; al entrar a la función el resaltado salta a la línea del
+.include — regla main_line del source_map de RP-5 convertida en contenido).
+Hallazgo del agente verificado: la ejecución arranca en la PRIMERA
+instrucción de .text, así que main.s usa un trampolín `j main` ANTES del
+.include de utiles.s — y lo explica didácticamente, contrastando con
+ejemplos/11-multiarchivo (que pone el include al final). Corre por CLI:
+salida exacta de 4 líneas, exit 0, determinista.
+
+[Seguro] Lección 09 (MMIO y tiempo real): raya roja de 8 píxeles en (10,5)
+del framebuffer 0x90000000 (1 byte/píxel, base + y*320 + x, verificado
+contra ejemplos/07-franjas.asm y docs/MEMORIA-GRAFICA.md), aviso al control
+de video 0x90030000, y encuesta del teclado 0xFFFF0000/0xFFFF0004
+(CONTROL bit0 / DATA leer-consume, contra docs/TECLADO.md) con LÍMITE DURO
+de 30 vueltas × 50 ms (servicio 32) ≈ 1,5 s: TERMINA SOLA sin teclas con
+salida fija «…teclas atendidas: 0» — el requisito headless del plan. Con la
+app abierta cada tecla deja una marca de color (sin tocar el stdout
+determinista). Cierra con «concurrencia aparente» (mono-hart, sin prometer
+hilos — regla del plan). Duración medida: 1,5 s por corrida.
+
+[Seguro] Tests: lecciones.rs ahora 9/9 (la 09 incluida: la CI vigila para
+siempre que el poll termine solo). Suite emurv-cli completa verde
+(16+9+6+1), clippy 0 avisos.
+
+[Seguro] lecciones/README.md completo: cómo trabajar una lección, mapa de
+aprendizaje (BASE→CONTROL→ESTRUCTURA→MUNDO REAL→AVANZADA, con los atajos
+válidos), tabla qué-aprendés-dónde con prerrequisitos por lección. La fila
+de la 10 dice «llega con la fase 4».
+
+[PENDIENTE HUMANO] Verificación manual de la lección 09 con la app: abrirla,
+«Ensamblar» + «Ejecutar», click en la pantalla («Teclado capturado») y
+teclear durante la encuesta → debe aparecer una marca de color por tecla en
+la fila 20 y el contador final > 0. Headless quedó probado por test; la
+reacción a teclas reales requiere la app (mismo patrón que los 6 flujos
+RP7-F4).
+
+Compuerta F3: lección 8 corre por CLI ✓ · lección 9 determinista headless ✓
+(verificación con app: pendiente humano, anotada) · README completo ✓ ·
+suite + clippy ✓.
