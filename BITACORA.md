@@ -541,3 +541,16 @@ La compuerta final destapó una cadena de problemas que obligó a una desviació
 3. Salida elegida: **crate separado `emurv-cli/`** (raíz del repo) que depende de la lib existente por path (`emurv = { path = "../src-tauri" }`) — CERO cambios al crate Tauri (revertidos default-run y feature; un solo bin otra vez). NO es un workspace ni un refactor del núcleo: el plan prohibía "refactor a workspace/crates separados", pero la alternativa era violar RNF-04 (SPEC manda) o un hack semántico (CLI como example de cargo). El diseño acordado (subcomandos, puente, códigos de salida, semántica headless) quedó INTACTO; solo cambió dónde vive el binario. [Seguro — justificación: conflicto entre plan y SPEC se resuelve a favor de SPEC]
 4. Detalle de build: el crate nuevo sin lockfile resolvió versiones transitivas más nuevas y pisó una incompatibilidad de compilación del crate `time` (E0119); se sembró `Cargo.lock` desde el de src-tauri (mismas versiones probadas). [Seguro]
 5. **Comandos finales (cambian respecto del plan, avisar al coordinador):** compilar: `cd emurv-cli && cargo build --release`; tests del CLI: `cd emurv-cli && cargo test` (13 tests, los mismos); la suite de src-tauri vuelve a 18 suites y `cargo tauri build` queda limpio (.app 21 MB, solo el binario de la app). Smoke release verificado: `echo "8\n34" | emurv-cli run ejemplos/02-suma-interactiva.asm` → «La suma es: 42».
+
+## RP4 Fase 1 — Workflow de CI validado estáticamente (2026-06-12)
+
+Plan `docs/PLAN-RP4-ci.md`. Restricción rectora: el repo es SOLO LOCAL hasta el final del proyecto — este punto es autoría + validación estática + espejo local; el primer run real queda DIFERIDO a la creación del remote (checklist de activación como comentario al final del propio ci.yml).
+
+- `.github/workflows/ci.yml` con los 4 jobs del diseño acordado: `test-macos` (obligatorio: frontend tsc+vite, tests+clippy -D warnings en AMBOS crates, build release del CLI), `bundle-macos` (obligatorio: `npx tauri build` + gate de peso), `build-linux` y `build-windows` (`continue-on-error`: su valor es el log de fallos como insumo del port, Cap. VI §6.2.1).
+- **Gate de RNF-04 automatizado [Seguro]:** `scripts/check-bundle-size.sh` (du -sm ≤ 30 MB) compartido entre el job `bundle-macos` y el espejo local — un solo chequeo, no dos copias que diverjan. Este gate habría cazado automáticamente la regresión de RP-3 (34 MB).
+- **Decisión: `npx tauri build` en vez de `cargo install tauri-cli` [Seguro]:** `@tauri-apps/cli` ya es devDependency del repo — el CI no paga la compilación del cli de tauri y el comando es idéntico en local (principio espejo).
+- **actionlint instalado vía `brew install actionlint` (v1.7.12)** — método registrado según pedía el plan. Validación: actionlint limpio + el YAML parsea con PyYAML.
+- Badge en README como comentario placeholder OWNER/REPO («activar al crear el remote») — no se inventó URL real.
+- Triggers: push/PR a `main` y `feature/**`. Caché: `Swatinem/rust-cache@v2` por crate + npm (sin caché cada run compila Unicorn/CMake desde cero).
+
+Compuerta F1 ✓: actionlint limpio, YAML parsea; la revisión cruzada comando-a-comando contra el script espejo se cierra en F2 (el script se escribe ahí con los MISMOS comandos).

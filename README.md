@@ -1,5 +1,9 @@
 # EmuRV
 
+<!-- Badge de CI: activar al crear el remote de GitHub (reemplazar OWNER/REPO).
+[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+-->
+
 Entorno educativo de programación en ensamblador **RISC-V (RV32IM)** para macOS, concebido como reemplazo moderno de emu8086: **editar → ensamblar → ejecutar / paso a paso → observar registros y memoria**, con mensajes de error en español pensados para principiantes.
 
 Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
