@@ -218,6 +218,15 @@ BITACORA.md           registro de decisiones técnicas (material de tesis)
 cd src-tauri && cargo test     # suite completa (núcleo + integración de ejemplos)
 ```
 
+## Depuración remota (GDB)
+
+`emurv-cli debug programa.s` levanta un **servidor GDB remoto** (protocolo
+gdbserver): conectá `riscv64-elf-gdb` o VS Code por TCP y depurá con
+breakpoints **por nombre de etiqueta** (el ELF exportado lleva símbolos),
+paso a paso, registros y memoria. La app de escritorio no cambia (la feature
+`gdb` solo entra en el CLI). Guía completa, sesión de referencia y
+limitaciones: [`docs/DEPURACION-GDB.md`](docs/DEPURACION-GDB.md).
+
 ## Integración continua
 
 El workflow `.github/workflows/ci.yml` define 4 jobs: **test-macos** (obligatorio: frontend `tsc`+`vite build`, `cargo test` y `clippy -D warnings` en `src-tauri/` y `emurv-cli/`, build release del CLI), **bundle-macos** (obligatorio: `npx tauri build` + gate automático de peso ≤ 30 MB, RNF-04) y **build-linux**/**build-windows** (experimentales, `continue-on-error`: su log de fallos es el insumo del port fuera de macOS).
