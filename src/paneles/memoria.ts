@@ -1,5 +1,6 @@
 // Vista de memoria (RF-06): hexdump navegable por dirección con accesos
-// rápidos a .text, .data y la zona de pila (sp).
+// rápidos a .text, .data y la zona de pila (sp). Doble click en una
+// palabra del dump la edita en vivo (RP7, 4 bytes little-endian).
 import { api, type AssembleOk } from "../api";
 import { t } from "../i18n";
 
@@ -7,6 +8,18 @@ const FILAS = 16;
 const BYTES_POR_FILA = 16;
 
 const hex32 = (v: number) => `0x${(v >>> 0).toString(16).padStart(8, "0")}`;
+
+/** Acepta decimal (42, -7) o hexadecimal (0x2a, -0x10); null si no parsea
+ *  o se sale del rango de 32 bits. (Mismo criterio que registros.ts.) */
+function parsearValor(texto: string): number | null {
+  const v = texto.trim();
+  let n: number;
+  if (/^-?\d+$/.test(v)) n = Number.parseInt(v, 10);
+  else if (/^-?0x[0-9a-f]+$/i.test(v)) n = Number.parseInt(v, 16);
+  else return null;
+  if (!Number.isSafeInteger(n) || n < -0x8000_0000 || n > 0xffff_ffff) return null;
+  return n;
+}
 
 export class Memoria {
   private dump: HTMLElement;
@@ -44,6 +57,11 @@ export class Memoria {
     this.inputDir.addEventListener("keydown", (e) => {
       if (e.key === "Enter") irA(this.parsearDir());
     });
+    // Edición en vivo (RP7): doble click sobre una palabra del dump.
+    this.dump.addEventListener("dblclick", (e) => {
+      const palabra = (e.target as HTMLElement).closest?.(".memoria-palabra");
+      if (palabra instanceof HTMLElement) this.editarPalabra(palabra);
+    });
   }
 
   setPrograma(p: AssembleOk | null): void {
@@ -71,7 +89,7 @@ export class Memoria {
     try {
       const bytes = await api.readMem(this.direccion, FILAS * BYTES_POR_FILA);
       this.aviso.hidden = true;
-      this.dump.textContent = this.formatear(bytes);
+      this.render(bytes);
     } catch {
       this.dump.textContent = "";
       this.aviso.textContent = t("memoria.error");
@@ -79,19 +97,93 @@ export class Memoria {
     }
   }
 
-  private formatear(bytes: number[]): string {
-    const lineas: string[] = [];
+  /** Arma el dump con un span por palabra de 4 bytes (editable con doble
+   *  click); el texto resultante es idéntico al hexdump plano anterior. */
+  private render(bytes: number[]): void {
+    this.dump.textContent = "";
     for (let f = 0; f < FILAS; f++) {
-      const base = this.direccion + f * BYTES_POR_FILA;
+      const base = (this.direccion + f * BYTES_POR_FILA) >>> 0;
       const fila = bytes.slice(f * BYTES_POR_FILA, (f + 1) * BYTES_POR_FILA);
-      const hexes = fila
-        .map((b, i) => b.toString(16).padStart(2, "0") + (i === 7 ? " " : ""))
-        .join(" ");
+      this.dump.append(`${hex32(base)}  `);
+      for (let w = 0; w < 4; w++) {
+        const off = w * 4;
+        const palabra = document.createElement("span");
+        palabra.className = "memoria-palabra";
+        palabra.dataset.addr = String((base + off) >>> 0);
+        palabra.dataset.valor = String(
+          (fila[off] | (fila[off + 1] << 8) | (fila[off + 2] << 16) | (fila[off + 3] << 24)) >>> 0,
+        );
+        palabra.textContent = fila
+          .slice(off, off + 4)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(" ");
+        this.dump.appendChild(palabra);
+        // separación de palabras: doble espacio en la mitad de la fila
+        if (w < 3) this.dump.append(w === 1 ? "  " : " ");
+      }
       const ascii = fila
         .map((b) => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : "·"))
         .join("");
-      lineas.push(`${hex32(base)}  ${hexes}  ${ascii}`);
+      this.dump.append(`  ${ascii}\n`);
     }
-    return lineas.join("\n");
+  }
+
+  // ----- edición en vivo (RP7) -----
+
+  /** Input inline sobre la palabra: Enter escribe 4 bytes little-endian,
+   *  Esc o blur cancelan. La vista solo cambia tras un write_mem aceptado. */
+  private editarPalabra(palabra: HTMLElement): void {
+    if (palabra.querySelector("input")) return;
+    const addr = Number(palabra.dataset.addr);
+    const valor = Number(palabra.dataset.valor);
+    const original = palabra.textContent ?? "";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "edicion-inline";
+    input.value = hex32(valor);
+    input.spellcheck = false;
+    palabra.textContent = "";
+    palabra.appendChild(input);
+    input.focus();
+    input.select();
+    let cerrado = false;
+    const cerrar = () => {
+      if (cerrado) return;
+      cerrado = true;
+      palabra.textContent = original;
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        cerrar();
+        return;
+      }
+      if (e.key !== "Enter") return;
+      const v = parsearValor(input.value);
+      if (v === null) {
+        // Valor ilegible: se avisa y el input queda para corregirlo.
+        this.mostrarAviso(t("edicion.valorInvalido"));
+        return;
+      }
+      void this.escribirPalabra(addr, v, cerrar);
+    });
+    input.addEventListener("blur", () => cerrar());
+  }
+
+  private async escribirPalabra(addr: number, valor: number, cerrar: () => void): Promise<void> {
+    const u = valor >>> 0;
+    const bytes = [u & 0xff, (u >>> 8) & 0xff, (u >>> 16) & 0xff, (u >>> 24) & 0xff];
+    try {
+      await api.writeMem(addr, bytes);
+      cerrar();
+      await this.refrescar(); // muestra el valor nuevo y oculta el aviso
+    } catch (e) {
+      cerrar(); // rechazo (corriendo, zona inválida, …): la vista no cambia
+      this.mostrarAviso(String(e));
+    }
+  }
+
+  private mostrarAviso(mensaje: string): void {
+    this.aviso.textContent = mensaje;
+    this.aviso.hidden = false;
   }
 }

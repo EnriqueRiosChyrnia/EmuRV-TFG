@@ -11,12 +11,13 @@
 
 use crate::core::assembler::{self, AsmError, Program};
 use crate::core::keyboard::KeyboardShared;
-use crate::core::machine::{Machine, StopReason};
+use crate::core::cond::parse_cond;
+use crate::core::machine::{BreakpointSpec, Machine, StopReason, Watchpoint};
 use crate::core::syscalls::{ConsoleEvent, InputMsg};
 use crate::core::video::VideoShared;
 use crate::core::{DATA_BASE, SP_INIT, TEXT_BASE};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -47,7 +48,25 @@ enum EmuCmd {
     Run,
     Step,
     Reset,
-    SetBreakpoints(HashSet<u32>),
+    SetBreakpoints(Vec<BreakpointSpec>),
+    SetWatchpoints {
+        watchpoints: Vec<Watchpoint>,
+        reply: Sender<Result<(), String>>,
+    },
+    WriteReg {
+        n: u8,
+        val: u32,
+        reply: Sender<Result<(), String>>,
+    },
+    WritePc {
+        val: u32,
+        reply: Sender<Result<(), String>>,
+    },
+    WriteMem {
+        addr: u32,
+        bytes: Vec<u8>,
+        reply: Sender<Result<(), String>>,
+    },
     ReadMem {
         addr: u32,
         len: usize,
@@ -65,6 +84,9 @@ struct Session {
     stop_flag: Arc<AtomicBool>,
     /// La UI marca si el programa espera entrada (para Cancel en stop).
     waiting_input: Arc<AtomicBool>,
+    /// El hilo de emulación está dentro del bucle de Ejecutar (RP7): las
+    /// ediciones en vivo se rechazan mientras esté en true.
+    corriendo: Arc<AtomicBool>,
     /// Copia del programa ensamblado (para el export ELF, RF-08).
     program: Program,
     /// Estado de video compartido: `read_framebuffer` lo consume sin pasar
@@ -166,6 +188,7 @@ fn emu_thread(
     mut machine: Machine<'static>,
     cmd_rx: Receiver<EmuCmd>,
     stop_flag: Arc<AtomicBool>,
+    corriendo: Arc<AtomicBool>,
 ) {
     // Aviso único a la UI cuando el programa usa la pantalla gráfica (RF4):
     // el panel de video se muestra solo si hay uso real de la VRAM.
@@ -193,6 +216,9 @@ fn emu_thread(
             }
             EmuCmd::Run => {
                 stop_flag.store(false, Ordering::SeqCst);
+                // Edición en vivo vetada mientras corre (RP7): la UI lo
+                // consulta vía Session.corriendo.
+                corriendo.store(true, Ordering::SeqCst);
                 // El refresco de la UI va desacoplado del tramo: el tramo
                 // es corto para la latencia de Detener; la cadencia de
                 // eventos a la UI la marca este Instant.
@@ -269,6 +295,7 @@ fn emu_thread(
                         }
                     }
                 }
+                corriendo.store(false, Ordering::SeqCst);
             }
             EmuCmd::Reset => {
                 let resultado = machine.reset();
@@ -299,6 +326,22 @@ fn emu_thread(
 fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String> {
     match cmd {
         EmuCmd::SetBreakpoints(bps) => machine.set_breakpoints(bps),
+        EmuCmd::SetWatchpoints { watchpoints, reply } => {
+            let _ = reply.send(machine.set_watchpoints(watchpoints));
+            Ok(())
+        }
+        EmuCmd::WriteReg { n, val, reply } => {
+            let _ = reply.send(machine.write_reg(n, val));
+            Ok(())
+        }
+        EmuCmd::WritePc { val, reply } => {
+            let _ = reply.send(machine.write_pc(val));
+            Ok(())
+        }
+        EmuCmd::WriteMem { addr, bytes, reply } => {
+            let _ = reply.send(machine.write_mem(addr, &bytes));
+            Ok(())
+        }
         EmuCmd::ReadMem { addr, len, reply } => {
             let _ = reply.send(machine.read_mem(addr, len));
             Ok(())
@@ -385,6 +428,8 @@ pub fn assemble(
     let (in_tx, in_rx) = channel();
     let (cmd_tx, cmd_rx) = channel();
     let stop_flag = Arc::new(AtomicBool::new(false));
+    let corriendo = Arc::new(AtomicBool::new(false));
+    let corriendo_hilo = Arc::clone(&corriendo);
     let waiting_input = Arc::new(AtomicBool::new(false));
     // El estado de video de la sesión nueva continúa el contador de la
     // anterior (y limpia la pantalla): los consumidores ya abiertos —panel
@@ -429,7 +474,7 @@ pub fn assemble(
                 // consultará desde el hook de syscalls.
                 machine.set_stop_request(Arc::clone(&stop));
                 let _ = init_tx.send(Ok(machine.keyboard_shared()));
-                emu_thread(app, machine, cmd_rx, stop);
+                emu_thread(app, machine, cmd_rx, stop, corriendo_hilo);
             }
             Err(e) => {
                 let _ = init_tx.send(Err(e));
@@ -467,6 +512,7 @@ pub fn assemble(
         program: program_copy,
         video,
         keyboard,
+        corriendo: Arc::clone(&corriendo),
     });
     Ok(ok)
 }
@@ -571,11 +617,101 @@ pub fn stop(manager: State<'_, EmuManager>) -> Result<(), String> {
 /// Breakpoints por dirección (la UI traduce línea→dirección con el
 /// source_map que recibió de `assemble`).
 #[tauri::command]
-pub fn set_breakpoints(addrs: Vec<u32>, manager: State<'_, EmuManager>) -> Result<(), String> {
+pub fn set_breakpoints(bps: Vec<BpEntrada>, manager: State<'_, EmuManager>) -> Result<(), String> {
+    // El parseo de condiciones ocurre ACÁ (hilo de la UI): un error
+    // didáctico llega al panel SIN tocar la máquina (RP7).
+    let mut specs = Vec::with_capacity(bps.len());
+    for b in bps {
+        let cond = match b.cond.as_deref().map(str::trim) {
+            None | Some("") => None,
+            Some(texto) => Some(parse_cond(texto).map_err(|e| {
+                format!("condición inválida en 0x{:08X}: {e}", b.addr)
+            })?),
+        };
+        specs.push(BreakpointSpec { addr: b.addr, cond });
+    }
     with_session(&manager, |s| {
         s.cmd_tx
-            .send(EmuCmd::SetBreakpoints(addrs.into_iter().collect()))
+            .send(EmuCmd::SetBreakpoints(specs))
             .map_err(|_| "la sesión de emulación terminó".into())
+    })
+}
+
+/// Breakpoint como llega de la UI: dirección + condición textual opcional.
+#[derive(serde::Deserialize)]
+pub struct BpEntrada {
+    pub addr: u32,
+    pub cond: Option<String>,
+}
+
+/// Espera la respuesta de un comando auxiliar servido por el hilo de
+/// emulación (patrón reply-channel de read_mem/get_state).
+fn pedir<T>(rx: Receiver<Result<T, String>>) -> Result<T, String> {
+    rx.recv()
+        .map_err(|_| "la sesión de emulación terminó".to_string())?
+}
+
+/// Guard de edición en vivo (RP7): solo con la máquina pausada.
+fn exigir_pausa(s: &Session) -> Result<(), String> {
+    if s.corriendo.load(Ordering::SeqCst) {
+        return Err("pausá la ejecución para editar (Detener o breakpoint)".into());
+    }
+    Ok(())
+}
+
+/// Instala watchpoints (RP7): la validación de regiones vive en la máquina
+/// y el error didáctico vuelve por el canal de respuesta.
+#[tauri::command]
+pub fn set_watchpoints(
+    watchpoints: Vec<Watchpoint>,
+    manager: State<'_, EmuManager>,
+) -> Result<(), String> {
+    with_session(&manager, |s| {
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::SetWatchpoints { watchpoints, reply })
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        pedir(rx)
+    })
+}
+
+/// Edición en vivo de un registro (RP7). `reg` acepta nombre ABI, xN o
+/// «pc». Solo con la máquina pausada.
+#[tauri::command]
+pub fn write_reg(reg: String, val: u32, manager: State<'_, EmuManager>) -> Result<(), String> {
+    with_session(&manager, |s| {
+        exigir_pausa(s)?;
+        let (reply, rx) = channel();
+        let cmd = if reg.trim().eq_ignore_ascii_case("pc") {
+            EmuCmd::WritePc { val, reply }
+        } else {
+            let n = assembler::reg_number(reg.trim()).ok_or_else(|| {
+                format!("«{reg}» no es un registro; valen los nombres ABI, x0–x31 o pc")
+            })?;
+            EmuCmd::WriteReg { n, val, reply }
+        };
+        s.cmd_tx
+            .send(cmd)
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        pedir(rx)
+    })
+}
+
+/// Edición en vivo de memoria (RP7): 1, 2 o 4 bytes little-endian. Solo
+/// con la máquina pausada.
+#[tauri::command]
+pub fn write_mem(
+    addr: u32,
+    bytes: Vec<u8>,
+    manager: State<'_, EmuManager>,
+) -> Result<(), String> {
+    with_session(&manager, |s| {
+        exigir_pausa(s)?;
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::WriteMem { addr, bytes, reply })
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        pedir(rx)
     })
 }
 
