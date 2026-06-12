@@ -125,3 +125,18 @@ fn leccion_09_mmio_termina_sola_sin_teclas() {
          encuesta terminada, teclas atendidas: 0\n"
     );
 }
+
+/// Traps: el handler corre solo (instala mtvec, atiende el 777, mret
+/// vuelve) — toda la lección 10 es headless por diseño.
+#[test]
+fn leccion_10_traps() {
+    let (code, out) = correr_leccion("../lecciones/10-traps/leccion.s", "");
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out,
+        "manejador instalado: ahora tengo mini-kernel\n\
+         \u{20}\u{20}[manejador] mcause = 11\n\
+         \u{20}\u{20}[manejador] servicio 777: atendido\n\
+         de vuelta en main: el programa siguió como si nada\n"
+    );
+}

@@ -125,6 +125,12 @@ main:
 
 Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada), «Fibonacci» paso a paso, «Tetris gráfico» para un programa grande de verdad (tablero en memoria, bitmaps, colisiones, líneas completas, dibujado en la pantalla gráfica), y «Tetris en tiempo real» o «Eco de teclado» para jugar con el teclado MMIO (click en la pantalla gráfica para capturar las teclas).
 
+## Aprendé RISC-V con EmuRV
+
+¿Nunca programaste en ensamblador? La carpeta [`lecciones/`](lecciones/README.md) trae un **curso de 10 lecciones** pensado para un principiante absoluto sin docente al lado: cada lección es un programa comentado que se abre en EmuRV y se recorre con «Paso» — el texto te dice qué mirar en cada panel ANTES de que pase, y cierra con 3 ejercicios.
+
+El recorrido: registros → aritmética (con el complemento a 2 demostrado) → memoria (endianness ante tus ojos) → condicionales → bucles (con breakpoints condicionales) → funciones y pila → syscalls → proyectos multi-archivo → MMIO y tiempo real → traps (tu primer mini-kernel). El [índice](lecciones/README.md) tiene el mapa de aprendizaje y los prerrequisitos de cada una. Todas las lecciones corren también por terminal (`emurv-cli run lecciones/01-registros/leccion.s`) y están vigiladas por tests en la CI.
+
 ## Syscalls (convención RARS)
 
 | a7 | Servicio | Argumentos |

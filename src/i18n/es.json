@@ -107,6 +107,7 @@
   "ayuda.cerrar": "Cerrar",
   "ayuda.ciclo.titulo": "Ciclo de trabajo",
   "ayuda.ciclo.texto": "Escribí tu programa, presioná «Ensamblar» y después «Ejecutar» (corre hasta el final) o «Paso» (una instrucción por vez). «Reiniciar» vuelve la máquina al estado inicial sin re-ensamblar. Los paneles de la derecha muestran los registros (los que cambiaron quedan resaltados) y la memoria.",
+  "ayuda.lecciones": "¿Arrancás de cero? La carpeta «lecciones/» del proyecto trae un curso de 10 lecciones: cada una es un programa comentado que se recorre con «Paso» y cuyo texto te va diciendo qué mirar en cada panel. Empezá por lecciones/01-registros/leccion.s y seguí el orden del índice (lecciones/README.md).",
   "ayuda.syscalls.titulo": "Syscalls (convención RARS)",
   "ayuda.syscalls.texto": "Cargá el número de servicio en a7, los argumentos en a0, y ejecutá «ecall»:",
   "ayuda.syscalls.servicio": "Servicio",

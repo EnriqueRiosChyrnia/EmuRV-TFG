@@ -51,7 +51,7 @@ se puede leer en cualquier momento después de la 06; la 09 necesita la 03
 | 07 | Syscalls y E/S | servicios 1/4/5/10/11/30/32; leer-validar-procesar; entrada por «Consola» | 04-05 | ✓ |
 | 08 | Constantes, includes y macros | .eqv, .include, .macro con parámetros; macro (se copia) vs función (se salta); proyecto de 3 archivos | 06 | ✓ |
 | 09 | E/S proyectada en memoria y tiempo real | MMIO; pintar píxeles en «Pantalla (320×240)»; teclado CONTROL/DATA por encuesta; concurrencia aparente | 03, 05 | ✓ |
-| 10 | Traps e interrupciones (avanzada) | excepciones; mtvec/mepc/mcause; handler + mret; panel «CSRs (avanzado)» | 01-09 | llega con la fase 4 |
+| 10 | Traps e interrupciones (avanzada) | excepciones; mtvec/mepc/mcause; handler + mret; panel «CSRs (avanzado)» | 01-09 | ✓ |
 
 ## Para seguir después
 
