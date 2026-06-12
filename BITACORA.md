@@ -928,3 +928,43 @@ RP7-F4).
 Compuerta F3: lección 8 corre por CLI ✓ · lección 9 determinista headless ✓
 (verificación con app: pendiente humano, anotada) · README completo ✓ ·
 suite + clippy ✓.
+
+## 2026-06-12 — RP9-F4: lección 10, integración y cierre de RP-9
+
+[Seguro] Lección 10 (traps): escrita sobre el material de RP-8 con su propio
+programa (no copia del ejemplo 12): main instala mtvec, dispara el servicio
+777, el «mini-kernel» imprime mcause (11), atiende, ajusta mepc+4 y mret
+vuelve. El texto guía la observación del panel «CSRs (avanzado)» (plegado:
+click en el título) en el Paso exacto del trap; recalca las reglas RP-8
+(los servicios conocidos JAMÁS van a mtvec). Ejercicio 1 = el trap eterno
+(comentar el ajuste de mepc, frenar con «Detener»); el desafío (servicio
+que DEVUELVE un valor en a0) cierra con la idea-tesis: «la semilla de un
+sistema operativo». Salida determinista de 4 líneas, exit 0.
+
+[Seguro] Integración: README del repo con sección «Aprendé RISC-V con
+EmuRV» (enlaza lecciones/README.md, resume el recorrido 01→10); Ayuda
+integrada con párrafo nuevo en «Ciclo de trabajo» (clave i18n
+«ayuda.lecciones» — sin strings hardcodeados, regla 6); índice de
+lecciones con las 10 filas en ✓. Capítulos de la memoria NO tocados
+(decisión de la coordinadora, regla del plan).
+
+[Seguro] CIERRE RP-9 — compuerta F4 completa:
+- 10/10 lecciones con test de salida EXACTA en emurv-cli/tests/lecciones.rs ✓
+- cargo test emurv-cli: 16+10+6+1 ok / 0 fail ✓
+- cargo test src-tauri: 26 binarios ok / 0 fail ✓
+- clippy ambos crates: 0 avisos ✓
+- tsc --noEmit: limpio ✓
+- ci-local.sh --skip-bundle: TODO VERDE ✓
+- cargo tauri build: ok; bundle 22 MB ≤ 30 MB (RNF-04) ✓
+
+[Seguro] Balance RP-9: 10 lecciones (12 archivos .s — la 08 son 3), índice
+con mapa de aprendizaje, 10 tests CI, plantilla idéntica en todas
+(OBJETIVOS / PANELES PARA OBSERVAR / CÓMO USARLA / bloques con comentario
+predictivo / 3 ejercicios con desafío). Los ejemplos existentes intactos
+(regla de alcance). Syscalls de la lección 7 = solo las existentes
+(1/4/5/10/11/30/32); cuando RP-10 agregue 8/9/93, esa lección se amplía.
+
+[PENDIENTE HUMANO] (1) Lección 09 con la app: teclear durante la encuesta →
+marcas de color + contador > 0 (headless ya probado por CI). (2) La prueba
+de fuego del plan: el primo del autor siguiendo las lecciones sin ayuda —
+las lecciones son el guion de ese test externo.
