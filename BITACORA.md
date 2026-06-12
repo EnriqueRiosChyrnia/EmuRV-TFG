@@ -732,3 +732,10 @@ Compuerta F1 ✓: 21 suites verdes, clippy 0.
 - Tests (rp7_condicionales.rs, 5): **el caso estrella «parar cuando t0 == 5» en un bucle** (frena con t0==5 exacto; reanudar termina); registro contra registro; hex signed; 6 errores de parseo; convivencia condicional+watchpoint en la misma corrida con orden de paradas exacto (w1,w2,w3,b3,w4 — la condición se evalúa al ENTRAR a la vuelta, antes del addi: trazado documentado en el test).
 
 Compuerta F2 ✓: 22 suites verdes, clippy 0.
+
+## RP7 Fase 3 — Edición en vivo de registros y memoria (2026-06-12)
+
+- `Machine::write_reg(n, val)` (x0 → «es cero por diseño del ISA»; x>31 → inválido), `write_pc(val)` (**resetea `last_bp`**: el próximo Run desde un pc elegido a mano no debe suprimir ningún breakpoint — coherencia RP-1 F4, con test que lo fija), `write_mem(addr, 1..4 bytes)` (.data/pila/framebuffer/paleta; `.text` → «el programa es inmutable mientras corre: editá el fuente y re-ensamblá»; página del teclado → rechazo; sin flush de TB porque no se toca código). El guard de "solo pausado" vive en commands.rs (F4), que es quien conoce el estado de la sesión.
+- Tests (rp7_edicion.rs, 4): **el criterio del ROADMAP literal** — editar t0 pausado y la SIGUIENTE instrucción usa el valor (addi lee 99); editar pc salta ahí y un bp en el destino FRENA (sin reset de last_bp la supresión lo dejaría pasar — el test lo demuestra); los 6 rechazos didácticos; write_mem word+half+byte compuesto (0x7FAD_BEEF) visible por host Y por el programa, y en pila.
+
+Compuerta F3 ✓: 23 suites verdes, clippy 0.
