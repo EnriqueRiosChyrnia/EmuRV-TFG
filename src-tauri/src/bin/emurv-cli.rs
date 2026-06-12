@@ -55,11 +55,7 @@ fn ejecutar_cli(args: &[String]) -> u8 {
             0
         }
         Some("asm") => subcomando_asm(&args[1..]),
-        // El subcomando run llega en la Fase 2 del plan RP3.
-        Some("run") => {
-            eprintln!("emurv-cli: «run» todavía no está disponible (Fase 2 del plan RP3)\n\n{USO}");
-            3
-        }
+        Some("run") => subcomando_run(&args[1..]),
         Some(otro) => {
             eprintln!("emurv-cli: subcomando desconocido «{otro}»\n\n{USO}");
             3
@@ -118,6 +114,194 @@ fn subcomando_asm(args: &[String]) -> u8 {
     }
     eprintln!("ELF escrito en «{}»", salida.display());
     0
+}
+
+/// `run <entrada.s> [--max-instr N] [--timeout-s S]`
+///
+/// Bucle de tramos idéntico al de producción (count + timeout de respaldo).
+/// El puente de consola vive en un hilo propio: la máquina se BLOQUEA dentro
+/// del tramo al esperar entrada (syscall 5), así que en un solo hilo el
+/// proceso se trabaría — el hilo puente drena `out_rx` y alimenta `in_tx`
+/// mientras el principal corre la máquina (espejo del modelo GUI).
+fn subcomando_run(args: &[String]) -> u8 {
+    // Espejo de RUN_SLICE_COUNT (privado en commands.rs; mismo criterio que
+    // tests/tec1_detener.rs): ~2-3 ms por tramo en release.
+    const SLICE: u64 = 1_000_000;
+    const SLICE_MS: u64 = 100;
+
+    let mut entrada: Option<PathBuf> = None;
+    let mut max_instr: Option<u64> = None;
+    let mut timeout_s: Option<u64> = None;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--max-instr" => match it.next().map(|v| v.parse::<u64>()) {
+                Some(Ok(n)) if n > 0 => max_instr = Some(n),
+                _ => {
+                    eprintln!("emurv-cli run: --max-instr requiere un entero positivo\n\n{USO}");
+                    return 3;
+                }
+            },
+            "--timeout-s" => match it.next().map(|v| v.parse::<u64>()) {
+                Some(Ok(s)) if s > 0 => timeout_s = Some(s),
+                _ => {
+                    eprintln!("emurv-cli run: --timeout-s requiere un entero positivo\n\n{USO}");
+                    return 3;
+                }
+            },
+            _ if entrada.is_none() => entrada = Some(PathBuf::from(a)),
+            otro => {
+                eprintln!("emurv-cli run: argumento inesperado «{otro}»\n\n{USO}");
+                return 3;
+            }
+        }
+    }
+    let Some(entrada) = entrada else {
+        eprintln!("emurv-cli run: falta el archivo de entrada\n\n{USO}");
+        return 3;
+    };
+
+    let programa = match ensamblar_archivo(&entrada) {
+        Ok(p) => p,
+        Err(code) => return code,
+    };
+
+    use emurv_lib::core::machine::{Machine, StopReason};
+    use emurv_lib::core::syscalls::{ConsoleEvent, InputMsg};
+    use std::io::{BufRead, Write};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::channel;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let (out_tx, out_rx) = channel::<ConsoleEvent>();
+    let (in_tx, in_rx) = channel::<InputMsg>();
+    let mut maquina = match Machine::new(programa, out_tx, in_rx) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("emurv-cli run: no se pudo crear la máquina: {e}");
+            return 1;
+        }
+    };
+
+    // Señales compartidas con el puente y el temporizador.
+    let eof_stdin = Arc::new(AtomicBool::new(false));
+    let en_stdin = Arc::new(AtomicBool::new(false));
+    let stop = Arc::new(AtomicBool::new(false));
+    maquina.set_stop_request(Arc::clone(&stop));
+
+    // Temporizador de --timeout-s: setea stop (corta sleeps de syscall 32 en
+    // ≤10 ms) Y manda Cancel (despierta un read_int bloqueado en syscall 5).
+    if let Some(s) = timeout_s {
+        let stop = Arc::clone(&stop);
+        let cancel_tx = in_tx.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(s));
+            stop.store(true, Ordering::SeqCst);
+            let _ = cancel_tx.send(InputMsg::Cancel);
+        });
+    }
+
+    // Hilo puente: salida del invitado → stdout (sin saltos propios, con
+    // flush por evento); InputRequest → una línea de stdin → Line, o EOF →
+    // Cancel + marca para el diagnóstico del hilo principal.
+    let puente = {
+        let eof_stdin = Arc::clone(&eof_stdin);
+        let en_stdin = Arc::clone(&en_stdin);
+        std::thread::spawn(move || {
+            let mut stdout = std::io::stdout();
+            let stdin = std::io::stdin();
+            while let Ok(ev) = out_rx.recv() {
+                match ev {
+                    ConsoleEvent::Output(s) => {
+                        let _ = stdout.write_all(s.as_bytes());
+                        let _ = stdout.flush();
+                    }
+                    ConsoleEvent::InputRequest => {
+                        en_stdin.store(true, Ordering::SeqCst);
+                        let mut linea = String::new();
+                        let n = stdin.lock().read_line(&mut linea).unwrap_or(0);
+                        en_stdin.store(false, Ordering::SeqCst);
+                        if n == 0 {
+                            eof_stdin.store(true, Ordering::SeqCst);
+                            let _ = in_tx.send(InputMsg::Cancel);
+                        } else {
+                            let _ = in_tx.send(InputMsg::Line(
+                                linea.trim_end_matches(['\n', '\r']).to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+        })
+    };
+
+    // Bucle de tramos. El presupuesto de --max-instr se descuenta por tramo
+    // EMITIDO (cota superior: un tramo cortado antes —ebreak, pausa— cuenta
+    // entero); precisión suficiente para acotar corridas, documentado.
+    let inicio = Instant::now();
+    let mut restante = max_instr;
+    let mut primer_tramo = true;
+    let codigo: u8 = loop {
+        if stop.load(Ordering::SeqCst)
+            || timeout_s.is_some_and(|s| inicio.elapsed() >= Duration::from_secs(s))
+        {
+            eprintln!("emurv-cli run: se agotó --timeout-s sin que el programa termine");
+            break 124;
+        }
+        let tramo = match restante {
+            Some(0) => {
+                eprintln!("emurv-cli run: se agotó --max-instr sin que el programa termine");
+                break 124;
+            }
+            Some(r) => r.min(SLICE),
+            None => SLICE,
+        };
+        let razon = if primer_tramo {
+            maquina.run_slice(SLICE_MS, tramo)
+        } else {
+            maquina.run_slice_continuation(SLICE_MS, tramo)
+        };
+        primer_tramo = false;
+        if let Some(r) = restante.as_mut() {
+            *r -= tramo;
+        }
+        match razon {
+            StopReason::Exited { .. } => break 0,
+            StopReason::RuntimeError { message } => {
+                eprintln!("{message}");
+                break 1;
+            }
+            // Semántica headless (diseño acordado): sin UI que mostrar, las
+            // pausas avisan por stderr y la ejecución continúa.
+            StopReason::EbreakPause { addr } => {
+                eprintln!("ebreak en 0x{addr:08X} — continuando");
+            }
+            StopReason::Breakpoint { addr } => {
+                eprintln!("breakpoint en 0x{addr:08X} — continuando");
+            }
+            StopReason::Paused | StopReason::StepDone => {
+                if eof_stdin.load(Ordering::SeqCst) {
+                    eprintln!(
+                        "emurv-cli run: el programa pedía entrada (syscall 5) pero stdin \
+                         se agotó (EOF). Pasale la entrada por pipe o redirección."
+                    );
+                    break 1;
+                }
+                // Tramo terminado sin evento: seguir.
+            }
+        }
+    };
+
+    // Cerrar el canal de salida (drop de la máquina) hace terminar al puente
+    // tras drenar lo pendiente. Si el puente quedó bloqueado leyendo stdin,
+    // el canal está vacío (la máquina no produce salida mientras espera
+    // entrada): no hay nada que drenar y se sale sin join.
+    drop(maquina);
+    if !en_stdin.load(Ordering::SeqCst) {
+        let _ = puente.join();
+    }
+    codigo
 }
 
 /// Lee y ensambla un fuente. Errores de E/S → exit 1; de ensamblado → 2,
