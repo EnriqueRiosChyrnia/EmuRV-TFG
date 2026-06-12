@@ -7,6 +7,8 @@
 //! | 5  | leer entero     | —                    | a0 = valor    |
 //! | 10 | terminar        | —                    | —             |
 //! | 11 | imprimir carácter | a0 = código        | —             |
+//! | 30 | tiempo en ms    | —                    | a0 = bits bajos, a1 = bits altos |
+//! | 32 | dormir          | a0 = ms (sin signo)  | —             |
 //!
 //! `ecall` llega como interrupción de Unicorn con el número de causa
 //! RISC-V en `intno`. Verificado empíricamente con Unicorn 2.1.5
@@ -15,6 +17,9 @@
 //! llegan por este hook (no como error de `emu_start`).
 
 use super::machine::MachData;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
 use unicorn_engine::{RegisterRISCV, Unicorn};
 
 /// Eventos que la consola de la UI (o un test) recibe de la máquina.
@@ -36,8 +41,9 @@ pub enum InputMsg {
 }
 
 const EBREAK: u32 = 0x0010_0073;
-/// `RegisterRISCV::X0 == 1`: a0 = x10 → 11, a7 = x17 → 18.
+/// `RegisterRISCV::X0 == 1`: a0 = x10 → 11, a1 = x11 → 12, a7 = x17 → 18.
 const A0: i32 = 11;
+const A1: i32 = 12;
 const A7: i32 = 18;
 /// Límite de seguridad al leer cadenas NUL-terminated (RF-07).
 const MAX_STR: u64 = 1 << 20;
@@ -139,12 +145,21 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
             let c = char::from_u32(v).unwrap_or(char::REPLACEMENT_CHARACTER);
             send_output(uc, c.to_string());
         }
+        30 => {
+            // Compatible RARS: los 32 bits bajos del tiempo en a0 y los
+            // altos en a1 (en RV32 un valor de 64 bits viaja en dos regs).
+            let ms = tiempo_ms();
+            let _ = uc.reg_write(A0, ms & 0xFFFF_FFFF);
+            let _ = uc.reg_write(A1, ms >> 32);
+        }
+        32 => dormir(uc),
         other => fail(
             uc,
             format!(
                 "syscall desconocida: a7 = {other} (pc = 0x{pc:08X}). \
                  Servicios disponibles: 1 imprimir entero, 4 imprimir cadena, \
-                 5 leer entero, 10 terminar, 11 imprimir carácter"
+                 5 leer entero, 10 terminar, 11 imprimir carácter, \
+                 30 tiempo del sistema en ms, 32 dormir a0 ms"
             ),
         ),
     }
@@ -217,5 +232,70 @@ fn read_int(uc: &mut Unicorn<'_, MachData>) {
                 return;
             }
         }
+    }
+}
+
+/// Ancla del reloj de la syscall 30: par (instante monotónico, ms de época
+/// Unix) capturado UNA sola vez por proceso, la primera vez que un programa
+/// pide la hora.
+///
+/// ¿Por qué un ancla y no `SystemTime::now()` en cada llamada? `SystemTime`
+/// puede saltar hacia atrás (ajuste NTP, cambio de hora manual). RARS usa
+/// `System.currentTimeMillis()`, que sí salta; diferencia documentada con
+/// RARS: EmuRV devuelve época_del_ancla + transcurrido monotónico, así el
+/// valor es NO DECRECIENTE dentro de una sesión (clave para que medir un
+/// delta con dos syscalls 30 nunca dé negativo).
+///
+/// Es un `static` y no un campo de `MachData` (machine.rs no se toca en
+/// esta fase): el ancla queda compartida entre máquinas/tests del mismo
+/// proceso, lo cual para la monotonía está bien e incluso es deseable
+/// (ninguna máquina ve el reloj retroceder respecto de otra); el costo es
+/// que un salto del reloj de pared posterior al ancla no se refleja, solo
+/// desplaza el origen unos ms.
+static ANCLA_RELOJ: OnceLock<(Instant, u128)> = OnceLock::new();
+
+/// Milisegundos desde la época Unix, no decrecientes (ver `ANCLA_RELOJ`).
+fn tiempo_ms() -> u64 {
+    let (instante, epoch_ms) = ANCLA_RELOJ.get_or_init(|| {
+        // Un reloj anterior a 1970 es un sistema mal configurado: se ancla
+        // en 0 antes que entrar en pánico dentro del hook de Unicorn.
+        let epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        (Instant::now(), epoch)
+    });
+    (epoch_ms + instante.elapsed().as_millis()) as u64
+}
+
+/// Syscall 32: duerme `a0` milisegundos (sin signo), interrumpible.
+///
+/// Duerme en trozos de ≤10 ms chequeando `stop_request` entre trozos: un
+/// «Detener» durante un sleep largo corta el sueño de inmediato, y el
+/// `emu_stop` hace que el tramo (`run_slice`) retorne ya. SIN marcar
+/// `runtime_error`: es una pausa de usuario, la misma semántica que la rama
+/// Cancel de `read_int` (commands.rs decide mirando su stop_flag).
+fn dormir(uc: &mut Unicorn<'_, MachData>) {
+    // El hilo de emulación va a quedar dormido: publicar antes el frame de
+    // video pendiente (mismo patrón que read_int), o una animación que
+    // duerme entre cuadros no mostraría ningún cuadro hasta terminar.
+    super::machine::publicar_frame(uc);
+    let ms = uc.reg_read(A0).unwrap_or(0) as u32;
+    // En Arc propio: el préstamo de `get_data()` no debe retener a `uc`
+    // durante el bucle (y `emu_stop` lo necesita `&mut`).
+    let stop = Arc::clone(&uc.get_data().stop_request);
+    let fin = Instant::now() + Duration::from_millis(u64::from(ms));
+    const TROZO: Duration = Duration::from_millis(10);
+    loop {
+        if stop.load(Ordering::SeqCst) {
+            // Pausa de usuario: cortar ya, sin error.
+            let _ = uc.emu_stop();
+            return;
+        }
+        let restante = fin.saturating_duration_since(Instant::now());
+        if restante.is_zero() {
+            return;
+        }
+        std::thread::sleep(restante.min(TROZO));
     }
 }
