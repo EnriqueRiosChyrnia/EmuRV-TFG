@@ -1,8 +1,11 @@
 pub mod commands;
 pub mod core;
+pub mod spike_capstone;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // SPIKE RP11-F1: referencia viva para que el linker NO descarte capstone.
+    let _ = spike_capstone::spike_disasm_len(&[0x13, 0x00, 0x00, 0x00]);
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
