@@ -100,3 +100,28 @@ fn leccion_07_syscalls() {
          el reloj avanzó: dormimos 100 ms y se notó\n"
     );
 }
+
+/// Multi-archivo: corre el main.s y los .include se resuelven al lado.
+#[test]
+fn leccion_08_multiarchivo() {
+    let (code, out) = correr_leccion("../lecciones/08-multiarchivo/main.s", "");
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out,
+        "precio de una entrada: 1500\nentradas compradas: 3\n\
+         total a pagar: 4500\ngracias por su compra\n"
+    );
+}
+
+/// MMIO headless: sin teclas el poll agota sus 30 vueltas (~1,5 s) y
+/// termina SOLO con salida fija — el requisito duro del plan RP-9.
+#[test]
+fn leccion_09_mmio_termina_sola_sin_teclas() {
+    let (code, out) = correr_leccion("../lecciones/09-mmio/leccion.s", "");
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out,
+        "raya roja pintada: mirá «Pantalla (320×240)»\n\
+         encuesta terminada, teclas atendidas: 0\n"
+    );
+}
