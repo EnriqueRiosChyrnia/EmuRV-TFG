@@ -218,6 +218,11 @@ class App {
       case "breakpoint":
         this.setModo("listo", t("estado.breakpoint", { line: linea }));
         break;
+      case "ebreak_pause":
+        // Pausa por software (instrucción ebreak): el pc ya quedó en la
+        // instrucción siguiente; Ejecutar/Paso continúan desde ahí.
+        this.setModo("listo", t("estado.ebreak", { line: linea }));
+        break;
       case "step_done":
         this.setModo(
           "listo",

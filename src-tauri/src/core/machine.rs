@@ -47,6 +47,12 @@ pub enum StopReason {
     Exited { code: i32 },
     /// Se alcanzó un breakpoint (la instrucción en `addr` NO se ejecutó).
     Breakpoint { addr: u32 },
+    /// Pausa por software: el programa ejecutó `ebreak` en `addr`
+    /// (convención RARS/gdb). El pc ya quedó fijado en la instrucción
+    /// siguiente: reanudar continúa desde ahí, sin re-ejecutar el `ebreak`
+    /// ni saltear nada. Ver BITACORA RP1 (Unicorn no entrega este trap al
+    /// hook INTR; se rescata en `interpret()`).
+    EbreakPause { addr: u32 },
     /// Tramo de ejecución completado sin evento (timeout de refresco) o
     /// stop pedido por el usuario.
     Paused,
@@ -68,6 +74,11 @@ pub struct MachData {
     pub suppress_bp: Option<u32>,
     /// Último acceso a memoria inválido capturado por el hook MEM_INVALID.
     pub bad_mem: Option<(MemType, u64)>,
+    /// Pausa por `ebreak` registrada por el hook de traps (dirección del
+    /// `ebreak`). Hoy Unicorn 2.1.5 NO entrega ese trap al hook (el caso
+    /// real se rescata en `interpret()`); el campo existe como defensa por
+    /// si una versión futura sí lo entrega. Ver BITACORA RP1-F2.
+    pub ebreak_pause: Option<u32>,
     /// Estado de video compartido con la UI (FB2). En MachData (y no en
     /// Machine) porque el hook de syscalls publica el frame antes de
     /// bloquearse esperando entrada.
@@ -131,6 +142,7 @@ impl Machine<'_> {
             breakpoints: HashSet::new(),
             suppress_bp: None,
             bad_mem: None,
+            ebreak_pause: None,
             video_shared,
             video_last: None,
             video_used: false,
@@ -339,6 +351,7 @@ impl Machine<'_> {
         d.runtime_error = None;
         d.suppress_bp = None;
         d.bad_mem = None;
+        d.ebreak_pause = None;
         Ok(())
     }
 
@@ -501,6 +514,7 @@ impl Machine<'_> {
         d.hit_breakpoint = None;
         d.runtime_error = None;
         d.bad_mem = None;
+        d.ebreak_pause = None;
     }
 
     /// Ejecuta una sola instrucción.
@@ -608,20 +622,44 @@ impl Machine<'_> {
         if let Some(addr) = d.hit_breakpoint.take() {
             return StopReason::Breakpoint { addr };
         }
+        // Defensa: si alguna versión futura de Unicorn entregara el trap de
+        // ebreak al hook INTR, la rama CAUSE_BREAKPOINT deja esta marca.
+        if let Some(addr) = d.ebreak_pause.take() {
+            return StopReason::EbreakPause { addr };
+        }
+        let bad = d.bad_mem.take();
         match result {
             Ok(()) => normal,
-            Err(e) => {
-                let bad = d.bad_mem.take();
-                match pc {
-                    Ok(pc) => StopReason::RuntimeError {
-                        message: runtime_error_message(e, pc, bad),
-                    },
-                    // Si ni el pc se pudo leer, ese fallo ES el diagnóstico:
-                    // no inventamos un pc en 0 para el mensaje didáctico.
-                    Err(message) => StopReason::RuntimeError { message },
-                }
+            // Rescate del ebreak [BITACORA RP1-F2, Seguro]: Unicorn 2.1.5
+            // NO traduce `ebreak` en una llamada al hook INTR — `emu_start`
+            // aborta con INSN_INVALID y, en el camino con count (producción:
+            // run_slice y step siempre llevan count), el pc queda EXACTAMENTE
+            // en la dirección del `ebreak`. Si la palabra en pc es EBREAK,
+            // esto es una pausa por software, no un error: se fija el pc en
+            // la instrucción siguiente (UNA sola vez) y se reporta la pausa.
+            Err(uc_error::INSN_INVALID) if self.word_at_pc(&pc) == Some(super::EBREAK_WORD) => {
+                let pc_v = pc.expect("word_at_pc garantiza pc legible");
+                let _ = self.uc.reg_write(PC, u64::from(pc_v) + 4);
+                StopReason::EbreakPause { addr: pc_v }
             }
+            Err(e) => match pc {
+                Ok(pc) => StopReason::RuntimeError {
+                    message: runtime_error_message(e, pc, bad),
+                },
+                // Si ni el pc se pudo leer, ese fallo ES el diagnóstico:
+                // no inventamos un pc en 0 para el mensaje didáctico.
+                Err(message) => StopReason::RuntimeError { message },
+            },
         }
+    }
+
+    /// Palabra de 32 bits en la dirección del pc (None si el pc no se pudo
+    /// leer o la dirección no está mapeada). Auxiliar del rescate de ebreak.
+    fn word_at_pc(&mut self, pc: &Result<u32, String>) -> Option<u32> {
+        let pc = *pc.as_ref().ok()?;
+        let mut w = [0u8; 4];
+        self.uc.mem_read(u64::from(pc), &mut w).ok()?;
+        Some(u32::from_le_bytes(w))
     }
 }
 

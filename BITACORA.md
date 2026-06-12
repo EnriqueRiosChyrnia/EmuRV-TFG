@@ -446,3 +446,14 @@ Instrumentación temporal de la rama `CAUSE_BREAKPOINT` (eprintln del pc entrega
 - **Corrección del diagnóstico original (Etapa 4, 2026-06-11):** la entrada vieja atribuía el bug a un "doble avance de pc" — interpretación errónea del pc del mensaje en corrida libre. No se edita (append-only); esta entrada la corrige hacia adelante. [Seguro]
 
 Diseño del fix que habilita esta evidencia (Fase 3): rescatar el caso en `interpret()` — si `emu_start` falla con `INSN_INVALID` y la palabra en pc es exactamente `EBREAK` (0x0010_0073), es una pausa por software: fijar pc = dir+4 UNA vez y devolver una razón de pausa propia. La rama del hook se conserva como defensa documentada por si futuras versiones de Unicorn sí entregan el trap. Instrumentación y sonda temporal eliminadas.
+
+## RP1 Fase 3 — Fix de la pausa por ebreak (2026-06-12)
+
+**Diseño aplicado (según causa raíz de F2):**
+- **Rescate en `Machine::interpret()` [el camino real]:** si `emu_start` falla con `INSN_INVALID` y la palabra en el pc es exactamente `EBREAK_WORD` (0x0010_0073, ahora const compartida en `core/mod.rs`), no es un error: es la pausa por software. Se fija pc = dir_ebreak + 4 UNA sola vez y se devuelve la variante nueva **`StopReason::EbreakPause { addr }`**. En el camino con count (producción: `run_slice` y `step` siempre llevan count) el pc del error queda exactamente EN el ebreak, así que la detección por palabra-en-pc es determinista.
+- **Variante nueva `EbreakPause`** en vez de reusar `Breakpoint` o `Paused`: `Paused` habría hecho que el bucle de Ejecutar siguiera de largo (trata Paused como tramo terminado), y `Breakpoint` mentiría la causa en la UI. Costo: un caso más en el switch del frontend + clave i18n «Pausado por ebreak (línea {line})». La línea resaltada es la SIGUIENTE al ebreak (la próxima a ejecutar), consistente con la semántica de paso. [Seguro]
+- **Rama `CAUSE_BREAKPOINT` del hook: conservada como defensa documentada** (hoy inalcanzable — F2). Si una versión futura de Unicorn entregara el trap: localiza la dirección real del ebreak (palabra en pc o pc-4), fija pc=dir+4, marca `MachData.ebreak_pause` y `interpret()` la convierte en la misma `EbreakPause`. `reset()`/`load()` limpian la marca (sin pausas fantasma entre sesiones).
+- Convención de pc documentada en código, espejo del comentario de `CAUSE_ECALL_*`.
+- Limitación conocida registrada: en corrida libre (`run(0)`, sin count — solo tests/benchs legacy, ningún camino de UI) el pc del INSN_INVALID cae en ebreak+8 y el rescate no aplica: queda el mensaje genérico. No se rescata desde pc-4/pc-8 a propósito: esa heurística produce falsos positivos peligrosos (ebreak como última instrucción entraría en bucle de pausas eternas al confundir el fin del programa con un nuevo ebreak). [Seguro — analizado en F2/F3]
+
+**Compuerta F3 ✓:** test sonda de F1 VERDE (pausa con pc=ebreak+4, t0=1/t1=0 en pausa; reanudación → Exited{0} con t1=2, t2=3) · 18 suites verdes · clippy 0 · tsc limpio.
