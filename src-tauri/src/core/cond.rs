@@ -60,15 +60,15 @@ impl CondAst {
 pub fn parse_cond(texto: &str) -> Result<CondAst, String> {
     let t = texto.trim();
     if t.is_empty() {
-        return Err("la condición está vacía; el formato es REGISTRO OPERADOR VALOR (ej.: t0 == 5)".into());
+        return Err(
+            "la condición está vacía; el formato es REGISTRO OPERADOR VALOR (ej.: t0 == 5)".into(),
+        );
     }
     // Separar en tres partes: reg, op, valor (el op puede venir pegado).
     let pos_op = t
         .find(|c| ['=', '!', '<', '>'].contains(&c))
         .ok_or_else(|| {
-            format!(
-                "falta el operador en «{t}»; valen == != < <= > >= (ej.: t0 == 5)"
-            )
+            format!("falta el operador en «{t}»; valen == != < <= > >= (ej.: t0 == 5)")
         })?;
     let (parte_reg, resto) = t.split_at(pos_op);
     let parte_reg = parte_reg.trim();

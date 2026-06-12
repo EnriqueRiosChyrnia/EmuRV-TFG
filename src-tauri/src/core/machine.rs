@@ -18,10 +18,11 @@ use super::keyboard::KeyboardShared;
 use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::video::{FramebufferRGBA, VideoShared};
 use super::{
-    DATA_BASE, DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE,
-    FRAMEBUFFER_SIZE, GP_INIT, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE,
-    PALETTE_SIZE, RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE,
-    TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
+    CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC, DATA_BASE,
+    DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE, FRAMEBUFFER_SIZE,
+    GP_INIT, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
+    RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
+    VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -424,6 +425,13 @@ impl Machine<'_> {
         d.ebreak_pause = None;
         d.hit_watchpoint = None;
         d.suppress_watch = None;
+        // RP8: CSRs en estado conocido por sesión/reinicio (sin handlers
+        // fantasma) y mstatus.MIE=1 — el protocolo de doble falta de la
+        // delegación lo necesita encendido como punto de partida.
+        for id in [CSR_ID_MTVEC, CSR_ID_MEPC, CSR_ID_MCAUSE, CSR_ID_MTVAL] {
+            let _ = self.uc.reg_write(id, 0);
+        }
+        let _ = self.uc.reg_write(CSR_ID_MSTATUS, 1 << 3);
         Ok(())
     }
 
@@ -575,8 +583,7 @@ impl Machine<'_> {
                                 // Condición FALSA: el programa pasa de
                                 // largo — no es una parada, no toca
                                 // last_bp ni suprime nada (RP-1 F4).
-                                let cumple =
-                                    c.eval(|n| uc.reg_read(xreg(n)).unwrap_or(0) as u32);
+                                let cumple = c.eval(|n| uc.reg_read(xreg(n)).unwrap_or(0) as u32);
                                 if !cumple {
                                     return;
                                 }
@@ -921,6 +928,40 @@ impl Machine<'_> {
                 let pc_v = pc.expect("word_at_pc garantiza pc legible");
                 let _ = self.uc.reg_write(PC, u64::from(pc_v) + 4);
                 StopReason::EbreakPause { addr: pc_v }
+            }
+            // RP8: acceso a memoria inválido con mtvec configurado → se
+            // delega al handler del guest (mcause 5 carga / 7 almacenamiento,
+            // mtval = la dirección). El spike P3f probó que el camino del
+            // hook MEM_INVALID no sirve (el «true» reintenta el acceso):
+            // la delegación vive acá, post-error, y el bucle de tramos
+            // reanuda en mtvec — mismo patrón que el rescate de ebreak.
+            Err(
+                e @ (uc_error::READ_UNMAPPED
+                | uc_error::READ_PROT
+                | uc_error::WRITE_UNMAPPED
+                | uc_error::WRITE_PROT),
+            ) if self.uc.reg_read(CSR_ID_MTVEC).unwrap_or(0) != 0 => {
+                let es_escritura = matches!(e, uc_error::WRITE_UNMAPPED | uc_error::WRITE_PROT);
+                let mcause = if es_escritura { 7 } else { 5 };
+                let mtval = bad.map(|(_, a)| a as u32).unwrap_or(0);
+                let mepc = pc.as_ref().copied().unwrap_or(0);
+                if syscalls::delegar_trap(&mut self.uc, mcause, mtval, mepc) {
+                    // Si la delegación detectó doble falta, dejó el
+                    // runtime_error armado: reportarlo ya.
+                    if let Some(msg) = self.uc.get_data_mut().runtime_error.take() {
+                        return StopReason::RuntimeError { message: msg };
+                    }
+                    // Delegado: el pc quedó en mtvec; el tramo siguiente
+                    // ejecuta el handler (la GUI y el CLI ya reanudan
+                    // tramos Paused sin reportar nada).
+                    return normal;
+                }
+                match pc {
+                    Ok(pc) => StopReason::RuntimeError {
+                        message: runtime_error_message(e, pc, bad),
+                    },
+                    Err(message) => StopReason::RuntimeError { message },
+                }
             }
             Err(e) => match pc {
                 Ok(pc) => StopReason::RuntimeError {

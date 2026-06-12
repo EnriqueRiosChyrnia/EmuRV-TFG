@@ -2283,7 +2283,11 @@ mod tests {
     #[test]
     fn zicsr_errores_didacticos() {
         let e = first_error("csrr t0, mfoo");
-        assert!(e.msg.contains("mfoo") && e.msg.contains("mstatus"), "{}", e.msg);
+        assert!(
+            e.msg.contains("mfoo") && e.msg.contains("mstatus"),
+            "{}",
+            e.msg
+        );
         let e = first_error("csrrwi t0, mscratch, 32");
         assert!(e.msg.contains("0 a 31"), "{}", e.msg);
         let e = first_error("csrr t0, 0x1000");

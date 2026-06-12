@@ -17,6 +17,7 @@
 //! llegan por este hook (no como error de `emu_start`).
 
 use super::machine::MachData;
+use super::{CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -96,14 +97,24 @@ pub fn handle_trap(uc: &mut Unicorn<'_, MachData>, intno: u32) {
         }
         CAUSE_ILLEGAL_INSN => {
             let at = pc.wrapping_sub(4) as u32;
-            fail(
-                uc,
-                format!(
-                    "instrucción inválida en 0x{at:08X}. Si esa dirección está después de tu \
-                     última instrucción, el programa siguió de largo: terminálo con \
-                     «li a7, 10» + «ecall»"
-                ),
-            );
+            // RP8: con mtvec, la instrucción ilegal se delega (mcause=2,
+            // mtval = la palabra culpable si es legible).
+            let mut palabra = [0u8; 4];
+            let mtval = if uc.mem_read(u64::from(at), &mut palabra).is_ok() {
+                u32::from_le_bytes(palabra)
+            } else {
+                0
+            };
+            if !delegar_trap(uc, 2, mtval, at) {
+                fail(
+                    uc,
+                    format!(
+                        "instrucción inválida en 0x{at:08X}. Si esa dirección está después de tu \
+                         última instrucción, el programa siguió de largo: terminálo con \
+                         «li a7, 10» + «ecall»"
+                    ),
+                );
+            }
         }
         other => {
             fail(
@@ -120,6 +131,46 @@ pub fn handle_trap(uc: &mut Unicorn<'_, MachData>, intno: u32) {
 fn fail(uc: &mut Unicorn<'_, MachData>, msg: String) {
     uc.get_data_mut().runtime_error = Some(msg);
     let _ = uc.emu_stop();
+}
+
+/// Delegación didáctica de una excepción SÍNCRONA al handler del guest
+/// (RP8): escribe mepc/mcause/mtval, apaga mstatus.MIE (protocolo de la
+/// espec: la doble falta se detecta porque MIE ya está en 0 — `mret`
+/// nativo la restaura, autolimpiante) y reinyecta pc←mtvec SIN frenar
+/// (mecanismo validado por el spike P3b2). Devuelve false si NO delegó
+/// (mtvec==0): el llamador sigue con el camino didáctico de siempre.
+pub(crate) fn delegar_trap(
+    uc: &mut Unicorn<'_, MachData>,
+    mcause: u32,
+    mtval: u32,
+    mepc: u32,
+) -> bool {
+    let mtvec = uc.reg_read(CSR_ID_MTVEC).unwrap_or(0);
+    if mtvec == 0 {
+        return false; // sin handler instalado: comportamiento de siempre
+    }
+    let mstatus = uc.reg_read(CSR_ID_MSTATUS).unwrap_or(0);
+    const MIE: u64 = 1 << 3;
+    const MPIE: u64 = 1 << 7;
+    if mstatus & MIE == 0 {
+        fail(
+            uc,
+            format!(
+                "excepción dentro del manejador de excepciones (doble falta): \
+                 el manejador en mtvec=0x{mtvec:08X} provocó otra excepción \
+                 (mcause={mcause}). Revisá que el manejador no acceda a memoria \
+                 inválida ni use servicios desconocidos"
+            ),
+        );
+        return true; // «manejado»: ya cortamos con el error didáctico
+    }
+    let nuevo_mstatus = (mstatus & !MIE) | MPIE;
+    let _ = uc.reg_write(CSR_ID_MSTATUS, nuevo_mstatus);
+    let _ = uc.reg_write(CSR_ID_MEPC, u64::from(mepc));
+    let _ = uc.reg_write(CSR_ID_MCAUSE, u64::from(mcause));
+    let _ = uc.reg_write(CSR_ID_MTVAL, u64::from(mtval));
+    let _ = uc.reg_write(RegisterRISCV::PC, mtvec);
+    true
 }
 
 fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
@@ -170,15 +221,26 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
             let _ = uc.reg_write(A1, ms >> 32);
         }
         32 => dormir(uc),
-        other => fail(
-            uc,
-            format!(
-                "syscall desconocida: a7 = {other} (pc = 0x{pc:08X}). \
-                 Servicios disponibles: 1 imprimir entero, 4 imprimir cadena, \
-                 5 leer entero, 10 terminar, 11 imprimir carácter, \
-                 30 tiempo del sistema en ms, 32 dormir a0 ms"
-            ),
-        ),
+        other => {
+            // RP8: con mtvec configurado, un ecall DESCONOCIDO se delega al
+            // handler del guest (mcause=11, ECALL desde M-mode según la
+            // espec — no el intno interno de Unicorn). mepc = dirección del
+            // ecall, fiel a la espec: el handler ajusta mepc+4 antes de
+            // mret (como un kernel real; el ejemplo 12 lo enseña). Los
+            // ecall CONOCIDOS jamás se delegan (este brazo es solo a7
+            // desconocido).
+            if !delegar_trap(uc, 11, 0, pc as u32) {
+                fail(
+                    uc,
+                    format!(
+                        "syscall desconocida: a7 = {other} (pc = 0x{pc:08X}). \
+                         Servicios disponibles: 1 imprimir entero, 4 imprimir cadena, \
+                         5 leer entero, 10 terminar, 11 imprimir carácter, \
+                         30 tiempo del sistema en ms, 32 dormir a0 ms"
+                    ),
+                );
+            }
+        }
     }
 }
 
