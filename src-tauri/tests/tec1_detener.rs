@@ -120,3 +120,40 @@ fn run_sin_limite_sigue_funcionando() {
     assert_eq!(m.run(0), StopReason::Exited { code: 0 });
     assert_eq!(m.registers().expect("registros")[5], 7);
 }
+
+/// (d) Regresión: breakpoint en el borde exacto del count. Si un tramo
+/// agota su count JUSTO en la dirección de un breakpoint, el corte por
+/// count gana la carrera de hooks (el de breakpoints ni corre) y el tramo
+/// devuelve Paused con el pc sobre el bp TODAVÍA NO reportado. El tramo
+/// siguiente de la MISMA orden Run no debe suprimir ese breakpoint:
+/// suprimirlo es semántica de «reanudar tras frenar EN el bp», y acá
+/// nadie frenó ahí. Antes del fix, la continuación lo pasaba de largo y
+/// el programa corría hasta el final sin reportarlo.
+#[test]
+fn breakpoint_en_borde_de_count_se_reporta_en_la_continuacion() {
+    let limite = Duration::from_secs(if cfg!(debug_assertions) { 10 } else { 2 });
+    let (tramo, pc, cont, t0) = con_guardia("bp en borde de count", limite, || {
+        // Programa de 4 instrucciones + salida; breakpoint en la 4ª
+        // (TEXT_BASE + 12). El tramo de 3 instrucciones agota el count
+        // exactamente en esa dirección.
+        let (mut m, _out, _inp) = machine_for("nop\nnop\nnop\nli t0, 7\nli a7, 10\necall");
+        let bp = TEXT_BASE + 12;
+        m.set_breakpoints([bp].into()).expect("breakpoints");
+        let tramo = m.run_slice(0, 3);
+        let pc = m.pc().expect("leer pc");
+        // Continuación de la MISMA orden Run (no es reanudación del
+        // usuario): el breakpoint del pc de arranque debe valer.
+        let cont = m.run_slice_continuation(0, SLICE);
+        (tramo, pc, cont, m.registers().expect("registros")[5])
+    });
+    assert_eq!(tramo, StopReason::Paused, "count agotado = tramo terminado");
+    assert_eq!(pc, TEXT_BASE + 12, "el pc debe quedar sobre el breakpoint");
+    assert_eq!(
+        cont,
+        StopReason::Breakpoint {
+            addr: TEXT_BASE + 12
+        },
+        "la continuación debe reportar el breakpoint, no pasarlo de largo"
+    );
+    assert_eq!(t0, 0, "la instrucción del breakpoint NO debe ejecutarse");
+}

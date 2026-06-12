@@ -16,9 +16,10 @@
 #
 # El programa hace POLLING (encuesta): le pregunta al
 # dispositivo una y otra vez "¿hay tecla?" hasta que la
-# respuesta es sí. Cada tecla recibida se imprime en la
-# consola (eco) y se dibuja como un bloque de color en la
-# pantalla gráfica. La tecla Esc (código 27) termina.
+# respuesta es sí. Cada tecla recibida dibuja un bloque de
+# color en la pantalla gráfica y, si es un carácter que la
+# consola puede mostrar (imprimible o Enter), también se
+# imprime como eco. La tecla Esc (código 27) termina.
 # Syscalls: 11 (imprimir carácter), 32 (dormir), 10 (terminar)
 # =====================================================
 
@@ -61,6 +62,18 @@ hay_tecla:
         li   t0, 27             # 27 = código ASCII de la tecla Esc
         beq  s3, t0, fin        # con Esc se termina el programa
 
+        # Eco SOLO de lo que la consola puede mostrar: los caracteres
+        # imprimibles (códigos 32 a 126) y el Enter (10, salto de línea).
+        # Las demás teclas —flechas (0x80-0x83), Backspace (8), etc.—
+        # mandarían caracteres de control que ensucian la consola, así
+        # que NO se imprimen; igual dibujan su bloque de color abajo.
+        li   t0, 10
+        beq  s3, t0, eco        # Enter sí: imprime el salto de línea
+        li   t0, 32
+        blt  s3, t0, dibujar    # código < 32 → control: sin eco
+        li   t0, 126
+        bgt  s3, t0, dibujar    # código > 126 → no imprimible: sin eco
+eco:
         mv   a0, s3             # a0 ← código de la tecla recibida
         li   a7, 11             # servicio 11: imprimir carácter (el "eco")
         ecall
@@ -68,6 +81,7 @@ hay_tecla:
         # Color del bloque a partir del código de la tecla:
         # (código & 7) + 1 da un valor entre 1 y 8 — nunca 0,
         # porque el color 0 de la paleta es negro y no se vería.
+dibujar:
         andi t0, s3, 7          # t0 ← los 3 bits bajos del código (0..7)
         addi t0, t0, 1          # t0 ← color final (1..8)
 

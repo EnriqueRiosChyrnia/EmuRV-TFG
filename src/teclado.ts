@@ -16,8 +16,12 @@
 //   ArrowDown            0x83 ┘
 //   todo lo demás        null (F1–F12, modificadores solos, etc.)
 //
-// Con Ctrl, Cmd o Alt apretados no se mapea nada: esas combinaciones son
-// atajos del sistema o de la app y no hay que robárselos al usuario.
+// Con Ctrl o Cmd apretados no se mapea nada: esas combinaciones son atajos
+// del sistema o de la app y no hay que robárselos al usuario. Alt/AltGr en
+// cambio NO descalifica por sí solo: en los teclados español/LATAM (el
+// público de esta herramienta) signos esenciales como @, #, [ o ] se
+// tipean con AltGr (Option en macOS); si la combinación produjo un
+// carácter ASCII imprimible, se acepta tal cual.
 
 /** Teclas especiales (no imprimibles) con código propio. */
 const ESPECIALES: Readonly<Record<string, number>> = {
@@ -35,14 +39,27 @@ const ESPECIALES: Readonly<Record<string, number>> = {
  *  Si devuelve un código, quien captura debe llamar a preventDefault():
  *  flechas y espacio scrollearían la página si llegaran al navegador. */
 export function mapearTecla(ev: KeyboardEvent): number | null {
-  if (ev.ctrlKey || ev.metaKey || ev.altKey) return null;
-  const especial = ESPECIALES[ev.key];
-  if (especial !== undefined) return especial;
-  // Imprimibles: ev.key es el carácter en sí ("a", "5", " ", …). Solo se
-  // aceptan los que entran en un byte ASCII; "ñ", "á", etc. quedan afuera.
+  // En Windows, AltGr llega como Ctrl+Alt simultáneos: getModifierState
+  // lo distingue del Ctrl real, que sí hay que respetar.
+  const altGr = ev.getModifierState("AltGraph");
+  // Ctrl y Cmd/Win se bloquean SIEMPRE (atajos reales del sistema o de la
+  // app); la única excepción es el pseudo-Ctrl del AltGr de Windows.
+  if ((ev.ctrlKey && !altGr) || ev.metaKey) return null;
+  // Las teclas especiales solo se mapean sin Alt: Alt+flecha, Alt+Enter,
+  // etc. siguen siendo atajos del sistema.
+  if (!ev.altKey) {
+    const especial = ESPECIALES[ev.key];
+    if (especial !== undefined) return especial;
+  }
+  // Imprimibles: ev.key trae el carácter YA resuelto por el layout
+  // ("a", "5", " ", "@"…). Alt/AltGr apretado NO descalifica: en los
+  // teclados español/LATAM @, #, [, ] y compañía se tipean con AltGr
+  // (Option en macOS), y rechazarlos los volvía imposibles de escribir.
+  // Solo se acepta el rango ASCII imprimible (32–126); "ñ", "á", etc.
+  // quedan afuera (no entran en un byte del dispositivo).
   if (ev.key.length === 1) {
     const cp = ev.key.codePointAt(0)!;
-    if (cp < 128) return cp;
+    if (cp >= 32 && cp <= 126) return cp;
   }
   return null;
 }

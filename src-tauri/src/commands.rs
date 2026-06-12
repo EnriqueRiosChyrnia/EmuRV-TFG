@@ -180,6 +180,12 @@ fn emu_thread(
     while let Ok(cmd) = cmd_rx.recv() {
         match cmd {
             EmuCmd::Step => {
+                // Espejo del brazo Run: reset() y stop() dejan stop_flag en
+                // true y nadie más lo limpiaba. Como stop_request es el
+                // MISMO Arc que consulta dormir(), la secuencia
+                // «Reiniciar → Paso sobre un ecall a7=32» saltearía el
+                // sleep con el flag colgado de la orden anterior.
+                stop_flag.store(false, Ordering::SeqCst);
                 let reason = machine.step();
                 machine.publish_frame();
                 check_video(&mut video_notificado);
@@ -191,8 +197,19 @@ fn emu_thread(
                 // es corto para la latencia de Detener; la cadencia de
                 // eventos a la UI la marca este Instant.
                 let mut ultimo_refresco = Instant::now();
+                // Solo el PRIMER tramo suprime el breakpoint del pc de
+                // arranque (semántica de reanudar desde un bp ya
+                // reportado). Los siguientes son continuación: si un tramo
+                // agotó su count justo sobre un bp, suprimirlo en el
+                // próximo lo haría pasar de largo sin reportarse.
+                let mut primer_tramo = true;
                 loop {
-                    let reason = machine.run_slice(RUN_SLICE_MS, RUN_SLICE_COUNT);
+                    let reason = if primer_tramo {
+                        machine.run_slice(RUN_SLICE_MS, RUN_SLICE_COUNT)
+                    } else {
+                        machine.run_slice_continuation(RUN_SLICE_MS, RUN_SLICE_COUNT)
+                    };
+                    primer_tramo = false;
                     // publish_frame queda por tramo a propósito: el flag
                     // sucio corta enseguida si la VRAM no cambió, y así el
                     // último frame nunca queda sin publicar al detenerse
@@ -253,10 +270,20 @@ fn emu_thread(
                     }
                 }
             }
-            EmuCmd::Reset => match machine.reset() {
-                Ok(()) => emit_stopped(&app, &machine, StopReason::Paused),
-                Err(e) => emit_stopped(&app, &machine, StopReason::RuntimeError { message: e }),
-            },
+            EmuCmd::Reset => {
+                let resultado = machine.reset();
+                // El comando reset() deja stop_flag en true para despertar
+                // un posible sleep o espera de entrada de la corrida
+                // anterior. Completado el reinicio ya cumplió su función:
+                // se limpia acá (espejo de la línea del brazo Run) para
+                // que un Paso posterior no herede un stop fantasma y
+                // saltee los sleeps (mismo Arc que mira dormir()).
+                stop_flag.store(false, Ordering::SeqCst);
+                match resultado {
+                    Ok(()) => emit_stopped(&app, &machine, StopReason::Paused),
+                    Err(e) => emit_stopped(&app, &machine, StopReason::RuntimeError { message: e }),
+                }
+            }
             aux => {
                 if let Err(e) = handle_aux(&mut machine, aux) {
                     emit_stopped(&app, &machine, StopReason::RuntimeError { message: e });
@@ -354,7 +381,20 @@ pub fn assemble(
         .lock()
         .map_err(|_| asm_internal_error("estado del emulador corrupto"))?
         .as_ref()
-        .map(|s| Arc::clone(&s.video));
+        .map(|s| {
+            // La sesión vieja muere cuando sus canales se cierran, pero eso
+            // recién lo nota al volver a su recv: un hilo dormido en la
+            // syscall 32 solo mira stop_request (quedaría retenido hasta
+            // agotar a0 ms — 49,7 días con «li a0, -1» — y podría emitir
+            // un emu://registros viejo al despertar) y uno bloqueado en
+            // read_int solo mira su canal de entrada. Mismo gesto que
+            // stop(): el flag corta el sleep y el Cancel despierta la
+            // espera de entrada. Cierra la asimetría de reemplazar la
+            // sesión sin avisarle.
+            s.stop_flag.store(true, Ordering::SeqCst);
+            let _ = s.input_tx.send(InputMsg::Cancel);
+            Arc::clone(&s.video)
+        });
     let video = Arc::new(Mutex::new(VideoShared::para_sesion_nueva(
         video_anterior.as_deref(),
     )));

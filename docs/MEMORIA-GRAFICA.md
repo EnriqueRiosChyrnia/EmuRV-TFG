@@ -13,6 +13,8 @@ Extensión del mapa de memoria RARS estándar con soporte para pantalla gráfica
 | **Paleta** | **`0x9002_0000`** | **768 B** | **4 KB** | 256 colores RGB888 | R/W |
 | **Control** | **`0x9003_0000`** | **4 B** | **4 KB** | Marca de uso de pantalla | R/W |
 
+> **Nota (2026-06-12):** la fase de teclado agregó una región más al mapa, ajena al subsistema gráfico: la página del dispositivo de teclado MMIO en `0xFFFF_0000` (4 KB; `RECEIVER_CONTROL` en +0 y `RECEIVER_DATA` en +4, compatibles con RARS/MARS). Está documentada en `TECLADO.md`.
+
 ## Framebuffer (0x9000_0000 — 0x9001_FFFF)
 
 **Formato:** array lineal de 76,800 bytes (320 columnas × 240 filas × 1 byte/píxel).

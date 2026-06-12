@@ -539,7 +539,34 @@ impl Machine<'_> {
     /// que llegue primero. El count agotado devuelve `Paused`: tramo
     /// terminado, NO pausa de usuario. El llamador decide refrescar la UI
     /// y volver a llamar mientras reciba `Paused` sin señal de stop.
+    ///
+    /// Es el PRIMER tramo de una orden Run: si el pc arranca sobre un
+    /// breakpoint, se lo suprime una vez (reanudar desde un bp ya
+    /// reportado no debe volver a frenar ahí). Para los tramos siguientes
+    /// de la MISMA orden usá `run_slice_continuation`.
     pub fn run_slice(&mut self, timeout_ms: u64, max_instr: u64) -> StopReason {
+        self.run_slice_imp(timeout_ms, max_instr, true)
+    }
+
+    /// Tramo de CONTINUACIÓN de una orden Run ya iniciada: NO suprime el
+    /// breakpoint del pc de arranque. Si el tramo anterior agotó su count
+    /// EXACTO en la dirección de un bp, el corte por count gana la carrera
+    /// de hooks (el de breakpoints ni corre), el tramo devuelve `Paused` y
+    /// ese bp queda SIN reportar: suprimirlo acá lo haría pasar de largo
+    /// (regresión vigilada en tests/tec1_detener.rs).
+    pub fn run_slice_continuation(&mut self, timeout_ms: u64, max_instr: u64) -> StopReason {
+        self.run_slice_imp(timeout_ms, max_instr, false)
+    }
+
+    /// Implementación común de los tramos: `suppress_bp_at_start` decide
+    /// si el breakpoint del pc de arranque se ignora una vez (solo el
+    /// primer tramo de una orden Run; ver run_slice/run_slice_continuation).
+    fn run_slice_imp(
+        &mut self,
+        timeout_ms: u64,
+        max_instr: u64,
+        suppress_bp_at_start: bool,
+    ) -> StopReason {
         if let Some(code) = self.uc.get_data().exit_code {
             return StopReason::Exited { code };
         }
@@ -548,8 +575,10 @@ impl Machine<'_> {
             Ok(pc) => pc,
             Err(message) => return StopReason::RuntimeError { message },
         };
-        // Al reanudar sobre un breakpoint, ese breakpoint no cuenta.
-        if self.uc.get_data().breakpoints.contains(&pc) {
+        // Al reanudar sobre un breakpoint, ese breakpoint no cuenta — pero
+        // SOLO en el primer tramo de la orden: en una continuación el bp
+        // del pc de arranque todavía no se reportó y debe frenar.
+        if suppress_bp_at_start && self.uc.get_data().breakpoints.contains(&pc) {
             self.uc.get_data_mut().suppress_bp = Some(pc);
         }
         let result = self
