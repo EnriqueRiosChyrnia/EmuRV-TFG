@@ -754,3 +754,27 @@ Compuerta F4 ✓: tsc limpio, vite ok (50 módulos), 23 suites src-tauri + CLI v
 - Decisiones consolidadas: hooks instalar-solo-si-hace-falta como LEY cumplida (watch_hooks espejo de bp_hook, con introspección de test); supresión de re-disparo de watchpoint (hallazgo propio F1, espejo de suppress_bp); condición FALSA ≠ parada (last_bp intacto, RP-1 F4 vigente); guard de pausa en Session.corriendo; parseo de condiciones en el hilo UI. Mediciones: **71.4 M instr/s con watchpoint activo y carga por iteración** (gate ≥10 M ~7×); corrida libre sin watchpoints: cero hooks (test).
 
 **Compuerta F5 (cierre RP7) ✓ [Seguro — corridas reales]:** `cargo test` + clippy 0 en AMBOS crates (23 suites + CLI) · tsc limpio · `scripts/ci-local.sh --skip-bundle` exit 0 · `cargo tauri build` ok · bundle dentro del límite RNF-04.
+
+## RP8 Fase 1 — Spike: CSRs y traps en Unicorn 2.1.5 (2026-06-12)
+
+Plan `docs/PLAN-RP8-csrs-traps.md`. `tests/spike_csr.rs` (12 PoC, encodings a mano verificados contra la espec Zicsr, patrón spike_mmio). **Tabla causa→comportamiento [Seguro — todo reproducible]:**
+
+| Caso | Sin hook (mtvec seteado por el guest) | Con hook |
+|---|---|---|
+| csrrw/csrrs/csrrwi | **NATIVOS** ✓ (P1/P1b: el host ve mscratch=0x2A; csrr lee) | — |
+| mret | **NATIVO** ✓ (P2: pc←mepc y sigue) | — |
+| IDs host | — | P2b: guest escribe con csrw y el host lee EXACTO por id crudo (mepc=128, mtvec=121 confirmados) |
+| ecall | **NO vectoriza**: Err(EXCEPTION), Unicorn NO escribe mcause/mepc (P3a) | hook INTR recibe (intno=8); **REINYECCIÓN funciona end-to-end** (P3b2): el hook escribe mepc/mcause y pc←mtvec SIN emu_stop → el handler corre (leyó mcause), mret vuelve a mepc y el programa sigue (t1=7, res Ok) |
+| instrucción ilegal | NO vectoriza: Err(EXCEPTION) (P3c) | llega al hook INTR con causa 2 (sabido de producción) → misma reinyección aplicable |
+| acceso inválido | Err(READ_UNMAPPED) — nivel host, mtvec irrelevante (P3d) | **P3f: la reinyección desde el hook MEM_INVALID NO funciona** — devolver true reintenta el ACCESO original ignorando el pc escrito (Err(MAP), el handler jamás corrió). |
+| ebreak | Err(INSN_INVALID) — **mtvec NO lo cambia** (P3e): RP-1 queda intacto por comportamiento de Unicorn, no solo por política |
+
+**Advertencia medida (P3b):** el pc leído DENTRO del hook INTR crudo puede venir basura (mepc=pc-4 saltó a 0x459xxxx); en producción `handle_trap` ya deriva el pc confiablemente (toda la suite de syscalls lo prueba) — la reinyección debe usar ESA fuente, no una lectura ingenua.
+
+**Decisión del mecanismo [Seguro — fundada en la tabla]:**
+1. **ecall desconocido e instrucción ilegal**: reinyección DESDE el hook INTR (escribir mepc/mcause/mtval + pc←mtvec, sin emu_stop) — P3b2 lo valida de punta a punta. mcause se escribe con los valores de la ESPEC (11 ecall M-mode, 2 ilegal), no con el intno interno de Unicorn (8).
+2. **Accesos inválidos**: delegación en `interpret()` (rescate post-uc_error, como el de ebreak de RP-1): mcause 5/7 + mtval=dirección + mepc=pc culpable + pc←mtvec y el bucle de tramos reanuda — P3f probó que el camino del hook NO sirve.
+3. **Doble falta**: protocolo fiel a la espec con **mstatus.MIE** — load() la enciende; cada delegación la apaga (y arma MPIE); `mret` nativo la restaura (autolimpiante, sin estado fantasma del host). Delegar con MIE==0 ⇒ «excepción dentro del manejador de excepciones» → RuntimeError didáctico, sin loop.
+4. ebreak: jamás se delega (política + comportamiento nativo coinciden). mtvec==0 ⇒ todo como hoy.
+
+Compuerta F1 ✓: spike 12/12 + suite completa intacta (24 suites), clippy 0.
