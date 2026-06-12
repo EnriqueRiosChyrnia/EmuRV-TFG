@@ -485,3 +485,15 @@ Seis tests nuevos en `tests/rp1_ebreak.rs` (7 totales con el sonda):
 **Convención de pc cerrada [Seguro]:** Unicorn 2.1.5 no entrega el trap de `ebreak` al hook INTR; el caso real es `Err(INSN_INVALID)` de `emu_start` con el pc EXACTAMENTE en el `ebreak` (camino con count = producción). El rescate vive en `Machine::interpret()` (palabra en pc == 0x0010_0073 → pc=dir+4 una sola vez → `StopReason::EbreakPause{addr}`); la rama `CAUSE_BREAKPOINT` del hook queda como defensa documentada para versiones futuras. Tests: `rp1_ebreak.rs` (7) — sonda de F1 en verde, bordes de F4 y camino GUI del fix `last_bp`.
 
 **Compuerta F5 (cierre RP1) ✓:** `cargo test` 18 suites verdes (incl. 7/7 rp1_ebreak) · `cargo clippy --all-targets` 0 warnings · `npx tsc --noEmit` limpio · `cargo tauri build` exitoso (EmuRV.app 21 MB).
+
+## RP3 Fase 1 — Binario emurv-cli con subcomando asm (2026-06-12)
+
+Plan `docs/PLAN-RP3-cli.md`. `src-tauri/src/bin/emurv-cli.rs` + `[[bin]]` explícito en Cargo.toml (convive con el bin Tauri; compilar el CLI no exige frontend).
+
+- **Parsing manual con `std::env` [Seguro]:** dos subcomandos y cuatro flags no justifican `clap` (regla de dependencias de CLAUDE.md); el costo es ~60 líneas de match legibles. Si el CLI creciera (más flags, autocompletado), reabrir con BITACORA.
+- **Canales [Seguro — regla crítica del plan]:** stdout queda EXCLUSIVO para la salida del programa invitado; uso, versión, errores y avisos van TODOS por stderr (incluso `--help`: así un script que capture stdout jamás recibe texto del CLI). Códigos: 0/1/2/3/124 según diseño acordado.
+- **`asm`:** lee fuente → `assemble()` → `export_elf()` → escribe (default: entrada con extensión `.elf`). Errores de ensamblado conservan el formato didáctico en español (uno por línea) + resumen, exit 2; errores de E/S exit 1.
+- Estructura: un solo archivo (un módulo separado en `src/bin/` se interpretaría como otro binario; si `run` crece en F2, la alternativa documentada es el layout `src/bin/emurv-cli/main.rs`). `run` responde "todavía no disponible" + exit 3 hasta F2.
+- Tests (`tests/rp3_cli.rs`, como proceso real vía `CARGO_BIN_EXE`): ELF con magic `\x7fELF` y class 32; error de sintaxis → exit 2 con diagnóstico en español y stdout vacío; sin argumentos → exit 3 con uso y stdout vacío.
+
+Compuerta F1 ✓: 3/3 nuevos + 19 suites verdes, clippy 0.
