@@ -37,7 +37,7 @@ enum EmuCmd {
         reply: Sender<Result<Vec<u8>, String>>,
     },
     GetState {
-        reply: Sender<MachineState>,
+        reply: Sender<Result<MachineState, String>>,
     },
 }
 
@@ -104,23 +104,39 @@ struct ConsoleOut {
 // Hilo de emulación
 // ---------------------------------------------------------------------------
 
-fn machine_state(m: &Machine) -> MachineState {
-    let pc = m.pc();
-    MachineState {
-        registers: m.registers(),
+/// Arma el estado para las vistas; propaga el error si los registros o el
+/// pc no se pudieron leer (no se inventan valores en 0).
+fn machine_state(m: &Machine) -> Result<MachineState, String> {
+    let pc = m.pc()?;
+    Ok(MachineState {
+        registers: m.registers()?,
         pc,
         line: m.program().source_map.line_for_addr(pc),
-    }
+    })
 }
 
 fn emit_stopped(app: &AppHandle, m: &Machine, reason: StopReason) {
-    let _ = app.emit(
-        "emu://detenido",
-        StoppedEvent {
-            reason,
-            state: machine_state(m),
-        },
-    );
+    match machine_state(m) {
+        Ok(state) => {
+            let _ = app.emit("emu://detenido", StoppedEvent { reason, state });
+        }
+        Err(message) => {
+            // No se pudo leer el estado real: el motivo pasa a ser ese
+            // fallo explícito, con un estado neutro que la UI no debe
+            // interpretar como valores reales.
+            let _ = app.emit(
+                "emu://detenido",
+                StoppedEvent {
+                    reason: StopReason::RuntimeError { message },
+                    state: MachineState {
+                        registers: [0u32; 32],
+                        pc: 0,
+                        line: None,
+                    },
+                },
+            );
+        }
+    }
 }
 
 /// Bucle del hilo de emulación: atiende órdenes hasta que la sesión muere
@@ -163,7 +179,21 @@ fn emu_thread(
                             }
                             // Tramo cumplido: refresco periódico (RNF-03)
                             // y atención de órdenes auxiliares sin bloquear.
-                            let _ = app.emit("emu://registros", machine_state(&machine));
+                            match machine_state(&machine) {
+                                Ok(st) => {
+                                    let _ = app.emit("emu://registros", st);
+                                }
+                                Err(message) => {
+                                    // No se pudieron leer los registros:
+                                    // cortar la corrida reportando el fallo.
+                                    emit_stopped(
+                                        &app,
+                                        &machine,
+                                        StopReason::RuntimeError { message },
+                                    );
+                                    break;
+                                }
+                            }
                             match cmd_rx.try_recv() {
                                 Ok(cmd) => {
                                     if let Err(e) = handle_aux(&mut machine, cmd) {
@@ -210,6 +240,7 @@ fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String>
             Ok(())
         }
         EmuCmd::GetState { reply } => {
+            // El Result viaja entero: el solicitante decide cómo reportarlo.
             let _ = reply.send(machine_state(machine));
             Ok(())
         }
@@ -284,7 +315,7 @@ pub fn assemble(
     let video_anterior = manager
         .0
         .lock()
-        .unwrap()
+        .map_err(|_| asm_internal_error("estado del emulador corrupto"))?
         .as_ref()
         .map(|s| Arc::clone(&s.video));
     let video = Arc::new(Mutex::new(VideoShared::para_sesion_nueva(
@@ -328,7 +359,10 @@ pub fn assemble(
 
     // Reemplaza la sesión anterior: sus canales se cierran y sus hilos
     // terminan solos.
-    *manager.0.lock().unwrap() = Some(Session {
+    *manager
+        .0
+        .lock()
+        .map_err(|_| asm_internal_error("estado del emulador corrupto"))? = Some(Session {
         cmd_tx,
         input_tx: in_tx,
         stop_flag,
@@ -339,10 +373,22 @@ pub fn assemble(
     Ok(ok)
 }
 
+/// Error interno de `assemble` con la forma que la UI espera (Vec<AsmError>).
+fn asm_internal_error(msg: &str) -> Vec<AsmError> {
+    vec![AsmError {
+        line: 1,
+        col: 1,
+        msg: msg.into(),
+    }]
+}
+
 /// Exporta el programa ensamblado como ELF32 RISC-V (RF-08).
 #[tauri::command]
 pub fn export_elf(path: String, manager: State<'_, EmuManager>) -> Result<(), String> {
-    let guard = manager.0.lock().unwrap();
+    let guard = manager
+        .0
+        .lock()
+        .map_err(|_| String::from("estado del emulador corrupto"))?;
     let s = guard
         .as_ref()
         .ok_or("no hay programa ensamblado: usá «Ensamblar» primero")?;
@@ -355,7 +401,10 @@ fn with_session<T>(
     manager: &State<'_, EmuManager>,
     f: impl FnOnce(&Session) -> Result<T, String>,
 ) -> Result<T, String> {
-    let guard = manager.0.lock().unwrap();
+    let guard = manager
+        .0
+        .lock()
+        .map_err(|_| String::from("estado del emulador corrupto"))?;
     match guard.as_ref() {
         Some(s) => f(s),
         None => Err("no hay programa ensamblado: usá «Ensamblar» primero".into()),
@@ -454,7 +503,7 @@ pub fn get_state(manager: State<'_, EmuManager>) -> Result<MachineState, String>
         Ok(rx)
     })?;
     rx.recv()
-        .map_err(|_| String::from("la sesión de emulación terminó"))
+        .map_err(|_| String::from("la sesión de emulación terminó"))?
 }
 
 /// Lee el último frame publicado si es más nuevo que `since` (el número de

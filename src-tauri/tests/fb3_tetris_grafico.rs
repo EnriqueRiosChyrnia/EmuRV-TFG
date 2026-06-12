@@ -94,11 +94,27 @@ fn fb3_tetris_dibuja_el_tablero_en_el_framebuffer() {
     let (_out, _board, fb, _reason) = run_tetris(&["0", "0", "0", "4", "-1"]);
 
     // Bloques J (color CGA 7 = 0xAA gris claro) apilados en col 0-1.
-    assert_eq!(pixel_celda(&fb, 19, 0), [0xAA, 0xAA, 0xAA], "celda J (19,0)");
-    assert_eq!(pixel_celda(&fb, 17, 1), [0xAA, 0xAA, 0xAA], "celda J (17,1)");
+    assert_eq!(
+        pixel_celda(&fb, 19, 0),
+        [0xAA, 0xAA, 0xAA],
+        "celda J (19,0)"
+    );
+    assert_eq!(
+        pixel_celda(&fb, 17, 1),
+        [0xAA, 0xAA, 0xAA],
+        "celda J (17,1)"
+    );
     // Bloques O (color CGA 3 = cian 0x00,0xAA,0xAA) en col 4-5.
-    assert_eq!(pixel_celda(&fb, 19, 4), [0x00, 0xAA, 0xAA], "celda O (19,4)");
-    assert_eq!(pixel_celda(&fb, 18, 5), [0x00, 0xAA, 0xAA], "celda O (18,5)");
+    assert_eq!(
+        pixel_celda(&fb, 19, 4),
+        [0x00, 0xAA, 0xAA],
+        "celda O (19,4)"
+    );
+    assert_eq!(
+        pixel_celda(&fb, 18, 5),
+        [0x00, 0xAA, 0xAA],
+        "celda O (18,5)"
+    );
     // Celda vacía = negro.
     assert_eq!(pixel_celda(&fb, 0, 5), [0x00, 0x00, 0x00], "celda vacía");
     // Borde lateral blanco (x=5, y=100).

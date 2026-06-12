@@ -88,7 +88,11 @@ impl FramebufferRGBA {
             let idx = idx as usize;
             let pal_offset = idx * 3;
             let (r, g, b) = if pal_offset + 2 < pal_data.len() {
-                (pal_data[pal_offset], pal_data[pal_offset + 1], pal_data[pal_offset + 2])
+                (
+                    pal_data[pal_offset],
+                    pal_data[pal_offset + 1],
+                    pal_data[pal_offset + 2],
+                )
             } else {
                 (0, 0, 0)
             };
@@ -212,7 +216,10 @@ mod tests {
             nueva.seq > since_consumidor,
             "el frame inicial de la sesión nueva debe superar el seq del consumidor"
         );
-        assert!(!nueva.in_use, "el uso de video se detecta por programa (RF4)");
+        assert!(
+            !nueva.in_use,
+            "el uso de video se detecta por programa (RF4)"
+        );
         let negro = nueva.rgba.expect("pantalla limpia publicada");
         assert_eq!(negro.len(), 320 * 240 * 4);
         assert_eq!(&negro[0..4], &[0, 0, 0, 255], "frame negro opaco");
@@ -235,7 +242,10 @@ mod tests {
             in_use: false,
         });
         let nueva = VideoShared::para_sesion_nueva(Some(&vieja));
-        assert!(nueva.rgba.is_none(), "sin uso previo no hay nada que limpiar");
+        assert!(
+            nueva.rgba.is_none(),
+            "sin uso previo no hay nada que limpiar"
+        );
         assert_eq!(nueva.seq, 0);
     }
 

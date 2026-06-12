@@ -69,7 +69,6 @@ pub fn handle_trap(uc: &mut Unicorn<'_, MachData>, intno: u32) {
             if uc.mem_read(pc, &mut insn).is_ok() && u32::from_le_bytes(insn) == EBREAK {
                 let _ = uc.reg_write(RegisterRISCV::PC, pc + 4);
             }
-            uc.get_data_mut().pause = true;
             let _ = uc.emu_stop();
         }
         CAUSE_ILLEGAL_INSN => {
@@ -111,17 +110,27 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
             let addr = uc.reg_read(A0).unwrap_or(0) as u32 as u64;
             match read_c_string(uc, addr) {
                 Ok(s) => send_output(uc, s),
-                Err(bad) => fail(
+                Err(CStringError::Unreadable(bad)) => fail(
                     uc,
                     format!(
                         "syscall 4 (imprimir cadena): no se pudo leer la dirección 0x{bad:08X}. \
                          a0 debe apuntar a una cadena en .data (cargala con «la»)"
                     ),
                 ),
+                Err(CStringError::MissingNul) => fail(
+                    uc,
+                    format!(
+                        "syscall 4 (imprimir cadena): cadena sin terminador NUL (límite 1 MB) \
+                         desde 0x{addr:08X}. Declarala con «.asciz» o agregale el byte 0 final"
+                    ),
+                ),
             }
         }
         5 => read_int(uc),
         10 => {
+            // Convención RARS: la syscall 10 termina SIEMPRE con código 0
+            // (no recibe argumento). Un código de salida variable llegaría
+            // con la syscall 93 (exit2 con código), trabajo futuro declarado.
             uc.get_data_mut().exit_code = Some(0);
             let _ = uc.emu_stop();
         }
@@ -146,14 +155,28 @@ fn send_output(uc: &mut Unicorn<'_, MachData>, s: String) {
     let _ = uc.get_data().out.send(ConsoleEvent::Output(s));
 }
 
+/// Errores posibles al leer una cadena C de la memoria emulada.
+enum CStringError {
+    /// La dirección indicada no se pudo leer (no está mapeada).
+    Unreadable(u64),
+    /// Se alcanzó `MAX_STR` sin encontrar el byte NUL terminador.
+    MissingNul,
+}
+
 /// Lee la cadena NUL-terminated apuntada por `addr` (bytes UTF-8).
-fn read_c_string(uc: &mut Unicorn<'_, MachData>, addr: u64) -> Result<String, u64> {
+/// Si no aparece el NUL dentro de `MAX_STR` bytes, falla de forma
+/// explícita en vez de truncar en silencio.
+fn read_c_string(uc: &mut Unicorn<'_, MachData>, addr: u64) -> Result<String, CStringError> {
     let mut bytes = Vec::new();
     let mut a = addr;
     loop {
+        if a - addr >= MAX_STR {
+            return Err(CStringError::MissingNul);
+        }
         let mut b = [0u8; 1];
-        uc.mem_read(a, &mut b).map_err(|_| a)?;
-        if b[0] == 0 || a - addr >= MAX_STR {
+        uc.mem_read(a, &mut b)
+            .map_err(|_| CStringError::Unreadable(a))?;
+        if b[0] == 0 {
             break;
         }
         bytes.push(b[0]);
@@ -190,7 +213,6 @@ fn read_int(uc: &mut Unicorn<'_, MachData>) {
             },
             Ok(InputMsg::Cancel) | Err(_) => {
                 // Stop pedido por la UI (o canal cerrado): pausa limpia.
-                uc.get_data_mut().pause = true;
                 let _ = uc.emu_stop();
                 return;
             }

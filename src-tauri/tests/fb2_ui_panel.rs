@@ -13,8 +13,8 @@ use std::sync::{Arc, Mutex};
 
 #[test]
 fn fb2_ejemplo_franjas_ejecuta() {
-    let src = std::fs::read_to_string("../ejemplos/07-franjas.asm")
-        .expect("leer ejemplo 07-franjas.asm");
+    let src =
+        std::fs::read_to_string("../ejemplos/07-franjas.asm").expect("leer ejemplo 07-franjas.asm");
 
     let program = assemble(&src).unwrap_or_else(|errs| {
         panic!(
@@ -49,10 +49,17 @@ fn fb2_ejemplo_franjas_ejecuta() {
 
     // Verificar que el framebuffer fue escrito
     let fb = m.read_framebuffer_rgba().expect("leer framebuffer");
-    assert_eq!(fb.len(), 320 * 240 * 4, "framebuffer debe tener tamaño correcto");
+    assert_eq!(
+        fb.len(),
+        320 * 240 * 4,
+        "framebuffer debe tener tamaño correcto"
+    );
 
     // Verificar que hay píxeles no negros (franjas pintadas)
-    let non_black = fb.chunks(4).filter(|p| p[0] > 0 || p[1] > 0 || p[2] > 0).count();
+    let non_black = fb
+        .chunks(4)
+        .filter(|p| p[0] > 0 || p[1] > 0 || p[2] > 0)
+        .count();
     assert!(
         non_black >= 900,
         "debe haber píxeles pintados (coloreados), obtuvo {} píxeles",
@@ -76,7 +83,10 @@ fn fb2_franjas_colores_correctos() {
     // Primeros píxeles (franja 0, azul oscuro según paleta CGA: índice 1)
     // Índice 1 = (0, 0, 170) en paleta VGA13h
     let pixel_0 = &fb[0..4];
-    eprintln!("Píxel 0 (franja azul): R={} G={} B={}", pixel_0[0], pixel_0[1], pixel_0[2]);
+    eprintln!(
+        "Píxel 0 (franja azul): R={} G={} B={}",
+        pixel_0[0], pixel_0[1], pixel_0[2]
+    );
 
     // Debe ser aproximadamente azul
     assert!(pixel_0[2] > 150, "canal B debe ser alto en píxel azul");
@@ -96,7 +106,10 @@ fn fb2_publicacion_con_flag_sucio() {
 
     // Antes de correr: la VRAM está vacía, publicar no hace nada (RF4).
     m.publish_frame();
-    assert!(!shared.lock().unwrap().in_use, "sin uso de VRAM no se publica");
+    assert!(
+        !shared.lock().unwrap().in_use,
+        "sin uso de VRAM no se publica"
+    );
     assert!(shared.lock().unwrap().rgba.is_none());
 
     // Tras correr el programa gráfico: hay frame y uso detectado.
@@ -138,7 +151,9 @@ fn fb2_publica_antes_de_bloquear_por_entrada() {
     let (in_tx, in_rx) = channel();
     // La línea ya está encolada: el run no se bloquea de verdad, pero el
     // orden interno es el mismo (publicar → pedir entrada → leer).
-    in_tx.send(emurv_lib::core::syscalls::InputMsg::Line("7".into())).unwrap();
+    in_tx
+        .send(emurv_lib::core::syscalls::InputMsg::Line("7".into()))
+        .unwrap();
     let mut m =
         Machine::new_with_video(program, out_tx, in_rx, Arc::clone(&shared)).expect("máquina");
     let _ = m.run(0);
@@ -164,7 +179,12 @@ fn fb2_reset_limpia_la_pantalla() {
 
     let _ = m.run(0);
     m.publish_frame();
-    let frame = shared.lock().unwrap().rgba.take().expect("frame con franjas");
+    let frame = shared
+        .lock()
+        .unwrap()
+        .rgba
+        .take()
+        .expect("frame con franjas");
     assert_ne!(&frame[0..3], &[0, 0, 0], "el píxel 0 estaba pintado (azul)");
 
     m.reset().expect("reset");
