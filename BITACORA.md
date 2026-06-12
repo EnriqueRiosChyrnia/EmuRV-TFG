@@ -1063,3 +1063,35 @@ con li a7,60 SIN pipe).
 
 Compuerta F3: suites verdes (27 binarios src-tauri; CLI 23 en cli.rs +
 resto), tsc limpio, clippy 0 ambos.
+
+## 2026-06-12 — RP10-F4: lección 7 ampliada, docs y cierre de RP-10
+
+[Seguro] Lección 7: tabla COMPLETA (1/4/5/8/9/10/11/30/32/60/93, el 60
+marcado «extensión de EmuRV, no RARS»), bloque nuevo que encadena los tres
+servicios nuevos (sbrk 32 bytes → leer el nombre con el 8 al bloque →
+saludar → salir con 93 código 0), ejercicio 2 reemplazado: salir con el
+número elegido como código y verificarlo con «echo $?». Test actualizado
+(stdin 25/7/Ana, salida exacta con «¡Hola, Ana!»; doble corrida idéntica).
+
+[Seguro] Docs: Ayuda integrada con la tabla completa (8/9/60/93, el 60
+como extensión); README con tabla ampliada + nota del 17 + párrafo de
+propagación del código de salida (& 0xFF → tope 125) y la colisión-124
+documentada; docs/TRAPS.md: servicios conocidos actualizados y nota
+explícita de que el 17 es «desconocido» para la delegación (handler del
+guest primero si hay mtvec); índice de lecciones actualizado.
+
+[Seguro] CIERRE RP-10 — resumen del punto:
+- 93 → exit code real propagado núcleo→UI→CLI (acotado en CLI) ✓ F1
+- 17 NO implementado (no existe en RARS — duda del Cap. VI §6.2.3 resuelta
+  con fuente, wiki oficial de RARS); rechazo didáctico ✓ F1
+- 8 con límite de buffer y validación de zonas (espejo RP-7) ✓ F2
+- 9 con HEAP_BASE canónico RARS 0x10040000, alineado, error didáctico al
+  agotarse, .data-pisa-heap rechazado en carga ✓ F2
+- botón «Limpiar» + syscall 60 con TTY-detect (pipes limpios) ✓ F3
+- lección 7 ampliada + Ayuda + README + TRAPS ✓ F4
+Apartamientos de RARS registrados: sbrk sin -1 silencioso; readstring sin
+el '\n' de fgets. ROADMAP-PRO.md y Cap. VI intactos (coordinadora).
+
+[PENDIENTE HUMANO] (heredados de F3): botón «Limpiar» en la app y syscall
+60 en terminal real (TTY). Nuevo: «echo $?» tras un 93 (el dueño del repo
+dijo que lo verifica él mismo con un programa propio).

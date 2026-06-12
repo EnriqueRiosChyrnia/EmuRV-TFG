@@ -48,7 +48,7 @@ se puede leer en cualquier momento después de la 06; la 09 necesita la 03
 | 04 | Condicionales | beq/bne/blt/bge (+u); if/else con saltos; el máximo de dos números; la trampa blt vs bltu | 01-02 | ✓ |
 | 05 | Bucles | while/for con saltos hacia atrás; suma 1..N; tablita anidada; **breakpoint condicional** `t0 == 5` (panel «Depuración») | 04 | ✓ |
 | 06 | Funciones y pila | jal/ret, ra, a0-a7; sp y el frame; prólogo/epílogo; hoja vs no-hoja; la pila en «Memoria» → «pila (sp)» | 03-05 | ✓ |
-| 07 | Syscalls y E/S | servicios 1/4/5/10/11/30/32; leer-validar-procesar; entrada por «Consola» | 04-05 | ✓ |
+| 07 | Syscalls y E/S | servicios 1/4/5/8/9/10/11/30/32/60/93; leer-validar-procesar; cadenas al heap (sbrk); salir con código | 04-05 | ✓ |
 | 08 | Constantes, includes y macros | .eqv, .include, .macro con parámetros; macro (se copia) vs función (se salta); proyecto de 3 archivos | 06 | ✓ |
 | 09 | E/S proyectada en memoria y tiempo real | MMIO; pintar píxeles en «Pantalla (320×240)»; teclado CONTROL/DATA por encuesta; concurrencia aparente | 03, 05 | ✓ |
 | 10 | Traps e interrupciones (avanzada) | excepciones; mtvec/mepc/mcause; handler + mret; panel «CSRs (avanzado)» | 01-09 | ✓ |

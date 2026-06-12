@@ -9,6 +9,8 @@
 #     (si está fuera de rango, se vuelve a pedir)
 #   * dormir con el servicio 32 y comprobar con el 30 que
 #     el reloj de verdad avanzó
+#   * leer TEXTO (servicio 8), pedirle memoria al sistema
+#     (servicio 9) y salir con un código propio (93)
 # PANELES PARA OBSERVAR: «Consola» — ahí aparecen tus
 #   mensajes y, cuando el programa pide leer (servicio 5),
 #   la Consola muestra un campo de entrada para que escribas
@@ -25,10 +27,14 @@
 #   a7 = 1   imprimir entero      (el valor va en a0)
 #   a7 = 4   imprimir cadena      (a0 = dirección del texto)
 #   a7 = 5   leer entero          (devuelve el valor en a0)
+#   a7 = 8   leer cadena          (a0 = buffer, a1 = tamaño)
+#   a7 = 9   pedir memoria (sbrk) (a0 = bytes → a0 = dirección)
 #   a7 = 10  salir del programa
 #   a7 = 11  imprimir carácter    (el código ASCII va en a0)
 #   a7 = 30  hora actual en ms    (a0 = parte baja, a1 = alta)
 #   a7 = 32  dormir a0 milisegundos
+#   a7 = 60  limpiar la consola   (extensión de EmuRV, no RARS)
+#   a7 = 93  salir con código     (a0 = el código de salida)
 # La receta es SIEMPRE la misma: argumentos en a0 (y a1 si
 # hace falta), número de servicio en a7, y ecall = «sistema,
 # hacé esto por mí». Es el mismo patrón desde la lección 01.
@@ -109,9 +115,44 @@ avanzo:
         li   a7, 4
         ecall
 
-# Servicio 10: salir. SIEMPRE cerrá tus programas así.
+# --- Texto y memoria: servicios 8 y 9 -----------------------
+# El servicio 9 (sbrk) le pide memoria al sistema: cargás en
+# a0 CUÁNTOS bytes querés y te devuelve en a0 la DIRECCIÓN de
+# tu bloque (un pedazo del «heap», que arranca en 0x10040000
+# — buscalo en el panel «Memoria» después del ecall).
+        li   a0, 32          # quiero 32 bytes
+        li   a7, 9
+        ecall
+        mv   s2, a0          # s2 = mi buffer (¡a0 se pisa!)
+
+# El servicio 8 lee una LÍNEA entera (no solo números): a0 =
+# dónde guardarla, a1 = tamaño del buffer. Guarda a lo sumo
+# a1−1 letras más un byte 0 final (como .asciiz): si escribís
+# de más, corta solo. Y queda lista para imprimir con el 4.
+        la   a0, nombre_txt
+        li   a7, 4
+        ecall
+        mv   a0, s2          # leer adentro de MI bloque…
+        li   a1, 32          # …que mide 32 bytes
+        li   a7, 8
+        ecall
+        la   a0, hola_txt
+        li   a7, 4
+        ecall
+        mv   a0, s2          # la cadena leída, como cualquier otra
+        li   a7, 4
+        ecall
+        la   a0, cierre_txt
+        li   a7, 4
+        ecall
+
+# Servicio 93: salir CON CÓDIGO (a0). El 10 siempre sale con
+# 0; con el 93 vos elegís — en la terminal se ve con
+# «echo $?» después de emurv-cli run. Hoy elegimos 0 (todo
+# bien); en los ejercicios vas a devolver otros.
 fin:
-        li   a7, 10
+        li   a0, 0
+        li   a7, 93
         ecall
 
         .data
@@ -119,13 +160,17 @@ pregunta:  .asciiz "Ingresá un número del 1 al 10: "
 error_txt: .asciiz "Fuera de rango, probá de nuevo.\n"
 doble_txt: .asciiz "El doble es "
 reloj_txt: .asciiz "el reloj avanzó: dormimos 100 ms y se notó\n"
+nombre_txt: .asciiz "¿Cómo te llamás? "
+hola_txt:  .asciiz "¡Hola, "
+cierre_txt: .asciiz "!\n"
 
 # ----------------------------------------------------------
 # EJERCICIOS (modificá el código y volvé a ensamblar):
 #   1. Cambiá el rango a 1..100 (tocá el li t0, 10) y probá
 #      con 50: ya no debería decir «fuera de rango».
-#   2. En vez del doble, imprimí el CUÁDRUPLE del número.
-#      ¿Cuánto vale el inmediato del slli ahora?
+#   2. Salí con el número elegido como código: mové s0 a a0
+#      antes del servicio 93, corré por terminal y comprobalo
+#      con «echo $?» (con 7 tiene que mostrar 7).
 #   3. (desafío) Hacé que el programa imprima la tabla del
 #      número elegido: «n, 2n, 3n… 10n» separados por
 #      espacios. Pista: un contador que arranca en 1, un
