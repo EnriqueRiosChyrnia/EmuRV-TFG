@@ -181,3 +181,14 @@ Estado: FB2/FB3 confirmados visualmente por el usuario ✓. Bug Reiniciar→Paso
 1. **Entrada en tiempo real:** syscall de teclado sin bloqueo (estilo INT 16h) para que el Tetris caiga solo; hoy la entrada es por turnos como permite el plan.
 2. **Sprites y animación:** el hardware emulado no los tiene (framebuffer lineal); se pueden implementar en software sobre lo existente.
 3. **Medición de FPS bajo carga** (ver punto 4 de la verificación visual).
+
+## Sesión autónoma ultracode — Etapa 0: línea base (2026-06-11)
+
+Inicio de sesión autónoma según `PLAN-ULTRACODE.md` (fuera del repo). Rama `feature/framebuffer`, working tree limpio. Se hizo `cargo clean` completo (el target/ podía arrastrar rutas absolutas de la ubicación vieja `~/Desktop`) y se recompiló desde cero.
+
+Línea base medida (build debug, Mac Apple Silicon):
+- `cargo test`: **55 tests pasan + 3 `#[ignore]` (rnf_rendimiento) = 58 totales**, 0 fallos. Desglose: 35 unitarios lib + 1 debug_fb_write + 3 fb0 + 3 fb1 + 5 fb2 + 2 fb3 + 6 integración ejemplos.
+- `cargo clippy --all-targets`: sin warnings.
+- `npx tsc --noEmit`: limpio.
+
+Coincide con lo esperado por el plan. [Seguro — medido en esta sesión]
