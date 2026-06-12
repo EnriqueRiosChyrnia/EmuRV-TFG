@@ -57,3 +57,46 @@ fn leccion_03_memoria() {
     assert_eq!(code, Some(0));
     assert_eq!(out, "68 17\n42\nhola\n");
 }
+
+#[test]
+fn leccion_04_condicionales() {
+    let (code, out) = correr_leccion("../lecciones/04-condicionales/leccion.s", "");
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out,
+        "5 y 7 son distintos\nel máximo entre 12 y 33 es 33\n\
+         blt (con signo): -1 es menor que 5\n\
+         bltu (sin signo): -1 NO es menor que 5 (son 4294967295)\n"
+    );
+}
+
+#[test]
+fn leccion_05_bucles() {
+    let (code, out) = correr_leccion("../lecciones/05-bucles/leccion.s", "");
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out,
+        "suma 1..10 = 55\n3 x 1 = 3\n3 x 2 = 6\n3 x 3 = 9\n3 x 4 = 12\n3 x 5 = 15\n"
+    );
+}
+
+#[test]
+fn leccion_06_funciones() {
+    let (code, out) = correr_leccion("../lecciones/06-funciones/leccion.s", "");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "doble de 7 = 14\ncuádruple de 7 = 28\n");
+}
+
+/// Interactiva: 25 está fuera de rango (revalida), 7 es válido. Además
+/// demuestra 30/32 sin imprimir la hora cruda (determinismo garantizado).
+#[test]
+fn leccion_07_syscalls() {
+    let (code, out) = correr_leccion("../lecciones/07-syscalls/leccion.s", "25\n7\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out,
+        "Ingresá un número del 1 al 10: Fuera de rango, probá de nuevo.\n\
+         Ingresá un número del 1 al 10: El doble es 14\n\
+         el reloj avanzó: dormimos 100 ms y se notó\n"
+    );
+}

@@ -12,4 +12,8 @@ comentado que se abre en EmuRV (botón **«Abrir»**) y se recorre con
 | 01 | Registros y movimiento de datos | ✓ |
 | 02 | Aritmética y lógica | ✓ |
 | 03 | Memoria | ✓ |
-| 04-10 | … | en preparación |
+| 04 | Condicionales | ✓ |
+| 05 | Bucles | ✓ |
+| 06 | Funciones y pila | ✓ |
+| 07 | Syscalls y E/S | ✓ |
+| 08-10 | … | en preparación |
