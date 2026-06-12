@@ -1000,3 +1000,40 @@ Tests: src-tauri/tests/rp10_syscalls.rs (6: 93 con 7/0/125/-3, 17 ambos
 caminos, regresión 10) + 6 de proceso en emurv-cli/tests/cli.rs (7 real,
 125 sin aviso, 126→125+aviso, -1→255→125+aviso, regresión 10, stdout
 limpio). Compuerta F1: suite completa AMBOS crates verde, clippy 0.
+
+## 2026-06-12 — RP10-F2: ReadString (8) y Sbrk (9)
+
+[Seguro] Syscall 8 (ReadString): misma vía bloqueante que la 5
+(InputRequest/InputMsg, frame de video publicado antes). Guarda a lo sumo
+a1−1 bytes + NUL en a0; trunca SIN error (al byte: un UTF-8 multibyte puede
+quedar partido — semántica de bytes documentada en el código); a1 ≤ 0 no
+escribe nada NI pide entrada; a1 == 1 escribe solo el NUL. Buffer validado
+con `validar_buffer_escribible` (espejo exacto de los rechazos didácticos
+de write_mem RP-7: .text inmutable / teclado MMIO / zona inválida, ahora
+para rango arbitrario).
+
+[Probable → decisión registrada] APARTAMIENTO de RARS: fgets (y RARS)
+agregan el '\n' final si cabe; EmuRV NO lo agrega. Razón didáctica: una
+cadena con salto invisible es la trampa clásica («¿por qué mi comparación
+falla?»); el CLI además ya entrega la línea sin '\n' (puente_consola la
+recorta). Alternativa considerada: fidelidad bit a bit con RARS — descartada
+porque el público es principiante, no migrador de RARS.
+
+[Seguro] Syscall 9 (Sbrk): HEAP_BASE = 0x1004_0000 (constante en
+core/mod.rs, canónico RARS, dentro de DATA_REGION: sin colisión heap/pila
+posible). Puntero creciente en MachData.heap_next, próximo bloque alineado
+a 4, reset en load()/reset() (sin heap fantasma entre corridas), sin free
+(como RARS).
+
+[Seguro — decisión registrada] APARTAMIENTO de RARS en el agotamiento:
+RuntimeError claro («el heap se agotó: pediste N y quedan M») en vez de un
+-1 silencioso — un principiante que recibe -1 lo usa de dirección y revienta
+20 instrucciones después con un error incomprensible. Cantidad negativa:
+mismo criterio (el heap solo crece). Carga: .data que alcanza 0x1004_0000 →
+error didáctico «tus datos pisan el heap» (test del límite exacto: 196608
+bytes caben, 196612 no).
+
+Tests: 8 nuevos en rp10_syscalls.rs (14 total) + combinado CLI por pipe
+(sbrk → readstring al heap → imprimir; verifica también la ausencia del
+'\n'). Compuerta F2: suites completas verdes (27 binarios src-tauri, CLI
+22+10+6+1), clippy 0 ambos.

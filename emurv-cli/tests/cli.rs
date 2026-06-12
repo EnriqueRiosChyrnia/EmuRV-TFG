@@ -449,3 +449,41 @@ fn exit_10_sigue_dando_cero_como_proceso() {
     let out = run_con_stdin(&["run", f.to_str().unwrap()], "", limite());
     assert_eq!(out.status.code(), Some(0));
 }
+
+// ---------------------------------------------------------------------------
+// RP10 Fase 2 — programa combinado: lee con 8 al heap de 9 y lo imprime.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn readstring_y_sbrk_combinados_por_pipe() {
+    let f = fuente_temporal(
+        "nombre.s",
+        ".text
+  li a0, 32
+  li a7, 9          # sbrk: a0 = buffer en el heap
+  ecall
+  mv s0, a0
+  li a1, 32
+  li a7, 8          # leer cadena al buffer
+  ecall
+  mv a0, s0
+  li a7, 4          # imprimirla
+  ecall
+  li a7, 10
+  ecall
+",
+    );
+    let out = run_con_stdin(&["run", f.to_str().unwrap()], "Ana\n", limite());
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "Ana",
+        "la cadena guardada en el heap se imprime SIN salto extra (la 8 no \
+         agrega el '\\n' de fgets — apartamiento documentado)"
+    );
+}
