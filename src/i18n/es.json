@@ -54,6 +54,8 @@
   "ejemplo.pila": "Pila y funciones",
   "ejemplo.franjas": "Franjas de color (pantalla)",
   "ejemplo.tetris": "Tetris gráfico",
+  "ejemplo.eco": "Eco de teclado (tiempo real)",
+  "ejemplo.tetrisRt": "Tetris en tiempo real",
 
   "error.posicion": "línea {line}, col {col}: {msg}",
 

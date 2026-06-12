@@ -27,6 +27,8 @@ import ejPila from "../ejemplos/05-pila-funciones.asm?raw";
 import ejSuma from "../ejemplos/02-suma-interactiva.asm?raw";
 import ejFranjas from "../ejemplos/07-franjas.asm?raw";
 import ejTetrisGrafico from "../ejemplos/08-tetris-grafico.asm?raw";
+import ejEcoTeclado from "../ejemplos/09-eco-teclado.asm?raw";
+import ejTetrisRt from "../ejemplos/10-tetris-tiempo-real.asm?raw";
 
 const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.hola", codigo: ejHola },
@@ -36,6 +38,8 @@ const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.pila", codigo: ejPila },
   { clave: "ejemplo.franjas", codigo: ejFranjas },
   { clave: "ejemplo.tetris", codigo: ejTetrisGrafico },
+  { clave: "ejemplo.eco", codigo: ejEcoTeclado },
+  { clave: "ejemplo.tetrisRt", codigo: ejTetrisRt },
 ];
 
 /** Estado de la UI respecto del programa. */

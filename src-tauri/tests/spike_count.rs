@@ -118,7 +118,10 @@ fn poc2_timeout_y_count_conviven() {
     });
     eprintln!("PoC2: emu_start(j ., timeout=5s, count=10M) → {res:?} en {ms:.1} ms");
     assert_eq!(res, Ok(()), "timeout y count combinados deben retornar Ok");
-    assert!(ms < 8_000.0, "con count=10M no debería acercarse al timeout");
+    assert!(
+        ms < 8_000.0,
+        "con count=10M no debería acercarse al timeout"
+    );
 }
 
 /// Resultado del escenario de caché caliente sobre el bucle addi+bne.
@@ -264,7 +267,11 @@ fn poc4_throughput_con_slicing() {
     });
 
     let ips = total as f64 / segs;
-    let perfil = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let perfil = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     eprintln!(
         "PoC4 [{perfil}]: {total} instr en {tramos} tramos de count={count} \
          → {segs:.3} s → {:.1} M instr/s (x5 final={x5})",
@@ -300,7 +307,11 @@ fn poc5_overhead_count_chico() {
     });
 
     let tramos_s = f64::from(tramos) / segs;
-    let perfil = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let perfil = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     eprintln!(
         "PoC5 [{perfil}]: {tramos} tramos de count=1000 sobre 'j .' en {segs:.3} s \
          → {tramos_s:.0} tramos/s ({:.2} M instr/s)",

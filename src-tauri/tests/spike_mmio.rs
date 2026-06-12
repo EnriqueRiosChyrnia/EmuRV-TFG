@@ -87,8 +87,7 @@ struct Teclado {
 
 /// Crea el motor RV32 y mapea código + página MMIO con respaldo real.
 fn nueva_maquina() -> Unicorn<'static, ()> {
-    let mut uc =
-        Unicorn::new(Arch::RISCV, Mode::RISCV32).expect("no se pudo iniciar el emulador");
+    let mut uc = Unicorn::new(Arch::RISCV, Mode::RISCV32).expect("no se pudo iniciar el emulador");
     uc.mem_map(CODE_BASE, PAGINA, Prot::READ | Prot::EXEC)
         .expect("no se pudo mapear la página de código");
     uc.mem_map(MMIO_BASE, PAGINA, Prot::READ | Prot::WRITE)
@@ -305,7 +304,10 @@ fn poc_b5_costo_hook_sin_acceso_mmio() {
 
     // Umbrales laxos (build debug tolerado): piso absoluto de 1 M instr/s y
     // el hook no puede costar más de 5x cuando ni se accede a su página.
-    assert!(ips_sin > 1.0e6, "línea base sospechosamente lenta: {ips_sin:.0} instr/s");
+    assert!(
+        ips_sin > 1.0e6,
+        "línea base sospechosamente lenta: {ips_sin:.0} instr/s"
+    );
     assert!(
         ips_con > ips_sin * 0.2,
         "el hook sin accesos degradó demasiado: {ips_con:.0} vs {ips_sin:.0} instr/s"
@@ -318,8 +320,7 @@ fn poc_b5_costo_hook_sin_acceso_mmio() {
 /// hook con memoria real para este proyecto.
 #[test]
 fn poc_b6_alternativa_mmio_map_devuelve_valor_directo() {
-    let mut uc =
-        Unicorn::new(Arch::RISCV, Mode::RISCV32).expect("no se pudo iniciar el emulador");
+    let mut uc = Unicorn::new(Arch::RISCV, Mode::RISCV32).expect("no se pudo iniciar el emulador");
     uc.mem_map(CODE_BASE, PAGINA, Prot::READ | Prot::EXEC)
         .expect("no se pudo mapear la página de código");
 
@@ -329,7 +330,7 @@ fn poc_b6_alternativa_mmio_map_devuelve_valor_directo() {
     uc.mmio_map_ro(MMIO_BASE, PAGINA, move |_uc, offset, _size| {
         let mut q = c.borrow_mut();
         match offset {
-            0 => u64::from(!q.is_empty()),            // CONTROL
+            0 => u64::from(!q.is_empty()),              // CONTROL
             4 => u64::from(q.pop_front().unwrap_or(0)), // DATA (consume)
             _ => 0,
         }
