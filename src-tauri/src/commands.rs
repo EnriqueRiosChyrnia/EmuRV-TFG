@@ -396,6 +396,20 @@ pub fn export_elf(path: String, manager: State<'_, EmuManager>) -> Result<(), St
     std::fs::write(&path, bytes).map_err(|e| format!("no se pudo escribir «{path}»: {e}"))
 }
 
+/// Lee un archivo de texto del disco (botón «Abrir»: cargar un .asm del
+/// usuario en el editor). No depende de la sesión de emulación.
+#[tauri::command]
+pub fn leer_archivo_texto(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("no se pudo leer el archivo: {e}"))
+}
+
+/// Guarda contenido de texto en disco (botón «Guardar»: persistir el .asm
+/// del editor). No depende de la sesión de emulación.
+#[tauri::command]
+pub fn guardar_archivo_texto(path: String, contenido: String) -> Result<(), String> {
+    std::fs::write(&path, contenido).map_err(|e| format!("no se pudo guardar el archivo: {e}"))
+}
+
 /// Helper: ejecuta `f` con la sesión activa o devuelve error en español.
 fn with_session<T>(
     manager: &State<'_, EmuManager>,
@@ -516,9 +530,14 @@ pub fn get_state(manager: State<'_, EmuManager>) -> Result<MachineState, String>
 /// incluso con el programa bloqueado pidiendo entrada.
 #[tauri::command]
 pub fn read_framebuffer(
-    since: u64,
+    since: String,
     manager: State<'_, EmuManager>,
 ) -> Result<tauri::ipc::Response, String> {
+    // `since` llega como string porque JSON (números f64) no representa el
+    // rango completo de u64: el front manda el bigint serializado.
+    let since: u64 = since
+        .parse()
+        .map_err(|_| String::from("parámetro since inválido"))?;
     let respuesta = with_session(&manager, |s| {
         let v = s
             .video

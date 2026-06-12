@@ -19,6 +19,8 @@ pub fn run() {
             commands::read_framebuffer,
             commands::get_state,
             commands::export_elf,
+            commands::leer_archivo_texto,
+            commands::guardar_archivo_texto,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

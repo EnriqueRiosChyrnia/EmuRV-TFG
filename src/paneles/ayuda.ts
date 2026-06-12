@@ -9,6 +9,9 @@ export class Ayuda {
     this.overlay = document.createElement("div");
     this.overlay.id = "ayuda-overlay";
     this.overlay.hidden = true;
+    // Semántica de diálogo modal para lectores de pantalla.
+    this.overlay.setAttribute("role", "dialog");
+    this.overlay.setAttribute("aria-modal", "true");
     this.overlay.innerHTML = `
       <div class="ayuda-caja">
         <header>
@@ -66,16 +69,21 @@ export class Ayuda {
     this.overlay.addEventListener("click", (e) => {
       if (e.target === this.overlay) this.cerrar();
     });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.cerrar();
-    });
   }
+
+  /** Cierra con Escape; se registra al abrir y se quita al cerrar
+   *  para no dejar un listener global colgado mientras está oculto. */
+  private onKeydown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") this.cerrar();
+  };
 
   abrir(): void {
     this.overlay.hidden = false;
+    document.addEventListener("keydown", this.onKeydown);
   }
 
   cerrar(): void {
     this.overlay.hidden = true;
+    document.removeEventListener("keydown", this.onKeydown);
   }
 }

@@ -99,11 +99,12 @@ const execLineField = StateField.define<DecorationSet>({
 
 /** Marca (o limpia, con null) la línea que está por ejecutarse. */
 export function setExecLine(view: EditorView, line: number | null): void {
-  view.dispatch({ effects: setExecLineEffect.of(line) });
+  const effects: StateEffect<unknown>[] = [setExecLineEffect.of(line)];
   if (line !== null && line >= 1 && line <= view.state.doc.lines) {
     const pos = view.state.doc.line(line).from;
-    view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: "nearest" }) });
+    effects.push(EditorView.scrollIntoView(pos, { y: "nearest" }));
   }
+  view.dispatch({ effects });
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,7 @@ export function createEditor(
   parent: HTMLElement,
   doc: string,
   onBreakpointsChanged: (lineas: number[]) => void,
+  puedeAgregarBreakpoint: (linea: number) => boolean = () => true,
 ): EditorView {
   const bpGutter = gutter({
     class: "cm-breakpoint-gutter",
@@ -143,6 +145,17 @@ export function createEditor(
     initialSpacer: () => bpMarker,
     domEventHandlers: {
       mousedown(view, lineaBloque) {
+        // Quitar un punto existente se permite siempre; agregar uno nuevo
+        // se consulta con la app, que rechaza líneas sin código ejecutable
+        // (evita puntos rojos que no corresponden a un breakpoint real).
+        let existe = false;
+        view.state.field(breakpointField).between(lineaBloque.from, lineaBloque.from, () => {
+          existe = true;
+        });
+        if (!existe) {
+          const linea = view.state.doc.lineAt(lineaBloque.from).number;
+          if (!puedeAgregarBreakpoint(linea)) return true;
+        }
         view.dispatch({ effects: toggleBreakpoint.of(lineaBloque.from) });
         onBreakpointsChanged(getBreakpointLines(view));
         return true;
@@ -167,6 +180,9 @@ export function createEditor(
         oneDark,
         // Al editar: limpiar diagnósticos viejos y reportar breakpoints
         // (sus posiciones se mueven con el texto).
+        // El setTimeout(0) es necesario: CodeMirror prohíbe despachar una
+        // transacción dentro del updateListener (el update sigue en curso)
+        // y setErrors hace view.dispatch; se difiere hasta que termine.
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
             setTimeout(() => {
