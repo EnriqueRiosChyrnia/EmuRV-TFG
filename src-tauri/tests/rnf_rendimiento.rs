@@ -42,6 +42,45 @@ fn rnf02_ensamblar_500_lineas() {
     assert!(ms < 200.0, "RNF-02 exige <200 ms; midió {ms:.2} ms");
 }
 
+/// RNF-02 con el preprocesador en el mix (RP5): mismas 500 líneas pero con
+/// un `.include` (los datos viven en otro archivo) y una macro invocada en
+/// el bucle. El gate sigue siendo <200 ms.
+#[test]
+#[ignore]
+fn rnf02_ensamblar_500_lineas_con_include_y_macro() {
+    use emurv_lib::core::assembler::assemble_with_includes;
+    let dir = std::env::temp_dir().join("rnf02_rp5");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("carpeta temporal");
+    let mut datos = String::from(".data\n");
+    for i in 0..50 {
+        datos.push_str(&format!("dato{i}: .word {i}, {}\n", i * 7));
+    }
+    std::fs::write(dir.join("datos.s"), datos).expect("escribir include");
+
+    let mut src = String::from(
+        ".include \"datos.s\"\n.macro paso (%rd, %et)\n  addi %rd, %rd, 1\n  la t1, %et\n.end_macro\n.text\nmain:\n",
+    );
+    for i in 0..230 {
+        src.push_str(&format!(
+            "et{i}: paso t0, dato{}\n    bne t0, t1, et{i}\n",
+            i % 50
+        ));
+    }
+    src.push_str("    li a7, 10\n    ecall\n");
+    let total_lineas = src.lines().count() + 51; // + las del include
+    assert!(total_lineas >= 500, "≥500 líneas contando el include");
+
+    let inicio = Instant::now();
+    let programa = assemble_with_includes(&src, Some(&dir), "main.s").expect("debe ensamblar");
+    let ms = inicio.elapsed().as_secs_f64() * 1000.0;
+    println!(
+        "RNF-02 (include+macro): {total_lineas} líneas → {} bytes de .text en {ms:.2} ms",
+        programa.text.len()
+    );
+    assert!(ms < 200.0, "RNF-02 exige <200 ms; midió {ms:.2} ms");
+}
+
 /// RNF-03: ejecución continua ≥ 10 M instrucciones/segundo efectivas.
 #[test]
 #[ignore]
