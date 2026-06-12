@@ -413,13 +413,6 @@ pub fn reg_number(name: &str) -> Option<u8> {
     Some(n)
 }
 
-/// Nombres ABI en orden x0..x31 (los usa la vista de registros y la ayuda).
-pub const ABI_NAMES: [&str; 32] = [
-    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4",
-    "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4",
-    "t5", "t6",
-];
-
 // ---------------------------------------------------------------------------
 // Parser de sentencias
 // ---------------------------------------------------------------------------
@@ -1192,36 +1185,49 @@ struct Ctx<'a> {
 }
 
 impl Ctx<'_> {
-    fn reg(&self, i: usize) -> u8 {
-        match self.ins.ops[i].kind {
-            OpKind::Reg(r) => r,
-            _ => unreachable!("forma validada en pasada 1"),
+    /// Error interno: la pasada 2 encontró una forma que la pasada 1 no
+    /// debió dejar pasar. Antes era un `unreachable!` que tiraba la app.
+    fn internal_err(&self, i: usize, expected: &str) -> AsmError {
+        let col = self.ins.ops.get(i).map_or(1, |o| o.col);
+        AsmError::new(
+            self.ins.line,
+            col,
+            format!(
+                "error interno del ensamblador: se esperaba {expected} ya validado \
+                 en la pasada 1 (reportá este bug)"
+            ),
+        )
+    }
+    fn reg(&self, i: usize) -> Result<u8, AsmError> {
+        match self.ins.ops.get(i).map(|o| &o.kind) {
+            Some(OpKind::Reg(r)) => Ok(*r),
+            _ => Err(self.internal_err(i, "un registro")),
         }
     }
-    fn imm(&self, i: usize) -> i64 {
-        match self.ins.ops[i].kind {
-            OpKind::Imm(v) => v,
-            _ => unreachable!("forma validada en pasada 1"),
+    fn imm(&self, i: usize) -> Result<i64, AsmError> {
+        match self.ins.ops.get(i).map(|o| &o.kind) {
+            Some(OpKind::Imm(v)) => Ok(*v),
+            _ => Err(self.internal_err(i, "un inmediato")),
         }
     }
-    fn mem(&self, i: usize) -> (i64, u8) {
-        match &self.ins.ops[i].kind {
-            OpKind::Mem { off, base } => (*off, *base),
-            _ => unreachable!("forma validada en pasada 1"),
+    fn mem(&self, i: usize) -> Result<(i64, u8), AsmError> {
+        match self.ins.ops.get(i).map(|o| &o.kind) {
+            Some(OpKind::Mem { off, base }) => Ok((*off, *base)),
+            _ => Err(self.internal_err(i, "un operando de memoria")),
         }
     }
     /// Resuelve una etiqueta (u offset numérico absoluto) a dirección.
     fn target(&self, i: usize) -> Result<u32, AsmError> {
-        match &self.ins.ops[i].kind {
-            OpKind::Sym(s) => self.symbols.get(s).copied().ok_or_else(|| {
+        match self.ins.ops.get(i).map(|o| &o.kind) {
+            Some(OpKind::Sym(s)) => self.symbols.get(s).copied().ok_or_else(|| {
                 AsmError::new(
                     self.ins.line,
                     self.ins.ops[i].col,
                     format!("etiqueta no definida: «{s}»"),
                 )
             }),
-            OpKind::Imm(v) => Ok(*v as u32),
-            _ => unreachable!("forma validada en pasada 1"),
+            Some(OpKind::Imm(v)) => Ok(*v as u32),
+            _ => Err(self.internal_err(i, "una etiqueta o un offset")),
         }
     }
     fn check_imm12(&self, i: usize, v: i64) -> Result<i32, AsmError> {
@@ -1240,6 +1246,15 @@ impl Ctx<'_> {
     fn branch_off(&self, i: usize) -> Result<i32, AsmError> {
         let target = self.target(i)?;
         let off = target.wrapping_sub(self.ins.addr) as i32;
+        // La codificación tipo B descarta el bit 0: un offset impar se
+        // ensamblaría mal en silencio, así que se rechaza acá.
+        if off & 1 != 0 {
+            return Err(AsmError::new(
+                self.ins.line,
+                self.ins.ops[i].col,
+                "destino de salto no alineado a 2 bytes",
+            ));
+        }
         if !(-4096..=4094).contains(&off) {
             return Err(AsmError::new(
                 self.ins.line,
@@ -1255,6 +1270,15 @@ impl Ctx<'_> {
     fn jal_off(&self, i: usize) -> Result<i32, AsmError> {
         let target = self.target(i)?;
         let off = target.wrapping_sub(self.ins.addr) as i32;
+        // La codificación tipo J descarta el bit 0: un offset impar se
+        // ensamblaría mal en silencio, así que se rechaza acá.
+        if off & 1 != 0 {
+            return Err(AsmError::new(
+                self.ins.line,
+                self.ins.ops[i].col,
+                "destino de salto no alineado a 2 bytes",
+            ));
+        }
         if !(-1_048_576..=1_048_574).contains(&off) {
             return Err(AsmError::new(
                 self.ins.line,
@@ -1267,7 +1291,7 @@ impl Ctx<'_> {
         Ok(off)
     }
     fn shamt(&self, i: usize) -> Result<u8, AsmError> {
-        let v = self.imm(i);
+        let v = self.imm(i)?;
         if !(0..=31).contains(&v) {
             return Err(AsmError::new(
                 self.ins.line,
@@ -1284,38 +1308,38 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
     let m = ins.mnem.as_str();
     let w = match m {
         // ---- R-type ----
-        "add" => enc_r(0x00, c.reg(2), c.reg(1), 0, c.reg(0), 0x33),
-        "sub" => enc_r(0x20, c.reg(2), c.reg(1), 0, c.reg(0), 0x33),
-        "sll" => enc_r(0x00, c.reg(2), c.reg(1), 1, c.reg(0), 0x33),
-        "slt" => enc_r(0x00, c.reg(2), c.reg(1), 2, c.reg(0), 0x33),
-        "sltu" => enc_r(0x00, c.reg(2), c.reg(1), 3, c.reg(0), 0x33),
-        "xor" => enc_r(0x00, c.reg(2), c.reg(1), 4, c.reg(0), 0x33),
-        "srl" => enc_r(0x00, c.reg(2), c.reg(1), 5, c.reg(0), 0x33),
-        "sra" => enc_r(0x20, c.reg(2), c.reg(1), 5, c.reg(0), 0x33),
-        "or" => enc_r(0x00, c.reg(2), c.reg(1), 6, c.reg(0), 0x33),
-        "and" => enc_r(0x00, c.reg(2), c.reg(1), 7, c.reg(0), 0x33),
+        "add" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 0, c.reg(0)?, 0x33),
+        "sub" => enc_r(0x20, c.reg(2)?, c.reg(1)?, 0, c.reg(0)?, 0x33),
+        "sll" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 1, c.reg(0)?, 0x33),
+        "slt" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 2, c.reg(0)?, 0x33),
+        "sltu" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 3, c.reg(0)?, 0x33),
+        "xor" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 4, c.reg(0)?, 0x33),
+        "srl" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 5, c.reg(0)?, 0x33),
+        "sra" => enc_r(0x20, c.reg(2)?, c.reg(1)?, 5, c.reg(0)?, 0x33),
+        "or" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 6, c.reg(0)?, 0x33),
+        "and" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 7, c.reg(0)?, 0x33),
         // ---- RV32M ----
-        "mul" => enc_r(0x01, c.reg(2), c.reg(1), 0, c.reg(0), 0x33),
-        "mulh" => enc_r(0x01, c.reg(2), c.reg(1), 1, c.reg(0), 0x33),
-        "mulhsu" => enc_r(0x01, c.reg(2), c.reg(1), 2, c.reg(0), 0x33),
-        "mulhu" => enc_r(0x01, c.reg(2), c.reg(1), 3, c.reg(0), 0x33),
-        "div" => enc_r(0x01, c.reg(2), c.reg(1), 4, c.reg(0), 0x33),
-        "divu" => enc_r(0x01, c.reg(2), c.reg(1), 5, c.reg(0), 0x33),
-        "rem" => enc_r(0x01, c.reg(2), c.reg(1), 6, c.reg(0), 0x33),
-        "remu" => enc_r(0x01, c.reg(2), c.reg(1), 7, c.reg(0), 0x33),
+        "mul" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 0, c.reg(0)?, 0x33),
+        "mulh" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 1, c.reg(0)?, 0x33),
+        "mulhsu" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 2, c.reg(0)?, 0x33),
+        "mulhu" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 3, c.reg(0)?, 0x33),
+        "div" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 4, c.reg(0)?, 0x33),
+        "divu" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 5, c.reg(0)?, 0x33),
+        "rem" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 6, c.reg(0)?, 0x33),
+        "remu" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 7, c.reg(0)?, 0x33),
         // ---- I-type aritmética ----
-        "addi" => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 0, c.reg(0), 0x13),
-        "slti" => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 2, c.reg(0), 0x13),
-        "sltiu" => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 3, c.reg(0), 0x13),
-        "xori" => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 4, c.reg(0), 0x13),
-        "ori" => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 6, c.reg(0), 0x13),
-        "andi" => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 7, c.reg(0), 0x13),
-        "slli" => enc_i(c.shamt(2)? as i32, c.reg(1), 1, c.reg(0), 0x13),
-        "srli" => enc_i(c.shamt(2)? as i32, c.reg(1), 5, c.reg(0), 0x13),
-        "srai" => enc_i((c.shamt(2)? as i32) | 0x400, c.reg(1), 5, c.reg(0), 0x13),
+        "addi" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 0, c.reg(0)?, 0x13),
+        "slti" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 2, c.reg(0)?, 0x13),
+        "sltiu" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 3, c.reg(0)?, 0x13),
+        "xori" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 4, c.reg(0)?, 0x13),
+        "ori" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 6, c.reg(0)?, 0x13),
+        "andi" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 7, c.reg(0)?, 0x13),
+        "slli" => enc_i(c.shamt(2)? as i32, c.reg(1)?, 1, c.reg(0)?, 0x13),
+        "srli" => enc_i(c.shamt(2)? as i32, c.reg(1)?, 5, c.reg(0)?, 0x13),
+        "srai" => enc_i((c.shamt(2)? as i32) | 0x400, c.reg(1)?, 5, c.reg(0)?, 0x13),
         // ---- U / J ----
         "lui" | "auipc" => {
-            let v = c.imm(1);
+            let v = c.imm(1)?;
             if !(-(1 << 19)..(1 << 20)).contains(&v) {
                 return Err(AsmError::new(
                     ins.line,
@@ -1324,13 +1348,13 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
                 ));
             }
             let op = if m == "lui" { 0x37 } else { 0x17 };
-            enc_u((v as u32) & 0xFFFFF, c.reg(0), op)
+            enc_u((v as u32) & 0xFFFFF, c.reg(0)?, op)
         }
         "jal" => {
             let (rd, ti) = if ins.ops.len() == 1 {
                 (1u8, 0)
             } else {
-                (c.reg(0), 1)
+                (c.reg(0)?, 1)
             };
             enc_j(c.jal_off(ti)?, rd)
         }
@@ -1338,43 +1362,43 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
         "call" => enc_j(c.jal_off(0)?, 1),
         "tail" => enc_j(c.jal_off(0)?, 0),
         "jalr" => match ins.ops.len() {
-            1 => enc_i(0, c.reg(0), 0, 1, 0x67),
+            1 => enc_i(0, c.reg(0)?, 0, 1, 0x67),
             2 => {
-                let (off, base) = c.mem(1);
-                enc_i(c.check_imm12(1, off)?, base, 0, c.reg(0), 0x67)
+                let (off, base) = c.mem(1)?;
+                enc_i(c.check_imm12(1, off)?, base, 0, c.reg(0)?, 0x67)
             }
-            _ => enc_i(c.check_imm12(2, c.imm(2))?, c.reg(1), 0, c.reg(0), 0x67),
+            _ => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 0, c.reg(0)?, 0x67),
         },
-        "jr" => enc_i(0, c.reg(0), 0, 0, 0x67),
+        "jr" => enc_i(0, c.reg(0)?, 0, 0, 0x67),
         "ret" => enc_i(0, 1, 0, 0, 0x67),
         // ---- saltos condicionales ----
-        "beq" => enc_b(c.branch_off(2)?, c.reg(1), c.reg(0), 0),
-        "bne" => enc_b(c.branch_off(2)?, c.reg(1), c.reg(0), 1),
-        "blt" => enc_b(c.branch_off(2)?, c.reg(1), c.reg(0), 4),
-        "bge" => enc_b(c.branch_off(2)?, c.reg(1), c.reg(0), 5),
-        "bltu" => enc_b(c.branch_off(2)?, c.reg(1), c.reg(0), 6),
-        "bgeu" => enc_b(c.branch_off(2)?, c.reg(1), c.reg(0), 7),
+        "beq" => enc_b(c.branch_off(2)?, c.reg(1)?, c.reg(0)?, 0),
+        "bne" => enc_b(c.branch_off(2)?, c.reg(1)?, c.reg(0)?, 1),
+        "blt" => enc_b(c.branch_off(2)?, c.reg(1)?, c.reg(0)?, 4),
+        "bge" => enc_b(c.branch_off(2)?, c.reg(1)?, c.reg(0)?, 5),
+        "bltu" => enc_b(c.branch_off(2)?, c.reg(1)?, c.reg(0)?, 6),
+        "bgeu" => enc_b(c.branch_off(2)?, c.reg(1)?, c.reg(0)?, 7),
         // pseudo con operandos invertidos
-        "bgt" => enc_b(c.branch_off(2)?, c.reg(0), c.reg(1), 4),
-        "ble" => enc_b(c.branch_off(2)?, c.reg(0), c.reg(1), 5),
-        "bgtu" => enc_b(c.branch_off(2)?, c.reg(0), c.reg(1), 6),
-        "bleu" => enc_b(c.branch_off(2)?, c.reg(0), c.reg(1), 7),
+        "bgt" => enc_b(c.branch_off(2)?, c.reg(0)?, c.reg(1)?, 4),
+        "ble" => enc_b(c.branch_off(2)?, c.reg(0)?, c.reg(1)?, 5),
+        "bgtu" => enc_b(c.branch_off(2)?, c.reg(0)?, c.reg(1)?, 6),
+        "bleu" => enc_b(c.branch_off(2)?, c.reg(0)?, c.reg(1)?, 7),
         // comparación con cero
-        "beqz" => enc_b(c.branch_off(1)?, 0, c.reg(0), 0),
-        "bnez" => enc_b(c.branch_off(1)?, 0, c.reg(0), 1),
-        "bltz" => enc_b(c.branch_off(1)?, 0, c.reg(0), 4),
-        "bgez" => enc_b(c.branch_off(1)?, 0, c.reg(0), 5),
-        "blez" => enc_b(c.branch_off(1)?, c.reg(0), 0, 5), // 0 >= rs ⇔ rs <= 0
-        "bgtz" => enc_b(c.branch_off(1)?, c.reg(0), 0, 4), // 0 < rs ⇔ rs > 0
+        "beqz" => enc_b(c.branch_off(1)?, 0, c.reg(0)?, 0),
+        "bnez" => enc_b(c.branch_off(1)?, 0, c.reg(0)?, 1),
+        "bltz" => enc_b(c.branch_off(1)?, 0, c.reg(0)?, 4),
+        "bgez" => enc_b(c.branch_off(1)?, 0, c.reg(0)?, 5),
+        "blez" => enc_b(c.branch_off(1)?, c.reg(0)?, 0, 5), // 0 >= rs ⇔ rs <= 0
+        "bgtz" => enc_b(c.branch_off(1)?, c.reg(0)?, 0, 4), // 0 < rs ⇔ rs > 0
         // ---- pseudo de un solo word ----
         "nop" => enc_i(0, 0, 0, 0, 0x13),
-        "mv" => enc_i(0, c.reg(1), 0, c.reg(0), 0x13),
-        "not" => enc_i(-1, c.reg(1), 4, c.reg(0), 0x13),
-        "neg" => enc_r(0x20, c.reg(1), 0, 0, c.reg(0), 0x33),
-        "seqz" => enc_i(1, c.reg(1), 3, c.reg(0), 0x13),
-        "snez" => enc_r(0x00, c.reg(1), 0, 3, c.reg(0), 0x33),
-        "sltz" => enc_r(0x00, 0, c.reg(1), 2, c.reg(0), 0x33),
-        "sgtz" => enc_r(0x00, c.reg(1), 0, 2, c.reg(0), 0x33),
+        "mv" => enc_i(0, c.reg(1)?, 0, c.reg(0)?, 0x13),
+        "not" => enc_i(-1, c.reg(1)?, 4, c.reg(0)?, 0x13),
+        "neg" => enc_r(0x20, c.reg(1)?, 0, 0, c.reg(0)?, 0x33),
+        "seqz" => enc_i(1, c.reg(1)?, 3, c.reg(0)?, 0x13),
+        "snez" => enc_r(0x00, c.reg(1)?, 0, 3, c.reg(0)?, 0x33),
+        "sltz" => enc_r(0x00, 0, c.reg(1)?, 2, c.reg(0)?, 0x33),
+        "sgtz" => enc_r(0x00, c.reg(1)?, 0, 2, c.reg(0)?, 0x33),
         // ---- sistema ----
         "ecall" => 0x0000_0073,
         "ebreak" => 0x0010_0073,
@@ -1385,60 +1409,79 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
         "li" => return encode_li(&c),
         "la" | "lla" => {
             let addr = c.target(1)?;
-            let rd = c.reg(0);
+            let rd = c.reg(0)?;
             return Ok(vec![
                 enc_u(hi20(addr), rd, 0x37),
                 enc_i(lo12(addr), rd, 0, rd, 0x13),
             ]);
         }
-        _ => unreachable!("mnemónico validado en pasada 1: {m}"),
+        other => {
+            return Err(AsmError::new(
+                ins.line,
+                1,
+                format!(
+                    "error interno del ensamblador: el mnemónico «{other}» pasó la \
+                     validación de la pasada 1 pero no tiene codificación en la \
+                     pasada 2 (reportá este bug)"
+                ),
+            ));
+        }
     };
     Ok(vec![w])
 }
 
-fn load_f3(m: &str) -> u32 {
+/// funct3 de cargas/almacenamientos. Devuelve error interno si el mnemónico
+/// no es de este grupo (antes era un `unreachable!` que tiraba la app).
+fn load_f3(c: &Ctx, m: &str) -> Result<u32, AsmError> {
     match m {
-        "lb" => 0,
-        "lh" => 1,
-        "lw" => 2,
-        "lbu" => 4,
-        "lhu" => 5,
-        "sb" => 0,
-        "sh" => 1,
-        "sw" => 2,
-        _ => unreachable!(),
+        "lb" => Ok(0),
+        "lh" => Ok(1),
+        "lw" => Ok(2),
+        "lbu" => Ok(4),
+        "lhu" => Ok(5),
+        "sb" => Ok(0),
+        "sh" => Ok(1),
+        "sw" => Ok(2),
+        _ => Err(AsmError::new(
+            c.ins.line,
+            1,
+            format!(
+                "error interno del ensamblador: «{m}» no es una carga ni un \
+                 almacenamiento conocido (reportá este bug)"
+            ),
+        )),
     }
 }
 
 fn encode_load(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
-    let rd = c.reg(0);
-    match &c.ins.ops[1].kind {
-        OpKind::Mem { off, base } => {
+    let rd = c.reg(0)?;
+    match c.ins.ops.get(1).map(|o| &o.kind) {
+        Some(OpKind::Mem { off, base }) => {
             let imm = c.check_imm12(1, *off)?;
-            Ok(vec![enc_i(imm, *base, load_f3(m), rd, 0x03)])
+            Ok(vec![enc_i(imm, *base, load_f3(c, m)?, rd, 0x03)])
         }
-        OpKind::Sym(_) => {
+        Some(OpKind::Sym(_)) => {
             // lw rd, etiqueta  →  lui rd, %hi ; lw rd, %lo(rd)
             let addr = c.target(1)?;
             Ok(vec![
                 enc_u(hi20(addr), rd, 0x37),
-                enc_i(lo12(addr), rd, load_f3(m), rd, 0x03),
+                enc_i(lo12(addr), rd, load_f3(c, m)?, rd, 0x03),
             ])
         }
-        _ => unreachable!("forma validada en pasada 1"),
+        _ => Err(c.internal_err(1, "un operando de memoria o una etiqueta")),
     }
 }
 
 fn encode_store(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
-    let rs2 = c.reg(0);
+    let rs2 = c.reg(0)?;
     if c.ins.ops.len() == 2 {
-        let (off, base) = c.mem(1);
+        let (off, base) = c.mem(1)?;
         let imm = c.check_imm12(1, off)?;
-        Ok(vec![enc_s(imm, rs2, base, load_f3(m))])
+        Ok(vec![enc_s(imm, rs2, base, load_f3(c, m)?)])
     } else {
         // sw rs2, etiqueta, rt  →  lui rt, %hi ; sw rs2, %lo(rt)
         let addr = c.target(1)?;
-        let rt = c.reg(2);
+        let rt = c.reg(2)?;
         if rt == 0 {
             return Err(AsmError::new(
                 c.ins.line,
@@ -1448,14 +1491,14 @@ fn encode_store(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
         }
         Ok(vec![
             enc_u(hi20(addr), rt, 0x37),
-            enc_s(lo12(addr), rs2, rt, load_f3(m)),
+            enc_s(lo12(addr), rs2, rt, load_f3(c, m)?),
         ])
     }
 }
 
 fn encode_li(c: &Ctx) -> Result<Vec<u32>, AsmError> {
-    let rd = c.reg(0);
-    let v = c.imm(1);
+    let rd = c.reg(0)?;
+    let v = c.imm(1)?;
     if fits12(v) {
         return Ok(vec![enc_i(v as i32, 0, 0, rd, 0x13)]);
     }
@@ -1597,6 +1640,23 @@ mod tests {
         let e = first_error("eti: nop\neti: nop");
         assert!(e.msg.contains("etiqueta duplicada"), "{}", e.msg);
         assert!(e.msg.contains("línea 1"), "{}", e.msg);
+    }
+
+    #[test]
+    fn salto_condicional_a_destino_impar_es_error() {
+        // 0x400009 está a 9 bytes de TEXT_BASE: offset impar que la
+        // codificación tipo B descartaría en silencio (bit 0).
+        let e = first_error("beq x1, x2, 0x400009");
+        assert_eq!(e.line, 1);
+        assert!(e.msg.contains("no alineado a 2 bytes"), "{}", e.msg);
+    }
+
+    #[test]
+    fn jal_a_destino_impar_es_error() {
+        // Mismo caso para la codificación tipo J (jal).
+        let e = first_error("jal x1, 0x400009");
+        assert_eq!(e.line, 1);
+        assert!(e.msg.contains("no alineado a 2 bytes"), "{}", e.msg);
     }
 
     #[test]

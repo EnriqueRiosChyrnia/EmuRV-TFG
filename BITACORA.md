@@ -192,3 +192,20 @@ Línea base medida (build debug, Mac Apple Silicon):
 - `npx tsc --noEmit`: limpio.
 
 Coincide con lo esperado por el plan. [Seguro — medido en esta sesión]
+
+## Etapa 1 — Correcciones de código Rust (2026-06-11)
+
+Hallazgos verificados del análisis multi-agente, corregidos en esta tanda:
+
+1. **Panics latentes eliminados del ensamblador [Seguro]:** los 7 `unreachable!()` de `assembler.rs` (Ctx::reg/imm/mem/target, fallback de `encode_instr`, `load_f3`, `encode_load`) ahora devuelven `AsmError` controlado ("error interno del ensamblador… reportá este bug"). Si la pasada 1 y la pasada 2 divergieran al agregar un mnemónico futuro, la app reporta error en vez de caer. `Ctx::reg/imm/mem` usan `ops.get(i)` (también cubre divergencia en cantidad de operandos).
+2. **Validación de alineación en saltos [Seguro]:** `branch_off`/`jal_off` (embudo único de offsets B/J) rechazan destino impar con error en español "destino de salto no alineado a 2 bytes" antes del chequeo de rango. Antes `enc_b`/`enc_j` descartaban el bit 0 en silencio con inmediato numérico. Tests nuevos: `salto_condicional_a_destino_impar_es_error`, `jal_a_destino_impar_es_error`.
+3. **Mutex envenenado [Seguro]:** los `lock().unwrap()` de `commands.rs` (EmuManager en assemble ×2, export_elf, with_session) y `machine.rs` (video_shared en load) ahora propagan error en español ("estado del emulador corrupto" / "estado de video corrupto"), imitando el patrón que ya usaba `read_framebuffer`. En `publicar_frame` (firma infalible) el lock envenenado se recupera con `into_inner()` — los datos del frame son POD, sin invariantes rotos.
+4. **`read_c_string` ya no trunca en silencio [Seguro]:** cadena sin NUL dentro de 1 MB → `RuntimeError` explícito ("cadena sin terminador NUL (límite 1 MB)") por el mismo mecanismo `fail()` del resto de los syscalls.
+5. **`pc()`/`registers()` propagan error [Seguro]:** antes degradaban fallos de `reg_read` a 0 con `unwrap_or(0)` (un fallo se disfrazaba de "registro vale 0"). Ahora devuelven `Result`; en contextos infalibles (step/run) el fallo se convierte en `StopReason::RuntimeError` con el mensaje real.
+6. **Exit code de syscall 10 documentado [Seguro]:** el campo `code` de `StopReason::Exited` lee estado real pero con solo syscall 10 siempre vale 0 (convención RARS: exit sin código). Documentado en código; syscall 93 (exit2 con código) queda como trabajo futuro declarado. No se agregaron syscalls.
+7. **Código muerto:** eliminados `MachData.pause` (write-only, 5 escrituras) y `ABI_NAMES` (sin referencias). `read_u8/write_u8/read_u32/write_u32` se conservan comentados como API de soporte de tests de integración (fb0): cfg(test) no aplica a tests de integración y no existe API de escritura de producción equivalente.
+8. **Tests:** borrado `tests/debug_fb_write.rs` (residuo de depuración). `fb1_performance_conversion` marcado `#[ignore]` (assertaba ≤3 ms en build debug → flaky; se mide en release en la etapa de mediciones).
+
+**Decisión MMIO vsync [Probable]:** escribir en `VIDEO_CONTROL_BASE` NO dispara publicación inmediata del frame (no hay hook de escritura; la publicación ocurre al final de cada tramo de ejecución y en syscall 5, leyendo el registro de control). De las dos opciones del plan (implementar hook de publicación al escribir control=1, o corregir la documentación que promete "escribir 1 = frame listo"), se elige **corregir la documentación** (Etapa 3): menor riesgo, cero cambio de comportamiento en código verificado visualmente, y la semántica real (volcado a ritmo fijo ~30 Hz) es la que PLAN-FRAMEBUFFER ya justificaba en RB-2. Implementar el hook queda como mejora futura posible.
+
+**Gate de cierre Etapa 1:** `cargo test` **55 pasan + 4 `#[ignore]` = 59** (eran 55+3: −1 debug_fb_write borrado, −1 fb1_performance a ignore, +2 tests de alineación) · clippy 0 warnings · tsc limpio. Desvío declarado: `tests/integracion_ejemplos.rs` recibió un cambio de una línea (firma nueva de `registers()`) fuera de la lista original de archivos.

@@ -33,7 +33,7 @@ fn run_program(src: &str, inputs: &[&str]) -> (String, [u32; 32], StopReason) {
             output.push_str(&s);
         }
     }
-    (output, m.registers(), reason)
+    (output, m.registers().expect("registros legibles"), reason)
 }
 
 #[test]

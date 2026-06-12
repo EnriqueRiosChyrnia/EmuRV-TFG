@@ -15,8 +15,8 @@ use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::video::{FramebufferRGBA, VideoShared};
 use super::{
     DATA_BASE, DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE,
-    FRAMEBUFFER_SIZE, GP_INIT, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE, SP_INIT,
-    STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
+    FRAMEBUFFER_SIZE, GP_INIT, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE, SP_INIT, STACK_SIZE,
+    STACK_TOP, TEXT_BASE, TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
 };
 use serde::Serialize;
 use std::collections::HashSet;
@@ -35,7 +35,10 @@ const PC: RegisterRISCV = RegisterRISCV::PC;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StopReason {
-    /// El programa terminó vía syscall 10.
+    /// El programa terminó vía syscall 10. Con solo syscall 10 (exit sin
+    /// argumento, convención RARS) `code` es siempre 0; un código de salida
+    /// variable llegaría con la syscall 93 (exit2 con código), trabajo
+    /// futuro declarado.
     Exited { code: i32 },
     /// Se alcanzó un breakpoint (la instrucción en `addr` NO se ejecutó).
     Breakpoint { addr: u32 },
@@ -55,8 +58,6 @@ pub struct MachData {
     pub exit_code: Option<i32>,
     pub hit_breakpoint: Option<u32>,
     pub runtime_error: Option<String>,
-    /// Pausa pedida desde un hook (ebreak o cancelación de entrada).
-    pub pause: bool,
     pub breakpoints: HashSet<u32>,
     /// Breakpoint a ignorar una vez (el del pc actual al reanudar).
     pub suppress_bp: Option<u32>,
@@ -114,7 +115,6 @@ impl Machine<'_> {
             exit_code: None,
             hit_breakpoint: None,
             runtime_error: None,
-            pause: false,
             breakpoints: HashSet::new(),
             suppress_bp: None,
             bad_mem: None,
@@ -198,7 +198,10 @@ impl Machine<'_> {
             // Si la pantalla estaba en uso, publicar un frame negro: tras
             // Reiniciar el panel debe reflejar la VRAM limpia, no el último
             // frame de la corrida anterior.
-            let mut v = d.video_shared.lock().unwrap();
+            let mut v = d
+                .video_shared
+                .lock()
+                .map_err(|_| String::from("estado de video corrupto"))?;
             if v.in_use {
                 let mut negro = FramebufferRGBA::new();
                 negro.convert(
@@ -236,9 +239,7 @@ impl Machine<'_> {
 
         use super::video::palette_vga13h_default;
         let pal = palette_vga13h_default();
-        self.uc
-            .mem_write(PALETTE_BASE as u64, &pal)
-            .map_err(err)?;
+        self.uc.mem_write(PALETTE_BASE as u64, &pal).map_err(err)?;
         self.uc
             .mem_write(VIDEO_CONTROL_BASE as u64, &[0u8; 4])
             .map_err(err)?;
@@ -262,7 +263,6 @@ impl Machine<'_> {
         d.exit_code = None;
         d.hit_breakpoint = None;
         d.runtime_error = None;
-        d.pause = false;
         d.suppress_bp = None;
         d.bad_mem = None;
         Ok(())
@@ -277,17 +277,27 @@ impl Machine<'_> {
         &self.program
     }
 
-    pub fn pc(&self) -> u32 {
-        self.uc.reg_read(PC).unwrap_or(0) as u32
+    /// Lee el pc. Si Unicorn no puede leerlo, el error se propaga en vez de
+    /// disfrazarse como "pc = 0".
+    pub fn pc(&self) -> Result<u32, String> {
+        self.uc
+            .reg_read(PC)
+            .map(|v| v as u32)
+            .map_err(|e| format!("no se pudo leer el pc: {e:?}"))
     }
 
-    /// x0..x31 (x0 siempre 0).
-    pub fn registers(&self) -> [u32; 32] {
+    /// x0..x31 (x0 siempre 0). Si algún registro no se puede leer, el error
+    /// se propaga en vez de reportar "el registro vale 0".
+    pub fn registers(&self) -> Result<[u32; 32], String> {
         let mut regs = [0u32; 32];
         for (n, r) in regs.iter_mut().enumerate().skip(1) {
-            *r = self.uc.reg_read(xreg(n as u8)).unwrap_or(0) as u32;
+            *r = self
+                .uc
+                .reg_read(xreg(n as u8))
+                .map_err(|e| format!("no se pudo leer el registro x{n}: {e:?}"))?
+                as u32;
         }
-        regs
+        Ok(regs)
     }
 
     pub fn read_mem(&self, addr: u32, len: usize) -> Result<Vec<u8>, String> {
@@ -295,6 +305,11 @@ impl Machine<'_> {
             .mem_read_as_vec(addr as u64, len)
             .map_err(|_| format!("la dirección 0x{addr:08X} no está mapeada"))
     }
+
+    // --- API de soporte para tests de integración (fb0) ---
+    // `read_mem` cubre las lecturas que usa producción, pero no existe una
+    // API de escritura equivalente: estos cuatro helpers quedan para
+    // tests/fb0_video_memory.rs.
 
     pub fn read_u8(&self, addr: u64) -> Result<u8, String> {
         self.read_mem(addr as u32, 1).map(|v| v[0])
@@ -307,9 +322,8 @@ impl Machine<'_> {
     }
 
     pub fn read_u32(&self, addr: u64) -> Result<u32, String> {
-        self.read_mem(addr as u32, 4).map(|v| {
-            u32::from_le_bytes([v[0], v[1], v[2], v[3]])
-        })
+        self.read_mem(addr as u32, 4)
+            .map(|v| u32::from_le_bytes([v[0], v[1], v[2], v[3]]))
     }
 
     pub fn write_u32(&mut self, addr: u64, val: u32) -> Result<(), String> {
@@ -397,7 +411,6 @@ impl Machine<'_> {
         let d = self.uc.get_data_mut();
         d.hit_breakpoint = None;
         d.runtime_error = None;
-        d.pause = false;
         d.bad_mem = None;
     }
 
@@ -414,7 +427,10 @@ impl Machine<'_> {
             self.tb_de_corrida = false;
         }
         // Un paso nunca debe frenarse en el breakpoint del pc actual.
-        let pc = self.pc();
+        let pc = match self.pc() {
+            Ok(pc) => pc,
+            Err(message) => return StopReason::RuntimeError { message },
+        };
         self.uc.get_data_mut().suppress_bp = Some(pc);
         let result = self.uc.emu_start(pc as u64, NEVER, 0, 1);
         self.uc.get_data_mut().suppress_bp = None;
@@ -429,7 +445,10 @@ impl Machine<'_> {
             return StopReason::Exited { code };
         }
         self.clear_run_state();
-        let pc = self.pc();
+        let pc = match self.pc() {
+            Ok(pc) => pc,
+            Err(message) => return StopReason::RuntimeError { message },
+        };
         // Al reanudar sobre un breakpoint, ese breakpoint no cuenta.
         if self.uc.get_data().breakpoints.contains(&pc) {
             self.uc.get_data_mut().suppress_bp = Some(pc);
@@ -443,6 +462,8 @@ impl Machine<'_> {
     /// Traduce el resultado de `emu_start` + flags de los hooks a un
     /// `StopReason`, con errores en español.
     fn interpret(&mut self, result: Result<(), uc_error>, normal: StopReason) -> StopReason {
+        // El pc se lee antes de tomar `data` (préstamos); solo se usa para
+        // armar el mensaje de error, así que su fallo se difiere a esa rama.
         let pc = self.pc();
         let d = self.uc.get_data_mut();
         if let Some(msg) = d.runtime_error.take() {
@@ -458,8 +479,13 @@ impl Machine<'_> {
             Ok(()) => normal,
             Err(e) => {
                 let bad = d.bad_mem.take();
-                StopReason::RuntimeError {
-                    message: runtime_error_message(e, pc, bad),
+                match pc {
+                    Ok(pc) => StopReason::RuntimeError {
+                        message: runtime_error_message(e, pc, bad),
+                    },
+                    // Si ni el pc se pudo leer, ese fallo ES el diagnóstico:
+                    // no inventamos un pc en 0 para el mensaje didáctico.
+                    Err(message) => StopReason::RuntimeError { message },
                 }
             }
         }
@@ -507,8 +533,7 @@ fn runtime_error_message(e: uc_error, pc: u32, bad_mem: Option<(MemType, u64)>) 
 /// donde no hay `Machine`. Mientras el programa no use la pantalla no
 /// publica nada (RF4: cero costo para programas sin gráficos).
 pub fn publicar_frame(uc: &mut Unicorn<'_, MachData>) {
-    let Ok(fb) = uc.mem_read_as_vec(FRAMEBUFFER_BASE as u64, FRAMEBUFFER_DATA_SIZE as usize)
-    else {
+    let Ok(fb) = uc.mem_read_as_vec(FRAMEBUFFER_BASE as u64, FRAMEBUFFER_DATA_SIZE as usize) else {
         return;
     };
     if !uc.get_data().video_used {
@@ -533,7 +558,15 @@ pub fn publicar_frame(uc: &mut Unicorn<'_, MachData>) {
     let mut rgba = FramebufferRGBA::new();
     rgba.convert(fb_data, pal_data);
     {
-        let mut v = uc.get_data().video_shared.lock().unwrap();
+        // Si otro hilo entró en pánico con el lock tomado, el mutex queda
+        // envenenado: lo recuperamos igual porque los datos del frame son
+        // POD (bytes RGBA y contadores), no hay invariantes que puedan
+        // quedar rotos a medias.
+        let mut v = uc
+            .get_data()
+            .video_shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         v.rgba = Some(rgba.data);
         v.seq += 1;
         v.in_use = true;
@@ -569,8 +602,8 @@ mod tests {
     #[test]
     fn estado_inicial_estilo_rars() {
         let (m, _o, _i) = machine_for("nop");
-        assert_eq!(m.pc(), TEXT_BASE);
-        let r = m.registers();
+        assert_eq!(m.pc().unwrap(), TEXT_BASE);
+        let r = m.registers().unwrap();
         assert_eq!(r[2], SP_INIT); // sp
         assert_eq!(r[3], GP_INIT); // gp
         assert_eq!(r[0], 0);
@@ -580,11 +613,11 @@ mod tests {
     fn paso_a_paso_actualiza_registros() {
         let (mut m, _o, _i) = machine_for("li t0, 7\nli t1, 35\nadd t2, t0, t1");
         assert_eq!(m.step(), StopReason::StepDone);
-        assert_eq!(m.registers()[5], 7);
-        assert_eq!(m.pc(), TEXT_BASE + 4);
+        assert_eq!(m.registers().unwrap()[5], 7);
+        assert_eq!(m.pc().unwrap(), TEXT_BASE + 4);
         m.step();
         m.step();
-        assert_eq!(m.registers()[7], 42);
+        assert_eq!(m.registers().unwrap()[7], 42);
     }
 
     #[test]
@@ -595,15 +628,15 @@ mod tests {
         let r = m.run(0);
         assert_eq!(r, StopReason::Exited { code: 0 });
         assert_eq!(collected_output(&out), "5");
-        assert_eq!(m.registers()[11], 9); // la instrucción post-ecall corrió
+        assert_eq!(m.registers().unwrap()[11], 9); // la instrucción post-ecall corrió
     }
 
     #[test]
     fn salida_con_codigo_y_estado_final() {
         let (mut m, _o, _i) = machine_for("li a0, 3\nli a7, 10\necall\nli a0, 99");
         assert_eq!(m.run(0), StopReason::Exited { code: 0 });
-        assert_eq!(m.registers()[10], 3); // li a0,99 nunca se ejecutó
-                                          // correr de nuevo sigue reportando la salida
+        assert_eq!(m.registers().unwrap()[10], 3); // li a0,99 nunca se ejecutó
+                                                   // correr de nuevo sigue reportando la salida
         assert_eq!(m.run(0), StopReason::Exited { code: 0 });
     }
 
@@ -615,12 +648,12 @@ mod tests {
         let bp = TEXT_BASE + 8;
         m.set_breakpoints(HashSet::from([bp])).unwrap();
         assert_eq!(m.run(0), StopReason::Breakpoint { addr: bp });
-        assert_eq!(m.pc(), bp);
-        assert_eq!(m.registers()[6], 2); // t1 ya asignado
-        assert_eq!(m.registers()[7], 0); // t2 todavía no
-                                         // reanudar desde el breakpoint no debe volver a frenar ahí
+        assert_eq!(m.pc().unwrap(), bp);
+        assert_eq!(m.registers().unwrap()[6], 2); // t1 ya asignado
+        assert_eq!(m.registers().unwrap()[7], 0); // t2 todavía no
+                                                  // reanudar desde el breakpoint no debe volver a frenar ahí
         assert_eq!(m.run(0), StopReason::Exited { code: 0 });
-        assert_eq!(m.registers()[7], 3);
+        assert_eq!(m.registers().unwrap()[7], 3);
     }
 
     #[test]
@@ -631,8 +664,8 @@ mod tests {
         let w = m.read_mem(DATA_BASE, 4).unwrap();
         assert_eq!(w, 8u32.to_le_bytes());
         m.reset().unwrap();
-        assert_eq!(m.pc(), TEXT_BASE);
-        assert_eq!(m.registers()[5], 0);
+        assert_eq!(m.pc().unwrap(), TEXT_BASE);
+        assert_eq!(m.registers().unwrap()[5], 0);
         assert_eq!(m.read_mem(DATA_BASE, 4).unwrap(), 1u32.to_le_bytes());
     }
 
@@ -647,7 +680,11 @@ mod tests {
         let bp = TEXT_BASE + 8; // tercera instrucción
         m.set_breakpoints([bp].into()).unwrap();
         assert_eq!(m.run(0), StopReason::Breakpoint { addr: bp });
-        assert_eq!(m.registers()[5], 2, "ejecutó hasta antes del breakpoint");
+        assert_eq!(
+            m.registers().unwrap()[5],
+            2,
+            "ejecutó hasta antes del breakpoint"
+        );
     }
 
     /// Regresión del bug reportado: tras Reiniciar, «Paso» no avanzaba y
@@ -660,15 +697,15 @@ mod tests {
         assert_eq!(m.run(0), StopReason::Exited { code: 0 });
         m.reset().unwrap();
 
-        assert_eq!(m.pc(), TEXT_BASE);
+        assert_eq!(m.pc().unwrap(), TEXT_BASE);
         assert_eq!(m.step(), StopReason::StepDone, "primer paso tras reset");
-        assert_eq!(m.pc(), TEXT_BASE + 4, "el pc debe avanzar");
-        assert_eq!(m.registers()[5], 5, "li t0, 5 ejecutado");
+        assert_eq!(m.pc().unwrap(), TEXT_BASE + 4, "el pc debe avanzar");
+        assert_eq!(m.registers().unwrap()[5], 5, "li t0, 5 ejecutado");
 
         assert_eq!(m.step(), StopReason::StepDone, "segundo paso");
-        assert_eq!(m.registers()[6], 7, "li t1, 7 ejecutado");
+        assert_eq!(m.registers().unwrap()[6], 7, "li t1, 7 ejecutado");
         assert_eq!(m.step(), StopReason::StepDone, "tercer paso");
-        assert_eq!(m.registers()[7], 12, "add ejecutado");
+        assert_eq!(m.registers().unwrap()[7], 12, "add ejecutado");
     }
 
     #[test]
@@ -700,7 +737,7 @@ mod tests {
         let (mut m, out, input) = machine_for("li a7, 5\necall\nmv t0, a0\nli a7, 10\necall");
         input.send(InputMsg::Line("123".into())).unwrap();
         assert_eq!(m.run(0), StopReason::Exited { code: 0 });
-        assert_eq!(m.registers()[5], 123);
+        assert_eq!(m.registers().unwrap()[5], 123);
         let mut saw_request = false;
         while let Ok(ev) = out.try_recv() {
             if matches!(ev, ConsoleEvent::InputRequest) {

@@ -1,10 +1,7 @@
 /// Test FB1: núcleo del framebuffer
 /// Verifica conversión índice→RGBA, comando read_framebuffer, rendimiento.
 use emurv_lib::core::{
-    assembler::assemble,
-    machine::Machine,
-    syscalls::ConsoleEvent,
-    FRAMEBUFFER_BASE, PALETTE_BASE,
+    assembler::assemble, machine::Machine, syscalls::ConsoleEvent, FRAMEBUFFER_BASE, PALETTE_BASE,
 };
 use std::sync::mpsc::channel;
 use std::time::Instant;
@@ -65,10 +62,19 @@ fn fb1_conversion_pixeles_conocidos() {
 fn fb1_tamaño_buffer_correcto() {
     let src = ".text\n  ecall";
     let (fb, _) = run_program_and_read_fb(src);
-    assert_eq!(fb.len(), 320 * 240 * 4, "buffer debe ser 307200 bytes (320×240×4)");
+    assert_eq!(
+        fb.len(),
+        320 * 240 * 4,
+        "buffer debe ser 307200 bytes (320×240×4)"
+    );
 }
 
+/// Conversión del framebuffer a RGBA en menos de 3 ms de promedio.
+///
+/// Marcado #[ignore]: el umbral solo vale en release. Ejecutar con:
+/// `cargo test --release --test fb1_framebuffer_core -- --ignored --nocapture`
 #[test]
+#[ignore]
 fn fb1_performance_conversion() {
     let src = ".text\n  ecall";
     let mut duraciones = Vec::new();
@@ -91,7 +97,7 @@ fn fb1_performance_conversion() {
     eprintln!("FB1 conversión: {} ms promedio", promedio);
     assert!(
         promedio <= 3,
-        "conversión debe ser <= 3 ms (obtuvo {} ms)",
+        "conversión debe ser <= 3 ms en release (obtuvo {} ms)",
         promedio
     );
 }
