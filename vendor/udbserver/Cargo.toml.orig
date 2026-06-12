@@ -1,0 +1,27 @@
+[package]
+name = "udbserver"
+version = "0.3.0"
+authors = ["Bet4 <0xbet4@gmail.com>"]
+description = "Provide Unicorn emulator with a debug server"
+license = "MIT"
+edition = "2021"
+readme = "README.md"
+repository = "https://github.com/bet4it/udbserver"
+categories = ["emulators"]
+keywords = ["gdb", "debugging", "emulator"]
+
+[lib]
+name = "udbserver"
+crate-type = ["lib"]
+
+[features]
+capi = []
+
+[dependencies]
+gdbstub = "0.7.9"
+singlyton = "4"
+unicorn-engine = { version = "2.1.4", features = ["dynamic_linkage"] }
+
+[package.metadata.capi.header]
+subdirectory = false
+generation = false

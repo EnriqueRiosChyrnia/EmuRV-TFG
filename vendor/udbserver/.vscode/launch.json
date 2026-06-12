@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=server",
+                    "--package=udbserver"
+                ],
+                "filter": {
+                    "name": "server",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

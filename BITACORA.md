@@ -657,3 +657,48 @@ Plan `docs/PLAN-RP6-gdb.md`. Feature `gdb` opcional en la lib (`udbserver = "0.3
 - **Tests RSP como proceso real** (`tests/rp6_debug.rs`, 4 + cliente común `tests/rsp_common/`): (a) dos `s` → t0=5, t1=7, pc=+8 (semántica conocida del fuente); (b) `m` lee `.word 0xCAFEBABE` de .data (little-endian verificado); (c) `Z0`+`c` clava el pc EXACTO en la dirección de la etiqueta `meta` calculada con `Program.symbols` (t0 ejecutado, t2 no); (d) `z0`+`c` → corre a fin, proceso exit 0; (e) syscalls bajo el depurador: «hola desde gdb\n» EXACTO en stdout, stub en stderr; (f) puerto ocupado → exit 1 sin pánico.
 
 Compuerta F2 ✓: emurv-cli 20 tests verdes + src-tauri 20 suites, clippy 0 en ambos.
+
+## RP6 Fase 3 — Convivencia, símbolos en el ELF y sesión gdb real (2026-06-12)
+
+### Dos hallazgos del camino, ambos resueltos vendoreando udbserver
+
+1. **udbserver fuerza `dynamic_linkage` en unicorn-engine** (visto en su Cargo.toml): la unificación de features de cargo linkeaba Unicorn DINÁMICO en todo el grafo del CLI y el binario release moría con «Library not loaded: @rpath/libunicorn.2.dylib» (sin LC_RPATH). La app Tauri NO se ve afectada (grafo sin la feature gdb → estático). **Fix: copia vendoreada 1:1 en `vendor/udbserver/` (MIT lo permite) con la feature `dynamic_linkage` removida** — la API de udbserver no la necesita; binario standalone verificado. [Seguro — reproducido y verificado]
+2. **udbserver imprime «Disconnect!» y otros mensajes por STDOUT**: contaminaba el canal EXCLUSIVO del programa invitado (regla crítica RP-3). En el vendor: 4 `println!` → `eprintln!`. [Seguro]
+
+El vendor queda documentado en su propio Cargo.toml; total de cambios sobre upstream: 1 línea de features + 4 println. Si upstream lo arregla, se vuelve a crates.io.
+
+### Símbolos en el ELF exportado (F3.3 — resultó barato)
+
+`elf_export.rs` ahora escribe **`.symtab` + `.strtab`** con el Writer de bajo nivel de `object`: cada etiqueta de `Program.symbols` como símbolo GLOBAL (FUNC si cae en .text, OBJECT si en .data). `file` reporta «not stripped»; `objdump -t` muestra main/factorial/caso_base/msj/nl. Detalle ELF cuidado: `sh_info` del symtab = índice del primer símbolo no-local (=1: solo el nulo es local). Beneficio directo: `break factorial` por NOMBRE en gdb real. [Seguro]
+
+### Convivencia bajo el stub (tests 6/6 en rp6_debug.rs)
+
+- Teclado MMIO: `m ffff0000,4` del host devuelve 0 SIN consumir (página con respaldo — la decisión de TEC2 paga acá) y el guest que hace `lw` ve 0 con cola vacía; el hook MEM_READ convive con los del stub.
+- Multi-archivo RP-5: breakpoint en `saludar` (etiqueta definida DENTRO de un include) clava el pc 3 veces (una por llamada) y la salida completa llega a stdout.
+
+### Sesión gdb REAL (riscv64-elf-gdb 17.2, instalado vía brew) — transcript
+
+```
+$ emurv-cli debug ejemplos/05-pila-funciones.asm --port 3413   # terminal A
+$ riscv64-elf-gdb /tmp/pila_sym.elf                             # terminal B (batch equivalente)
+The target architecture is set to "riscv:rv32".
+0x00400000 in main ()
+pc             0x400000	0x400000 <main>
+Breakpoint 1 at 0x40003c          ← «break factorial» por NOMBRE (símbolos del ELF;
+                                     gdb saltea el prólogo: factorial+4)
+Breakpoint 1, 0x0040003c in factorial ()
+pc             0x40003c	0x40003c <factorial+4>
+a0             0x5	5             ← el argumento real del factorial
+ra             0x400018	0x400018 <main+24>
+0x00400040 in factorial ()        ← stepi
+pc             0x400040	0x400040 <factorial+8>
+0x10010000:	0x3d202135	0x000a0020 ← x/2xw .data: "5! =" en bytes LE
+factorial + 8 in section .text    ← info symbol $pc
+Remote connection closed
+--- stdout del proceso debug (exclusivo del invitado): 5! = 120
+--- stderr: esperando conexión gdb… / Debugger connected / programa terminado bajo el depurador
+```
+
+Nota: lldb (intento previo) conecta y frena (SIGTRAP) pero su soporte riscv32 por gdb-remote no inicializa el contexto de registros en batch — bloqueo documentado; el cliente canónico es gdb y funciona completo.
+
+Compuerta F3 ✓: 20 suites src-tauri + 20 tests CLI, clippy 0 ambos, transcript real pegado.

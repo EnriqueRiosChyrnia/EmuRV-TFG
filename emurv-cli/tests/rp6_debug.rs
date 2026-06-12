@@ -171,3 +171,81 @@ fn debug_puerto_ocupado_sale_1() {
     assert!(!stderr.contains("panic"), "{stderr}");
     drop(ocupante);
 }
+
+// ---------------------------------------------------------------------------
+// RP6 Fase 3 — convivencia con EmuRV real.
+// ---------------------------------------------------------------------------
+
+/// Teclado MMIO bajo el stub: el hook MEM_READ sigue vivo. El host lee
+/// CONTROL con `m` (página con respaldo: NO consume) y el guest, al hacer
+/// lw, ve 0 (cola vacía en headless).
+#[test]
+fn debug_convive_con_teclado_mmio() {
+    let fuente = "
+.text
+  li t1, 0xFFFF0000
+  lw t0, 0(t1)
+  li a7, 10
+  ecall
+";
+    let ruta = carpeta_con("mmio", fuente);
+    let port = puerto_libre();
+    let hijo = cli_debug(ruta.to_str().unwrap(), port);
+    let mut rsp = Rsp::conectar(port);
+    let _ = rsp.enviar("qSupported:swbreak+");
+
+    // Lectura de host ANTES de que el guest toque la página.
+    let m = rsp.enviar("mffff0000,4");
+    assert_eq!(m, "00000000", "CONTROL=0 visto por el host: {m}");
+
+    // step ×2: li (lui) + lw — el hook MEM_READ del teclado atiende el lw.
+    let _ = rsp.enviar("s");
+    let _ = rsp.enviar("s");
+    let g = rsp.enviar("g");
+    assert_eq!(Rsp::reg_de_g(&g, 5), 0, "t0 = CONTROL = 0 (cola vacía)");
+
+    let _ = rsp.s.set_read_timeout(Some(Duration::from_millis(500)));
+    let _ = std::io::Write::write_all(&mut rsp.s, b"$c#63");
+    let out = esperar(hijo, limite());
+    assert_eq!(out.status.code(), Some(0));
+}
+
+/// Multi-archivo (RP-5) bajo el stub: breakpoint en la dirección de una
+/// etiqueta definida DENTRO de un include (saludar, en utiles.s).
+#[test]
+fn debug_multiarchivo_breakpoint_en_etiqueta_de_include() {
+    let main = "../ejemplos/11-multiarchivo/main.s";
+    let fuente = std::fs::read_to_string(main).expect("leer main.s");
+    let base = std::path::Path::new(main).parent();
+    let programa =
+        emurv_lib::core::assembler::assemble_with_includes(&fuente, base, "main.s")
+            .expect("ensambla");
+    let dir_saludar = programa.symbols["saludar"];
+
+    let port = puerto_libre();
+    let hijo = cli_debug(main, port);
+    let mut rsp = Rsp::conectar(port);
+    let _ = rsp.enviar("qSupported:swbreak+");
+
+    assert_eq!(rsp.enviar(&format!("Z0,{dir_saludar:x},4")), "OK");
+    // saludar se llama 3 veces (VECES de constantes.s): 3 paradas.
+    for i in 1..=3 {
+        let r = rsp.enviar("c");
+        assert!(r.starts_with('S') || r.starts_with('T'), "parada {i}: {r}");
+        let g = rsp.enviar("g");
+        assert_eq!(
+            Rsp::reg_de_g(&g, 32),
+            dir_saludar,
+            "parada {i} clavada en saludar (etiqueta del include)"
+        );
+    }
+    assert_eq!(rsp.enviar(&format!("z0,{dir_saludar:x},4")), "OK");
+    let _ = rsp.s.set_read_timeout(Some(Duration::from_millis(500)));
+    let _ = std::io::Write::write_all(&mut rsp.s, b"$c#63");
+    let out = esperar(hijo, limite());
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "¡Hola desde varios archivos!\n¡Hola desde varios archivos!\n¡Hola desde varios archivos!\nListo.\n"
+    );
+}
