@@ -2,7 +2,7 @@
 
 > Documento técnico. Componente desarrollado durante la implementación de EmuRV v0.1.
 > Estado: implementado y verificado (35/35 tests al cierre de v0.1, clippy 0 warnings).
-> **Actualización 2026-06-11:** tras la fase framebuffer, la suite completa del proyecto cierra en **55 tests verdes + 4 marcados `#[ignore]`** (59 totales); ver nota en §5.
+> **Actualización 2026-06-11:** tras la fase framebuffer, la suite completa del proyecto cierra en **55 tests verdes + 5 marcados `#[ignore]`** (60 totales; el quinto `#[ignore]` es el bench de FPS `fb4_fps` agregado en la etapa de mediciones del 2026-06-11); ver nota en §5.
 
 ## 1. Origen de la decisión
 
@@ -74,7 +74,7 @@ Las codificaciones se validaron contra la especificación RV32I calculadas a man
 
 La suite completa del proyecto (ensamblador + máquina + syscalls + export ELF + integración de los 6 ejemplos) cierra en **35/35 tests verdes**, con `cargo clippy --all-targets` sin advertencias.
 
-> **Nota (2026-06-11):** el «35/35 tests verdes» y «los 6 ejemplos» del párrafo anterior describen el estado al cierre de v0.1 y se conservan como registro histórico. Tras la fase framebuffer, la suite completa del proyecto cierra en **55 tests verdes + 4 marcados `#[ignore]`** (benchmarks de rendimiento que se ejecutan solo en release, con `cargo test --release -- --ignored`), es decir **59 tests totales**; y los ejemplos en `ejemplos/` son **7**: el `06-tetris` ASCII fue reemplazado por `08-tetris-grafico` (FB3) y se añadió `07-franjas` (FB2).
+> **Nota (2026-06-11):** el «35/35 tests verdes» y «los 6 ejemplos» del párrafo anterior describen el estado al cierre de v0.1 y se conservan como registro histórico. Tras la fase framebuffer, la suite completa del proyecto cierra en **55 tests verdes + 5 marcados `#[ignore]`** (benchmarks de rendimiento que se ejecutan solo en release, con `cargo test --release -- --ignored`; incluye el bench de FPS `fb4_fps` de la etapa de mediciones), es decir **60 tests totales**; y los ejemplos en `ejemplos/` son **7**: el `06-tetris` ASCII fue reemplazado por `08-tetris-grafico` (FB3) y se añadió `07-franjas` (FB2).
 
 ## 6. Relación con el stack documentado
 
