@@ -648,3 +648,12 @@ Plan `docs/PLAN-RP6-gdb.md`. Feature `gdb` opcional en la lib (`udbserver = "0.3
 4. **Costo y licencias:** compilación incremental de udbserver+gdbstub en segundos; `unicorn-engine` UNIFICADO en 2.1.5 (sin duplicados en `cargo tree -d`: una sola compilación nativa). Licencias: udbserver **MIT**, gdbstub **MIT OR Apache-2.0** — compatibles con el stack (Unicorn GPLv2 sigue siendo el punto a consultar de siempre, sin cambios).
 
 **Decisión [Seguro]:** udbserver viable; plan B (mini-RSP propio sobre gdbstub) DESCARTADO — no hay incompatibilidad que lo justifique.
+
+## RP6 Fase 2 — Subcomando debug con protocolo RSP verificado (2026-06-12)
+
+- **`emurv-cli debug <archivo.s> [--port N]`** (3333 por defecto): ensambla (con includes RP-5), arma la máquina, instala udbserver y BLOQUEA esperando al cliente; tras el primer continue/step la emulación corre libre con `machine.run(0)` (los hooks del stub retoman en cada bp/step — modelo del spike). stdout sigue siendo EXCLUSIVO del invitado; «esperando conexión gdb en 127.0.0.1:N…» y el resto del stub van por stderr.
+- **Puerto ocupado:** udbserver con start_addr=0 PANIQUEA si el bind falla (`.expect` interno — leído en su fuente): pre-chequeo propio del puerto con error claro y exit 1 (ventana de carrera mínima entre soltar y re-bindear, documentada en código). Cliente que desconecta: el programa sigue hasta terminar y el proceso sale con mensaje — sin colgarse. Ctrl-C: terminación por señal estándar, sin pánico.
+- **Refactor:** el puente de consola de `run` se extrajo a `puente_consola(...)` compartido con `debug` (un solo puente, no dos copias).
+- **Tests RSP como proceso real** (`tests/rp6_debug.rs`, 4 + cliente común `tests/rsp_common/`): (a) dos `s` → t0=5, t1=7, pc=+8 (semántica conocida del fuente); (b) `m` lee `.word 0xCAFEBABE` de .data (little-endian verificado); (c) `Z0`+`c` clava el pc EXACTO en la dirección de la etiqueta `meta` calculada con `Program.symbols` (t0 ejecutado, t2 no); (d) `z0`+`c` → corre a fin, proceso exit 0; (e) syscalls bajo el depurador: «hola desde gdb\n» EXACTO en stdout, stub en stderr; (f) puerto ocupado → exit 1 sin pánico.
+
+Compuerta F2 ✓: emurv-cli 20 tests verdes + src-tauri 20 suites, clippy 0 en ambos.

@@ -11,92 +11,12 @@ use emurv_lib::core::assembler::assemble;
 use emurv_lib::core::machine::Machine;
 use emurv_lib::core::syscalls::{ConsoleEvent, InputMsg};
 use emurv_lib::core::TEXT_BASE;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io::Write;
 use std::sync::mpsc::channel;
+
+mod rsp_common;
+use rsp_common::{puerto_libre, Rsp};
 use std::time::Duration;
-
-/// Puerto libre del SO (bind a :0 y soltar; ventana de carrera irrelevante
-/// en un test local).
-fn puerto_libre() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .expect("bind :0")
-        .local_addr()
-        .expect("addr")
-        .port()
-}
-
-/// Cliente RSP mínimo: empaqueta $datos#ck, espera el ack «+» y devuelve
-/// el payload de la respuesta.
-struct Rsp {
-    s: TcpStream,
-}
-
-impl Rsp {
-    fn conectar(port: u16) -> Rsp {
-        // udbserver levanta el listener dentro de la llamada bloqueante:
-        // reintentar hasta que acepte (máx ~5 s).
-        for _ in 0..100 {
-            if let Ok(s) = TcpStream::connect(("127.0.0.1", port)) {
-                s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
-                return Rsp { s };
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-        panic!("no se pudo conectar al stub en :{port}");
-    }
-
-    fn enviar(&mut self, datos: &str) -> String {
-        let ck: u8 = datos.bytes().fold(0u8, |a, b| a.wrapping_add(b));
-        let paquete = format!("${datos}#{ck:02x}");
-        self.s.write_all(paquete.as_bytes()).expect("write");
-        // Leer hasta el cierre de la respuesta: «+$payload#xx».
-        let mut crudo = Vec::new();
-        let mut byte = [0u8; 1];
-        // ack
-        loop {
-            self.s.read_exact(&mut byte).expect("ack");
-            if byte[0] == b'+' || byte[0] == b'$' {
-                break;
-            }
-        }
-        if byte[0] == b'+' {
-            loop {
-                self.s.read_exact(&mut byte).expect("inicio");
-                if byte[0] == b'$' {
-                    break;
-                }
-            }
-        }
-        loop {
-            self.s.read_exact(&mut byte).expect("cuerpo");
-            if byte[0] == b'#' {
-                break;
-            }
-            crudo.push(byte[0]);
-        }
-        let mut ck = [0u8; 2];
-        self.s.read_exact(&mut ck).expect("checksum");
-        let _ = self.s.write_all(b"+"); // ack nuestro
-        // Descomprimir el run-length encoding del RSP: «X*c» = X repetida
-        // (c-29) veces MÁS (la espec usa count+29 como carácter imprimible;
-        // p. ej. «0* » = "0000").
-        let mut datos = Vec::with_capacity(crudo.len());
-        let mut i = 0usize;
-        while i < crudo.len() {
-            if crudo[i] == b'*' && i + 1 < crudo.len() && !datos.is_empty() {
-                let n = crudo[i + 1].saturating_sub(29) as usize;
-                let prev = *datos.last().unwrap();
-                datos.extend(std::iter::repeat_n(prev, n));
-                i += 2;
-            } else {
-                datos.push(crudo[i]);
-                i += 1;
-            }
-        }
-        String::from_utf8_lossy(&datos).into_owned()
-    }
-}
 
 #[test]
 fn spike_qsupported_g_y_m() {
@@ -126,13 +46,7 @@ fn spike_qsupported_g_y_m() {
         let g = rsp.enviar("g");
         informe.push_str(&format!("g → {} chars\n", g.len()));
         assert!(g.len() >= 33 * 8, "g corto: {} chars", g.len());
-        let pc_hex = &g[32 * 8..33 * 8];
-        let pc = u32::from_le_bytes([
-            u8::from_str_radix(&pc_hex[0..2], 16).unwrap(),
-            u8::from_str_radix(&pc_hex[2..4], 16).unwrap(),
-            u8::from_str_radix(&pc_hex[4..6], 16).unwrap(),
-            u8::from_str_radix(&pc_hex[6..8], 16).unwrap(),
-        ]);
+        let pc = Rsp::reg_de_g(&g, 32);
         assert_eq!(pc, TEXT_BASE, "pc inicial en el halt = entrada de .text");
         informe.push_str(&format!("pc = 0x{pc:08X}\n"));
 
@@ -156,13 +70,7 @@ fn spike_qsupported_g_y_m() {
         assert!(r.starts_with('S') || r.starts_with('T'), "stop por bp: {r}");
         // pc en el breakpoint:
         let g = rsp.enviar("g");
-        let pc_hex = &g[32 * 8..33 * 8];
-        let pc = u32::from_le_bytes([
-            u8::from_str_radix(&pc_hex[0..2], 16).unwrap(),
-            u8::from_str_radix(&pc_hex[2..4], 16).unwrap(),
-            u8::from_str_radix(&pc_hex[4..6], 16).unwrap(),
-            u8::from_str_radix(&pc_hex[6..8], 16).unwrap(),
-        ]);
+        let pc = Rsp::reg_de_g(&g, 32);
         assert_eq!(pc, dir_bp, "frenó exactamente en el Z0");
         informe.push_str(&format!("bp en 0x{pc:08X} ✓\n"));
 
