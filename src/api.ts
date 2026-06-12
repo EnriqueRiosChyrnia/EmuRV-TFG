@@ -28,6 +28,7 @@ export interface MachineState {
 export type StopReason =
   | { kind: "exited"; code: number }
   | { kind: "breakpoint"; addr: number }
+  | { kind: "ebreak_pause"; addr: number }
   | { kind: "paused" }
   | { kind: "step_done" }
   | { kind: "runtime_error"; message: string };

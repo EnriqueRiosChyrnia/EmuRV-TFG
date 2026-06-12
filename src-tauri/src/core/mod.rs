@@ -11,6 +11,11 @@ pub mod machine;
 pub mod syscalls;
 pub mod video;
 
+/// Palabra de la instrucción `ebreak` (RV32I). La comparten el hook de
+/// traps y el rescate de pausa por software en `Machine::interpret()`
+/// (Unicorn 2.1.5 no entrega el trap de ebreak al hook INTR — BITACORA RP1).
+pub const EBREAK_WORD: u32 = 0x0010_0073;
+
 /// Base del segmento de código (.text). Coincide con RARS.
 pub const TEXT_BASE: u32 = 0x0040_0000;
 /// Tamaño mapeado para .text (4 MB).

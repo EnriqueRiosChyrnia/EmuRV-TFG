@@ -42,6 +42,7 @@
   "estado.paso": "Paso ejecutado. Próxima línea: {line}",
   "estado.paso_sin_linea": "Paso ejecutado",
   "estado.breakpoint": "Detenido en breakpoint (línea {line})",
+  "estado.ebreak": "Pausado por ebreak (línea {line})",
   "estado.terminado": "Programa terminado (código {code})",
   "estado.pausado": "Ejecución pausada",
   "estado.error_ejecucion": "Error de ejecución: {message}",

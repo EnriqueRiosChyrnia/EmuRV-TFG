@@ -40,7 +40,7 @@ pub enum InputMsg {
     Cancel,
 }
 
-const EBREAK: u32 = 0x0010_0073;
+use super::EBREAK_WORD;
 /// `RegisterRISCV::X0 == 1`: a0 = x10 → 11, a1 = x11 → 12, a7 = x17 → 18.
 const A0: i32 = 11;
 const A1: i32 = 12;
@@ -68,12 +68,29 @@ pub fn handle_trap(uc: &mut Unicorn<'_, MachData>, intno: u32) {
             dispatch(uc, pc.wrapping_sub(4));
         }
         CAUSE_BREAKPOINT => {
-            // ebreak = pausa por software: la GUI muestra el estado ahí.
-            // Si el pc no avanzó (semántica de depurador), lo avanzamos para
-            // poder reanudar sin re-ejecutar el ebreak.
-            let mut insn = [0u8; 4];
-            if uc.mem_read(pc, &mut insn).is_ok() && u32::from_le_bytes(insn) == EBREAK {
-                let _ = uc.reg_write(RegisterRISCV::PC, pc + 4);
+            // RAMA DEFENSIVA — hoy INALCANZABLE [BITACORA RP1-F2, Seguro]:
+            // Unicorn 2.1.5 NO entrega el trap de `ebreak` a este hook;
+            // `emu_start` aborta con INSN_INVALID y el caso real se rescata
+            // en `Machine::interpret()`. Se conserva el manejo correcto por
+            // si una versión futura sí lo entrega: localizar la dirección
+            // real del ebreak (la palabra puede estar en pc o, si el pc ya
+            // vino avanzado, en pc-4), fijar pc = dir+4 UNA sola vez y
+            // marcar la pausa por software para `interpret()`.
+            let palabra = |uc: &mut Unicorn<'_, MachData>, dir: u64| -> Option<u32> {
+                let mut w = [0u8; 4];
+                uc.mem_read(dir, &mut w).ok()?;
+                Some(u32::from_le_bytes(w))
+            };
+            let dir_ebreak = if palabra(uc, pc) == Some(EBREAK_WORD) {
+                Some(pc)
+            } else if palabra(uc, pc.wrapping_sub(4)) == Some(EBREAK_WORD) {
+                Some(pc.wrapping_sub(4))
+            } else {
+                None
+            };
+            if let Some(dir) = dir_ebreak {
+                let _ = uc.reg_write(RegisterRISCV::PC, dir + 4);
+                uc.get_data_mut().ebreak_pause = Some(dir as u32);
             }
             let _ = uc.emu_stop();
         }
