@@ -423,3 +423,14 @@ Gate TEC5 ✓: 84 tests + 6 ignore (fb3 verde, integración 6/6), clippy 0, tsc 
 7. Tras validar todo: decisión con tutor — aval framebuffer+teclado → merge a main + SPEC v0.2.
 
 Sesión TEC0-TEC6 completada. Rama `feature/teclado` (desde `feature/framebuffer`). **NO mergeada.**
+
+## RP1 Fase 1 — Test sonda del bug de ebreak (2026-06-12)
+
+Plan `docs/PLAN-RP1-ebreak.md` (punto RP-1 del roadmap). Test `tests/rp1_ebreak.rs::ebreak_pausa_y_reanuda_en_la_instruccion_siguiente`: programa con `ebreak` en 0x0040_0004 entre `li t0,1` y `li t1,2`/`li t2,3`/exit; corre con `run_slice(0, 1000)` y reanuda con `run_slice_continuation`.
+
+**Evidencia observada [Seguro — test reproducible]:**
+- La pausa SÍ ocurre y los efectos previos están bien: razón no-Exited, t0=1, t1=0 (nada posterior ejecutado).
+- **pc en la pausa = 0x0040_0004 — la dirección DEL `ebreak`, SIN avanzar** (esperado por convención RARS/gdb: 0x0040_0008). El assert falla exactamente ahí.
+- Dato nuevo respecto del registro original del bug (Etapa 4 del 2026-06-11, que observó caída en «instrucción inválida» más allá de la siguiente): en el camino `run_slice` con count el pc queda EN el `ebreak` (no avanzado); el "doble avance" del registro original se observó por el camino `run(0)`. La Fase 2 debe explicar ambas observaciones con una sola causa raíz.
+
+Estado de la suite: 17 suites verdes intactas + SOLO el sonda en rojo (permitido por la compuerta F1). Clippy 0 warnings.
