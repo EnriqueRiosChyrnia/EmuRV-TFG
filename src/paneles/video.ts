@@ -5,8 +5,8 @@
 // así el panel embebido y la ventana desacoplada pueden convivir.
 // El panel está oculto hasta que el programa usa la VRAM o el usuario lo
 // muestra con el botón de la toolbar (RF4).
-import { invoke } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { api } from "../api";
 import { t } from "../i18n";
 
 const ANCHO = 320;
@@ -80,9 +80,7 @@ export class Video {
     if (!this.visible || this.leyendo) return;
     this.leyendo = true;
     try {
-      const buf = await invoke<ArrayBuffer>("read_framebuffer", {
-        since: Number(this.seq),
-      });
+      const buf = await api.readFramebuffer(this.seq);
       if (buf.byteLength === 8 + ANCHO * ALTO * 4) {
         this.seq = new DataView(buf).getBigUint64(0, true);
         this.imageData.data.set(new Uint8ClampedArray(buf, 8));

@@ -4,6 +4,8 @@
   "toolbar.paso": "Paso",
   "toolbar.detener": "Detener",
   "toolbar.reiniciar": "Reiniciar",
+  "toolbar.abrir": "Abrir",
+  "toolbar.guardar": "Guardar",
   "toolbar.exportar": "Exportar ELF",
   "toolbar.ejemplos": "Ejemplos",
   "toolbar.ayuda": "Ayuda",
@@ -28,7 +30,8 @@
   "memoria.error": "No se pudo leer esa zona de memoria",
 
   "consola.placeholder": "El programa espera una línea de entrada…",
-  "consola.limpiar": "Limpiar",
+
+  "breakpoint.lineaSinCodigo": "La línea {linea} no tiene código ejecutable; el breakpoint no se aplicó.",
 
   "estado.sin_programa": "Escribí tu programa y presioná «Ensamblar»",
   "estado.ensamblado": "Programa ensamblado: {n} bytes de código. Listo para ejecutar.",
@@ -51,8 +54,15 @@
   "ejemplo.franjas": "Franjas de color (pantalla)",
   "ejemplo.tetris": "Tetris gráfico",
 
-  "error.generico": "Error: {message}",
   "error.posicion": "línea {line}, col {col}: {msg}",
+
+  "archivo.tituloAbrir": "Abrir programa ensamblador",
+  "archivo.tituloGuardar": "Guardar programa ensamblador",
+  "archivo.filtro": "Ensamblador",
+  "archivo.abierto": "Archivo abierto: {path}. Presioná «Ensamblar» para usarlo.",
+  "archivo.guardado": "Archivo guardado en {path}",
+  "archivo.errorAbrir": "No se pudo abrir el archivo: {message}",
+  "archivo.errorGuardar": "No se pudo guardar el archivo: {message}",
 
   "exportar.titulo": "Guardar ELF",
   "exportar.ok": "ELF exportado en {path}",

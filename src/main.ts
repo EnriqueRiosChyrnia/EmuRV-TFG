@@ -1,6 +1,7 @@
 // EmuRV — punto de entrada del frontend.
 // Conecta toolbar, editor, consola y (en F3) los paneles de estado con
 // los comandos y eventos del backend.
+import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { EditorView } from "@codemirror/view";
 import { api, events, type AsmError, type AssembleOk, type StoppedEvent } from "./api";
 import {
@@ -48,6 +49,8 @@ class App {
   private ayuda: Ayuda;
   private programa: AssembleOk | null = null;
   private reinicioPedido = false;
+  /** Cancelaciones de los listen() de Tauri (evita fugas al re-suscribir). */
+  private unlisteners: UnlistenFn[] = [];
 
   private botones: Record<string, HTMLButtonElement> = {};
   private estadoEl: HTMLElement;
@@ -56,8 +59,11 @@ class App {
     this.construirToolbar();
     this.traducirTitulos();
     this.estadoEl = document.getElementById("estado")!;
-    this.editor = createEditor(document.getElementById("editor")!, ejHola, () =>
-      this.enviarBreakpoints(),
+    this.editor = createEditor(
+      document.getElementById("editor")!,
+      ejHola,
+      () => this.enviarBreakpoints(),
+      (linea) => this.puedeAgregarBreakpoint(linea),
     );
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
@@ -124,6 +130,8 @@ class App {
     espacio.className = "espacio";
     bar.appendChild(espacio);
     boton("video", "toolbar.video").onclick = () => this.video.alternar();
+    boton("abrir", "toolbar.abrir").onclick = () => void this.abrirArchivo();
+    boton("guardar", "toolbar.guardar").onclick = () => void this.guardarArchivo();
     boton("exportar", "toolbar.exportar").onclick = () => void this.exportarElf();
     boton("ayuda", "toolbar.ayuda").onclick = () => this.ayuda.abrir();
   }
@@ -146,21 +154,34 @@ class App {
   // ----- eventos del backend -----
 
   private async suscribirEventos(): Promise<void> {
-    await events.onConsole((text) => this.consola.append(text));
-    await events.onInputRequest(() => {
-      this.consola.setInputMode(true);
-      this.setModo("esperando", t("estado.esperando_entrada"));
-    });
-    await events.onStopped((ev) => this.alDetenerse(ev));
+    // Idempotencia: si se vuelve a suscribir, primero se cancelan las
+    // suscripciones anteriores para no duplicar listeners.
+    this.desuscribirEventos();
+    this.unlisteners.push(await events.onConsole((text) => this.consola.append(text)));
+    this.unlisteners.push(
+      await events.onInputRequest(() => {
+        this.consola.setInputMode(true);
+        this.setModo("esperando", t("estado.esperando_entrada"));
+      }),
+    );
+    this.unlisteners.push(await events.onStopped((ev) => this.alDetenerse(ev)));
     // Refresco periódico (~10 Hz) durante ejecución larga (RNF-03):
     // solo registros; la memoria se relee al detenerse.
-    await events.onRegisters((st) => this.registros.actualizar(st));
+    this.unlisteners.push(await events.onRegisters((st) => this.registros.actualizar(st)));
     // El programa usa la pantalla gráfica: mostrar el panel (RF4) y
     // arrancar el volcado a ~30 Hz mientras corre (RF2).
-    await events.onVideoActivo(() => {
-      this.video.mostrar();
-      this.video.iniciarTimer();
-    });
+    this.unlisteners.push(
+      await events.onVideoActivo(() => {
+        this.video.mostrar();
+        this.video.iniciarTimer();
+      }),
+    );
+  }
+
+  /** Cancela todas las suscripciones a eventos del backend. */
+  private desuscribirEventos(): void {
+    for (const un of this.unlisteners) un();
+    this.unlisteners = [];
   }
 
   private alDetenerse(ev: StoppedEvent): void {
@@ -243,6 +264,16 @@ class App {
     }
   }
 
+  /** Un breakpoint nuevo solo vale en líneas con código ejecutable.
+   *  Si no hay programa ensamblado todavía no hay forma de saberlo, así
+   *  que se permite; con programa, se rechaza y se avisa por consola. */
+  private puedeAgregarBreakpoint(linea: number): boolean {
+    if (!this.programa) return true;
+    if (this.programa.line_to_addr[String(linea)] !== undefined) return true;
+    this.consola.append(`${t("breakpoint.lineaSinCodigo", { linea })}\n`, "error");
+    return false;
+  }
+
   /** Traduce las líneas con breakpoint a direcciones y las manda al backend.
    *  Las líneas sin código generado (comentarios, datos) se ignoran. */
   private enviarBreakpoints(): void {
@@ -264,6 +295,44 @@ class App {
     this.reinicioPedido = true;
     this.consola.setInputMode(false);
     await api.reset();
+  }
+
+  /** Abre un .asm del usuario y reemplaza el contenido del editor
+   *  (mismo camino que la carga de un ejemplo: el programa ensamblado
+   *  anterior deja de valer hasta volver a «Ensamblar»). */
+  private async abrirArchivo(): Promise<void> {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({
+      title: t("archivo.tituloAbrir"),
+      filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s"] }],
+    });
+    if (!path) return;
+    try {
+      const contenido = await api.abrirArchivo(path);
+      setDoc(this.editor, contenido);
+      this.programa = null;
+      this.setModo("sin_programa", t("archivo.abierto", { path }));
+    } catch (e) {
+      this.consola.append(`${t("archivo.errorAbrir", { message: String(e) })}\n`, "error");
+    }
+  }
+
+  /** Guarda el contenido actual del editor como archivo .asm. */
+  private async guardarArchivo(): Promise<void> {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({
+      title: t("archivo.tituloGuardar"),
+      defaultPath: "programa.asm",
+      filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s"] }],
+    });
+    if (!path) return;
+    try {
+      await api.guardarArchivo(path, getDoc(this.editor));
+      this.estadoEl.textContent = t("archivo.guardado", { path });
+      this.estadoEl.className = "ok";
+    } catch (e) {
+      this.consola.append(`${t("archivo.errorGuardar", { message: String(e) })}\n`, "error");
+    }
   }
 
   /** Exporta el programa ensamblado como ELF32 RISC-V (RF-08). */

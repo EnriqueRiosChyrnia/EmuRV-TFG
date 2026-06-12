@@ -18,6 +18,7 @@ const dec = (v: number) => String(v | 0);
 export class Registros {
   private celdas: { hex: HTMLElement; dec: HTMLElement; fila: HTMLElement }[] = [];
   private pcHex: HTMLElement;
+  private pcDec: HTMLElement;
   private anterior: number[] | null = null;
   private pcAnterior: number | null = null;
 
@@ -33,8 +34,9 @@ export class Registros {
 
     const filaPc = document.createElement("tr");
     filaPc.className = "registros-pc";
-    filaPc.innerHTML = `<td>pc</td><td class="mono"></td><td></td>`;
+    filaPc.innerHTML = `<td>pc</td><td class="mono"></td><td class="mono"></td>`;
     this.pcHex = filaPc.children[1] as HTMLElement;
+    this.pcDec = filaPc.children[2] as HTMLElement;
     cuerpo.appendChild(filaPc);
 
     for (let i = 0; i < 32; i++) {
@@ -64,6 +66,7 @@ export class Registros {
       c.fila.classList.toggle("cambiado", cambio);
     }
     this.pcHex.textContent = hex(estado.pc);
+    this.pcDec.textContent = dec(estado.pc);
     this.pcHex.parentElement!.classList.toggle(
       "cambiado",
       this.pcAnterior !== null && this.pcAnterior !== estado.pc,
@@ -81,6 +84,7 @@ export class Registros {
 
   private limpiar(): void {
     this.pcHex.textContent = "—";
+    this.pcDec.textContent = "—";
     for (const c of this.celdas) {
       c.hex.textContent = "—";
       c.dec.textContent = "—";

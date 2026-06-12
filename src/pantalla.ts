@@ -2,7 +2,7 @@
 // el mismo comando `read_framebuffer` que el panel embebido. El protocolo
 // de seq permite que ambos consuman frames en paralelo sin robárselos:
 // esta ventana arranca con seq=0, así recibe el frame vigente al abrirse.
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "./api";
 
 const ANCHO = 320;
 const ALTO = 240;
@@ -19,9 +19,7 @@ async function refrescar(): Promise<void> {
   if (leyendo) return;
   leyendo = true;
   try {
-    const buf = await invoke<ArrayBuffer>("read_framebuffer", {
-      since: Number(seq),
-    });
+    const buf = await api.readFramebuffer(seq);
     if (buf.byteLength === 8 + ANCHO * ALTO * 4) {
       seq = new DataView(buf).getBigUint64(0, true);
       imageData.data.set(new Uint8ClampedArray(buf, 8));

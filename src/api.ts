@@ -47,9 +47,17 @@ export const api = {
   setBreakpoints: (addrs: number[]) => invoke<void>("set_breakpoints", { addrs }),
   sendInput: (text: string) => invoke<void>("send_input", { text }),
   exportElf: (path: string) => invoke<void>("export_elf", { path }),
+  /** Lee un archivo de texto (.asm) del disco para cargarlo en el editor. */
+  abrirArchivo: (path: string) => invoke<string>("leer_archivo_texto", { path }),
+  /** Guarda el contenido del editor como archivo de texto (.asm). */
+  guardarArchivo: (path: string, contenido: string) =>
+    invoke<void>("guardar_archivo_texto", { path, contenido }),
   readMem: (addr: number, len: number) => invoke<number[]>("read_mem", { addr, len }),
-  /** Frame RGBA crudo (ArrayBuffer); 0 bytes si la VRAM no cambió. */
-  readFramebuffer: () => invoke<ArrayBuffer>("read_framebuffer"),
+  /** Frame RGBA crudo (ArrayBuffer) más nuevo que `since`; 0 bytes si la
+   *  VRAM no cambió. `since` viaja como string: JSON no representa u64
+   *  completo y Number perdería precisión sobre 2^53. */
+  readFramebuffer: (since: bigint) =>
+    invoke<ArrayBuffer>("read_framebuffer", { since: since.toString() }),
   getState: () => invoke<MachineState>("get_state"),
 };
 
