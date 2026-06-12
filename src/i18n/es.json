@@ -95,6 +95,8 @@
 
   "archivo.tituloAbrir": "Abrir programa ensamblador",
   "archivo.tituloGuardar": "Guardar programa ensamblador",
+  "binario.banner": "Binario importado: sin código fuente — listado desensamblado (solo lectura). Ejecutar, Paso y breakpoints funcionan sobre el listado.",
+  "binario.abierto": "Binario importado: {path} (entrada en el listado de abajo)",
   "archivo.filtro": "Ensamblador",
   "archivo.abierto": "Archivo abierto: {path}. Presioná «Ensamblar» para usarlo.",
   "archivo.guardado": "Archivo guardado en {path}",

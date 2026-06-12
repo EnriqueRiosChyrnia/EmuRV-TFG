@@ -587,3 +587,38 @@ fn run_binario_no_elf_sale_2() {
     let out = run_con_stdin(&["run", ruta.to_str().unwrap()], "", limite());
     assert_eq!(out.status.code(), Some(2));
 }
+
+// ---------------------------------------------------------------------------
+// RP11 Fase 3 — subcomando disasm: listado estable por stdout.
+// ---------------------------------------------------------------------------
+
+/// Salida EXACTA y estable (la CI la vigila); fuente y ELF dan lo mismo.
+#[test]
+fn disasm_salida_estable_fuente_y_elf() {
+    let f = fuente_temporal("dis.s", ".text\n  li a7, 10\n  ecall\n");
+    let esperado = "00400000:  00a00893  addi a7, zero, 0xa\n\
+                    00400004:  00000073  ecall\n";
+
+    let out = run_con_stdin(&["disasm", f.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), esperado);
+
+    // El MISMO programa como ELF: listado idéntico.
+    let elf = std::env::temp_dir().join("rp10_exit2").join("dis.elf");
+    let out = run_con_stdin(
+        &["asm", f.to_str().unwrap(), "-o", elf.to_str().unwrap()],
+        "",
+        limite(),
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let out = run_con_stdin(&["disasm", elf.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), esperado);
+}
+
+/// disasm sin argumentos → uso inválido (exit 3).
+#[test]
+fn disasm_sin_argumentos_sale_3() {
+    let out = run_con_stdin(&["disasm"], "", limite());
+    assert_eq!(out.status.code(), Some(3));
+}

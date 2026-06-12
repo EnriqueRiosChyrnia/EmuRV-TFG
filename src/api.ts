@@ -98,6 +98,11 @@ export const api = {
   exportElf: (path: string) => invoke<void>("export_elf", { path }),
   /** Lee un archivo de texto (.asm) del disco para cargarlo en el editor. */
   abrirArchivo: (path: string) => invoke<string>("leer_archivo_texto", { path }),
+  /** Abre fuente o binario ELF con detección por magic (RP11). El caso
+   *  binario YA deja la sesión creada (como un Ensamblar exitoso). */
+  abrirPrograma: (path: string) => invoke<AperturaOk>("abrir_programa", { path }),
+  /** Listado desensamblado del .text de la sesión: dirección → texto. */
+  getDisasm: () => invoke<Record<string, string>>("get_disasm"),
   /** Guarda el contenido del editor como archivo de texto (.asm). */
   guardarArchivo: (path: string, contenido: string) =>
     invoke<void>("guardar_archivo_texto", { path, contenido }),
@@ -109,6 +114,11 @@ export const api = {
     invoke<ArrayBuffer>("read_framebuffer", { since: since.toString() }),
   getState: () => invoke<MachineState>("get_state"),
 };
+
+/** Resultado de abrir_programa (RP11). */
+export type AperturaOk =
+  | { tipo: "fuente"; contenido: string }
+  | { tipo: "binario"; ok: AssembleOk; listado: string };
 
 export const events = {
   onConsole: (cb: (text: string) => void): Promise<UnlistenFn> =>

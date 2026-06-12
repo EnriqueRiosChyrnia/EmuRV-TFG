@@ -26,6 +26,8 @@ export class Memoria {
   private inputDir: HTMLInputElement;
   private direccion = 0x1001_0000;
   private programa: AssembleOk | null = null;
+  /** dirección → instrucción decodificada (RP11); null = sin listado. */
+  private disasm: Record<string, number | string> | null = null;
   private aviso: HTMLElement;
 
   constructor(root: HTMLElement) {
@@ -66,6 +68,14 @@ export class Memoria {
 
   setPrograma(p: AssembleOk | null): void {
     this.programa = p;
+    if (!p) this.disasm = null;
+  }
+
+  /** Columna de instrucción (RP11): se refresca al (re)ensamblar o
+   *  importar; el render la muestra solo para filas dentro de .text. */
+  setDisasm(d: Record<string, string> | null): void {
+    this.disasm = d;
+    void this.refrescar();
   }
 
   private parsearDir(): number {
@@ -124,7 +134,27 @@ export class Memoria {
       const ascii = fila
         .map((b) => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : "·"))
         .join("");
-      this.dump.append(`  ${ascii}\n`);
+      this.dump.append(`  ${ascii}`);
+      // Columna de instrucción decodificada (RP11): solo cuando la fila
+      // cae en .text y hay listado de la sesión.
+      const enText =
+        this.programa !== null &&
+        base >= this.programa.text_base &&
+        base < this.programa.text_base + this.programa.text_len;
+      if (enText && this.disasm) {
+        const instrs: string[] = [];
+        for (let w = 0; w < 4; w++) {
+          const texto = this.disasm[String((base + w * 4) >>> 0)];
+          if (texto !== undefined) instrs.push(String(texto));
+        }
+        if (instrs.length > 0) {
+          const span = document.createElement("span");
+          span.className = "memoria-disasm";
+          span.textContent = `   ${instrs.join(" ; ")}`;
+          this.dump.appendChild(span);
+        }
+      }
+      this.dump.append("\n");
     }
   }
 

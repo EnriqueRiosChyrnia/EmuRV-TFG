@@ -3,7 +3,7 @@
 // ejecución y errores de ensamblado anclados a línea/columna.
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
-import { EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
+import { Compartment, EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import {
   Decoration,
@@ -169,6 +169,7 @@ export function createEditor(
     state: EditorState.create({
       doc,
       extensions: [
+        readOnlyComp.of([EditorState.readOnly.of(false), EditorView.editable.of(true)]),
         breakpointField,
         bpGutter,
         lineNumbers(),
@@ -199,6 +200,18 @@ export function createEditor(
     }),
   });
   return view;
+}
+
+/** Modo binario (RP11): el listado desensamblado es solo-lectura. */
+const readOnlyComp = new Compartment();
+
+export function setReadOnly(view: EditorView, ro: boolean): void {
+  view.dispatch({
+    effects: readOnlyComp.reconfigure([
+      EditorState.readOnly.of(ro),
+      EditorView.editable.of(!ro),
+    ]),
+  });
 }
 
 /** Reemplaza todo el contenido (carga de ejemplos). */

@@ -26,6 +26,8 @@ pub fn run() {
             commands::get_state,
             commands::export_elf,
             commands::leer_archivo_texto,
+            commands::abrir_programa,
+            commands::get_disasm,
             commands::guardar_archivo_texto,
         ])
         .run(tauri::generate_context!())

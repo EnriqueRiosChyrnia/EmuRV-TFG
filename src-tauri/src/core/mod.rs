@@ -6,6 +6,7 @@
 
 pub mod assembler;
 pub mod cond;
+pub mod disasm;
 pub mod elf_export;
 pub mod elf_import;
 pub mod keyboard;

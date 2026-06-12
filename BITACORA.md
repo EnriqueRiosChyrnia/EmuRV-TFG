@@ -1173,3 +1173,48 @@ dirección del símbolo del .symtab IMPORTADO (Z0/c/g, RP-6 intacto).
 
 Compuerta F2: suites verdes (28 binarios src-tauri; CLI 44 tests en sus
 suites), clippy 0 ambos.
+
+## 2026-06-12 — RP11-F3: desensamblador y modo binario
+
+[Seguro] `core/disasm.rs`: capstone con la config del spike (default-
+features=false, std+full+arch_riscv). Interfaz única disasm(words, base)
+→ Vec<DisasmLine{addr, word, texto}> — capstone encapsulado en UN módulo
+(si la decisión cambiara, se reemplaza solo acá). Palabra que no
+decodifica → `.word 0x...` SIN cortar el listado (decodificación palabra
+por palabra, no disasm_all: la basura en .text no arrastra a las vecinas).
+
+[Seguro] Modo binario (UI): «Abrir» acepta .elf y detecta por MAGIC en el
+backend (comando abrir_programa → fuente | binario). El caso binario crea
+la sesión (crear_sesion extraído de assemble SIN cambiar semántica) y
+puebla el source_map CON EL LISTADO (línea n ↔ dirección): el resaltado
+de ejecución, la validación de breakpoints, los condicionales RP-7 y
+get_state funcionan SIN tocar una línea de ese código. Editor solo-
+lectura (Compartment readOnly+editable), banner «binario importado»,
+Ensamblar deshabilitado; Ejecutar/Paso/Detener/Reiniciar intactos. Salida
+del modo: abrir un fuente o cargar un ejemplo.
+
+[Seguro] Panel «Memoria»: columna de instrucción decodificada al final de
+cada fila SOLO cuando la fila cae en .text (comando get_disasm; vale para
+fuentes normales también — beneficio general, no solo modo binario).
+
+[Seguro] CLI: `emurv-cli disasm <programa.elf|fuente.s>` — listado por
+stdout `dirección:  palabra  instrucción`; fuente y su ELF dan listado
+IDÉNTICO (test). Tests F3: repertorio completo RV32IM+Zicsr (~55 fuentes)
+con round-trip de mnemónicos (alias de capstone aceptados: mv/nop/csrw…);
+.word sin pánico con vecinas intactas; breakpoint en la dirección de la
+línea 3 del listado frena exacto; salida de proceso estable.
+
+[Seguro — LA compuerta de la fase] Bundle RE-MEDIDO con capstone adentro
+y el módulo enlazado de verdad: **22224 KB (~21,7 MiB) ≤ 30 MB**, margen
+~8,3 MB. La predicción del spike (+100 KB) se sostuvo: +192 KB total
+contra la base de rp10-fase-4 (incluye también el código nuevo de import
+y disasm).
+
+[PENDIENTE HUMANO] Verificación visual del modo binario en la app: Abrir
+→ .elf (exportá uno con «Exportar ELF» o usá la fixture de
+src-tauri/tests/fixtures/rp11/), banner visible, listado solo-lectura,
+breakpoint sobre una línea del listado, Paso con resaltado moviéndose por
+el listado, columna de instrucción en «Memoria» → «.text».
+
+Compuerta F3: suites verdes (29 binarios src-tauri, CLI 46) · clippy 0
+ambos · tsc limpio · bundle ≤ 30 MB re-verificado ✓.

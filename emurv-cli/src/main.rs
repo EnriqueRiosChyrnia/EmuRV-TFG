@@ -31,6 +31,11 @@ USO:
       por stderr. --max-instr y --timeout-s acotan la corrida
       (al agotarse: código de salida 124).
 
+  emurv-cli disasm <programa.elf|fuente.s>
+      Desensambla el .text (de un ELF importado o de un fuente
+      ensamblado) y escribe el listado por stdout:
+      dirección  palabra  instrucción.
+
   emurv-cli debug <entrada.s> [--port N]
       Ensambla y espera un cliente GDB (protocolo gdbserver) en el
       puerto dado (3333 por defecto). Conectar con:
@@ -60,6 +65,7 @@ fn ejecutar_cli(args: &[String]) -> u8 {
         }
         Some("asm") => subcomando_asm(&args[1..]),
         Some("run") => subcomando_run(&args[1..]),
+        Some("disasm") => subcomando_disasm(&args[1..]),
         Some("debug") => subcomando_debug(&args[1..]),
         Some(otro) => {
             eprintln!("emurv-cli: subcomando desconocido «{otro}»\n\n{USO}");
@@ -458,6 +464,23 @@ fn puente_consola(
             }
         }
     })
+}
+
+/// `disasm <programa.elf|fuente.s>` — listado desensamblado por stdout
+/// (RP11). Acá stdout ES el listado (no hay programa invitado corriendo).
+fn subcomando_disasm(args: &[String]) -> u8 {
+    let [entrada] = args else {
+        eprintln!("emurv-cli disasm: hace falta exactamente un archivo de entrada\n\n{USO}");
+        return 3;
+    };
+    let programa = match cargar_programa(Path::new(entrada)) {
+        Ok(p) => p,
+        Err(code) => return code,
+    };
+    use emurv_lib::core::disasm::{disasm, listado, words_de};
+    let lineas = disasm(&words_de(&programa.text), emurv_lib::core::TEXT_BASE);
+    print!("{}", listado(&lineas));
+    0
 }
 
 /// Carga la entrada de `run`/`debug`: si el archivo empieza con la firma

@@ -431,7 +431,17 @@ pub fn assemble(
         }
         None => assembler::assemble(&source)?,
     };
+    crear_sesion(program, app, &manager).map_err(|e| asm_internal_error(&e))
+}
 
+/// Levanta la sesión de emulación para un `Program` ya construido
+/// (ensamblado o importado de un ELF — RP11 extrajo este cuerpo de
+/// `assemble` sin cambiarle una línea de semántica).
+fn crear_sesion(
+    program: Program,
+    app: AppHandle,
+    manager: &State<'_, EmuManager>,
+) -> Result<AssembleOk, String> {
     let ok = AssembleOk {
         text_base: TEXT_BASE,
         data_base: DATA_BASE,
@@ -457,7 +467,7 @@ pub fn assemble(
     let video_anterior = manager
         .0
         .lock()
-        .map_err(|_| asm_internal_error("estado del emulador corrupto"))?
+        .map_err(|_| String::from("estado del emulador corrupto"))?
         .as_ref()
         .map(|s| {
             // La sesión vieja muere cuando sus canales se cierran, pero eso
@@ -502,15 +512,7 @@ pub fn assemble(
     });
     let keyboard = init_rx
         .recv()
-        .unwrap_or_else(|_| Err("el hilo de emulación murió al iniciar".into()))
-        .map_err(|e| {
-            vec![AsmError {
-                line: 1,
-                col: 1,
-                msg: e,
-                file: None,
-            }]
-        })?;
+        .unwrap_or_else(|_| Err("el hilo de emulación murió al iniciar".into()))?;
 
     std::thread::spawn({
         let waiting = Arc::clone(&waiting_input);
@@ -523,7 +525,7 @@ pub fn assemble(
     *manager
         .0
         .lock()
-        .map_err(|_| asm_internal_error("estado del emulador corrupto"))? = Some(Session {
+        .map_err(|_| String::from("estado del emulador corrupto"))? = Some(Session {
         cmd_tx,
         input_tx: in_tx,
         stop_flag,
@@ -544,6 +546,76 @@ fn asm_internal_error(msg: &str) -> Vec<AsmError> {
         msg: msg.into(),
         file: None,
     }]
+}
+
+/// Resultado del botón «Abrir» (RP11): un fuente para el editor o un
+/// binario importado con su listado desensamblado (modo binario).
+#[derive(Serialize)]
+#[serde(tag = "tipo", rename_all = "snake_case")]
+pub enum AperturaOk {
+    Fuente { contenido: String },
+    Binario { ok: AssembleOk, listado: String },
+}
+
+/// Abre un archivo del usuario con detección por MAGIC (la extensión no
+/// importa): un ELF se importa y levanta sesión en modo binario (editor
+/// solo-lectura con el listado; cada línea del listado = una dirección,
+/// así los breakpoints/paso a paso reusan el mecanismo de siempre); un
+/// archivo de texto vuelve como fuente para el editor.
+#[tauri::command]
+pub fn abrir_programa(
+    path: String,
+    app: AppHandle,
+    manager: State<'_, EmuManager>,
+) -> Result<AperturaOk, String> {
+    let bytes =
+        std::fs::read(&path).map_err(|e| format!("no se pudo leer el archivo: {e}"))?;
+    if crate::core::elf_import::es_elf(&bytes) {
+        let mut program = crate::core::elf_import::import_elf(&bytes)?;
+        let lineas = crate::core::disasm::disasm(
+            &crate::core::disasm::words_de(&program.text),
+            TEXT_BASE,
+        );
+        let listado = crate::core::disasm::listado(&lineas);
+        // El listado ES el «fuente» del modo binario: línea n ↔ dirección.
+        // Con el source_map poblado así, el resaltado de ejecución, la
+        // validación de breakpoints y get_state funcionan sin tocarse.
+        for (i, l) in lineas.iter().enumerate() {
+            let linea = (i + 1) as u32;
+            program.source_map.addr_to_line.insert(l.addr, linea);
+            program.source_map.line_to_addr.insert(linea, l.addr);
+        }
+        let ok = crear_sesion(program, app, &manager)?;
+        return Ok(AperturaOk::Binario { ok, listado });
+    }
+    match String::from_utf8(bytes) {
+        Ok(contenido) => Ok(AperturaOk::Fuente { contenido }),
+        Err(_) => Err(
+            "el archivo no es ni un ELF ni un fuente de texto (bytes no \
+             UTF-8). ¿Seguro que es un programa?"
+                .to_string(),
+        ),
+    }
+}
+
+/// Listado desensamblado del .text de la sesión (RP11): la columna de
+/// instrucción del panel de memoria. Mapa dirección → texto decodificado.
+#[tauri::command]
+pub fn get_disasm(
+    manager: State<'_, EmuManager>,
+) -> Result<std::collections::BTreeMap<u32, String>, String> {
+    let guard = manager
+        .0
+        .lock()
+        .map_err(|_| String::from("estado del emulador corrupto"))?;
+    let s = guard
+        .as_ref()
+        .ok_or("no hay programa ensamblado: usá «Ensamblar» primero")?;
+    let lineas = crate::core::disasm::disasm(
+        &crate::core::disasm::words_de(&s.program.text),
+        TEXT_BASE,
+    );
+    Ok(lineas.into_iter().map(|l| (l.addr, l.texto)).collect())
 }
 
 /// Exporta el programa ensamblado como ELF32 RISC-V (RF-08).

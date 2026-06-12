@@ -18,6 +18,7 @@ import {
   setDoc,
   setErrors,
   setExecLine,
+  setReadOnly,
   toggleBreakpointAtLine,
 } from "./editor";
 import { t } from "./i18n";
@@ -71,6 +72,10 @@ class App {
    *  null = buffer nunca guardado (ejemplos embebidos incluidos). */
   private rutaArchivo: string | null = null;
   private reinicioPedido = false;
+  /** Modo binario (RP11): el editor muestra el listado desensamblado de
+   *  un ELF importado, solo lectura; Ensamblar queda deshabilitado. */
+  private modoBinario = false;
+  private bannerBinario: HTMLElement | null = null;
   /** Cancelaciones de los listen() de Tauri (evita fugas al re-suscribir). */
   private unlisteners: UnlistenFn[] = [];
 
@@ -153,6 +158,7 @@ class App {
     sel.onchange = () => {
       const i = Number(sel.value);
       if (!Number.isNaN(i) && sel.value !== "") {
+        this.salirModoBinario();
         setDoc(this.editor, EJEMPLOS[i].codigo);
         this.programa = null;
         this.rutaArchivo = null; // ejemplo embebido: sin base de .include
@@ -304,6 +310,7 @@ class App {
   // ----- acciones -----
 
   private async ensamblar(): Promise<void> {
+    if (this.modoBinario) return; // el botón está deshabilitado; cinturón
     try {
       const ok = await api.assemble(getDoc(this.editor), this.rutaArchivo);
       this.programa = ok;
@@ -315,6 +322,7 @@ class App {
       this.memoria.setPrograma(ok);
       this.registros.reiniciar(await api.getState());
       await this.memoria.irA(ok.data_base);
+      void this.cargarDisasmEnMemoria(); // columna de instrucción (RP11)
       // Los puntos del margen que cayeron en líneas sin código ejecutable
       // no representan un breakpoint real: se quitan y se avisa por consola
       // en vez de filtrarlos en silencio.
@@ -404,24 +412,84 @@ class App {
     await api.reset();
   }
 
-  /** Abre un .asm del usuario y reemplaza el contenido del editor
-   *  (mismo camino que la carga de un ejemplo: el programa ensamblado
-   *  anterior deja de valer hasta volver a «Ensamblar»). */
+  /** Abre un archivo del usuario: un fuente reemplaza el contenido del
+   *  editor; un ELF (detección por magic en el backend, RP11) entra en
+   *  modo binario con el listado desensamblado, solo lectura. */
   private async abrirArchivo(): Promise<void> {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const path = await open({
       title: t("archivo.tituloAbrir"),
-      filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s"] }],
+      filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s", "elf"] }],
     });
     if (!path) return;
     try {
-      const contenido = await api.abrirArchivo(path);
-      setDoc(this.editor, contenido);
-      this.programa = null;
-      this.rutaArchivo = path; // base para .include (RP5)
-      this.setModo("sin_programa", t("archivo.abierto", { path }));
+      const apertura = await api.abrirPrograma(path);
+      if (apertura.tipo === "fuente") {
+        this.salirModoBinario();
+        setDoc(this.editor, apertura.contenido);
+        this.programa = null;
+        this.rutaArchivo = path; // base para .include (RP5)
+        this.setModo("sin_programa", t("archivo.abierto", { path }));
+      } else {
+        await this.entrarModoBinario(apertura.ok, apertura.listado, path);
+      }
     } catch (e) {
       this.consola.append(`${t("archivo.errorAbrir", { message: String(e) })}\n`, "error");
+    }
+  }
+
+  /** Modo binario (RP11): la sesión ya quedó creada en el backend (como
+   *  un Ensamblar exitoso); acá se prepara la UI: listado solo-lectura,
+   *  banner y Ensamblar deshabilitado. Breakpoints, Paso, Ejecutar y el
+   *  resaltado de línea funcionan igual: cada línea del listado es una
+   *  dirección (line_to_addr viene armado del listado). */
+  private async entrarModoBinario(ok: AssembleOk, listado: string, path: string): Promise<void> {
+    setDoc(this.editor, listado);
+    setReadOnly(this.editor, true);
+    this.modoBinario = true;
+    this.programa = ok;
+    this.programaDesactualizado = false;
+    this.rutaArchivo = null;
+    this.botones["ensamblar"].disabled = true;
+    if (!this.bannerBinario) {
+      this.bannerBinario = document.createElement("div");
+      this.bannerBinario.id = "binario-banner";
+      const editorEl = document.getElementById("editor")!;
+      editorEl.parentElement!.insertBefore(this.bannerBinario, editorEl);
+    }
+    this.bannerBinario.textContent = t("binario.banner");
+    this.bannerBinario.hidden = false;
+    this.consola.clear();
+    this.consola.setInputMode(false);
+    setErrors(this.editor, []);
+    setExecLine(this.editor, null);
+    this.memoria.setPrograma(ok);
+    void this.cargarDisasmEnMemoria();
+    this.registros.reiniciar(await api.getState());
+    await this.memoria.irA(ok.text_base);
+    this.sincronizarPanelDepuracion();
+    this.enviarBreakpoints();
+    void this.depuracion.reaplicarWatchpoints();
+    this.setModo("listo", t("binario.abierto", { path }), "ok");
+  }
+
+  /** Vuelta al modo fuente (abrir un .s o cargar un ejemplo). */
+  private salirModoBinario(): void {
+    if (!this.modoBinario) return;
+    this.modoBinario = false;
+    setReadOnly(this.editor, false);
+    if (this.bannerBinario) this.bannerBinario.hidden = true;
+    this.botones["ensamblar"].disabled = false;
+    this.memoria.setDisasm(null);
+  }
+
+  /** Columna de instrucción del panel Memoria (RP11): vale para fuentes
+   *  normales y binarios por igual — el beneficio es general. */
+  private async cargarDisasmEnMemoria(): Promise<void> {
+    try {
+      this.memoria.setDisasm(await api.getDisasm());
+    } catch {
+      this.memoria.setDisasm(null);
     }
   }
 
