@@ -37,6 +37,7 @@ import ejFranjas from "../ejemplos/07-franjas.asm?raw";
 import ejTetrisGrafico from "../ejemplos/08-tetris-grafico.asm?raw";
 import ejEcoTeclado from "../ejemplos/09-eco-teclado.asm?raw";
 import ejTetrisRt from "../ejemplos/10-tetris-tiempo-real.asm?raw";
+import ejTrap from "../ejemplos/12-trap-handler.asm?raw";
 
 const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.hola", codigo: ejHola },
@@ -48,6 +49,7 @@ const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.tetris", codigo: ejTetrisGrafico },
   { clave: "ejemplo.eco", codigo: ejEcoTeclado },
   { clave: "ejemplo.tetrisRt", codigo: ejTetrisRt },
+  { clave: "ejemplo.trap", codigo: ejTrap },
 ];
 
 /** Estado de la UI respecto del programa. */

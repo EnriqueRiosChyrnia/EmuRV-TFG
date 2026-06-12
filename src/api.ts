@@ -80,6 +80,13 @@ export const api = {
   /** Edición en vivo de memoria (RP7): 1, 2 o 4 bytes little-endian. */
   writeMem: (addr: number, bytes: number[]) =>
     invoke<void>("write_mem", { addr: addr >>> 0, bytes }),
+  /** CSRs de máquina (RP8) en el orden fijo del backend:
+   *  mstatus, mie, mtvec, mscratch, mepc, mcause, mtval, mip. */
+  getCsrs: () => invoke<number[]>("get_csrs"),
+  /** Edición en vivo de un CSR (RP8): `indice` según el orden de getCsrs().
+   *  Solo con la máquina pausada; el rechazo trae el mensaje didáctico. */
+  writeCsr: (indice: number, val: number) =>
+    invoke<void>("write_csr", { indice, val: val >>> 0 }),
   sendInput: (text: string) => invoke<void>("send_input", { text }),
   /** Encola una tecla en el dispositivo de teclado MMIO (TEC4). Disparar y
    *  olvidar: sin sesión de emulación no hay cola y la tecla se descarta. */

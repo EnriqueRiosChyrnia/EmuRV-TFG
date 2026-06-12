@@ -42,6 +42,7 @@ export class Ayuda {
     la   a0, mensaje  # argumento
     ecall             # llamada al sistema</pre>
             <p>${t("ayuda.ebreak")}</p>
+            <p>${t("ayuda.traps")}</p>
           </section>
           <section>
             <h3>${t("ayuda.memoria.titulo")}</h3>

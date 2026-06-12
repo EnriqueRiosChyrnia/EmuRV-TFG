@@ -218,6 +218,14 @@ BITACORA.md           registro de decisiones técnicas (material de tesis)
 cd src-tauri && cargo test     # suite completa (núcleo + integración de ejemplos)
 ```
 
+## Traps y CSRs (Zicsr)
+
+El programa puede instalar su **propio manejador de excepciones** (`csrw
+mtvec, t0` + `mret`): los ecall desconocidos, las instrucciones ilegales y
+los accesos inválidos se delegan al manejador, como en un kernel real —
+con doble falta detectada y mensajes didácticos. Ejemplo:
+`ejemplos/12-trap-handler.asm`. Detalle: [`docs/TRAPS.md`](docs/TRAPS.md).
+
 ## Depuración remota (GDB)
 
 `emurv-cli debug programa.s` levanta un **servidor GDB remoto** (protocolo

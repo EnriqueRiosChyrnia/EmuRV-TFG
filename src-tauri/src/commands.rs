@@ -10,8 +10,8 @@
 //! instrucción.
 
 use crate::core::assembler::{self, AsmError, Program};
-use crate::core::keyboard::KeyboardShared;
 use crate::core::cond::parse_cond;
+use crate::core::keyboard::KeyboardShared;
 use crate::core::machine::{BreakpointSpec, Machine, StopReason, Watchpoint};
 use crate::core::syscalls::{ConsoleEvent, InputMsg};
 use crate::core::video::VideoShared;
@@ -65,6 +65,14 @@ enum EmuCmd {
     WriteMem {
         addr: u32,
         bytes: Vec<u8>,
+        reply: Sender<Result<(), String>>,
+    },
+    GetCsrs {
+        reply: Sender<[u32; 8]>,
+    },
+    WriteCsr {
+        indice: usize,
+        val: u32,
         reply: Sender<Result<(), String>>,
     },
     ReadMem {
@@ -340,6 +348,14 @@ fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String>
         }
         EmuCmd::WriteMem { addr, bytes, reply } => {
             let _ = reply.send(machine.write_mem(addr, &bytes));
+            Ok(())
+        }
+        EmuCmd::GetCsrs { reply } => {
+            let _ = reply.send(machine.read_csrs());
+            Ok(())
+        }
+        EmuCmd::WriteCsr { indice, val, reply } => {
+            let _ = reply.send(machine.write_csr(indice, val));
             Ok(())
         }
         EmuCmd::ReadMem { addr, len, reply } => {
@@ -624,9 +640,10 @@ pub fn set_breakpoints(bps: Vec<BpEntrada>, manager: State<'_, EmuManager>) -> R
     for b in bps {
         let cond = match b.cond.as_deref().map(str::trim) {
             None | Some("") => None,
-            Some(texto) => Some(parse_cond(texto).map_err(|e| {
-                format!("condición inválida en 0x{:08X}: {e}", b.addr)
-            })?),
+            Some(texto) => Some(
+                parse_cond(texto)
+                    .map_err(|e| format!("condición inválida en 0x{:08X}: {e}", b.addr))?,
+            ),
         };
         specs.push(BreakpointSpec { addr: b.addr, cond });
     }
@@ -697,14 +714,41 @@ pub fn write_reg(reg: String, val: u32, manager: State<'_, EmuManager>) -> Resul
     })
 }
 
+/// Estado de los CSRs con nombre (RP8), para el panel avanzado.
+#[tauri::command]
+pub fn get_csrs(manager: State<'_, EmuManager>) -> Result<Vec<u32>, String> {
+    with_session(&manager, |s| {
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::GetCsrs { reply })
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        rx.recv()
+            .map(|a| a.to_vec())
+            .map_err(|_| "la sesión de emulación terminó".to_string())
+    })
+}
+
+/// Edición de un CSR (RP8): índice del orden mstatus…mip. Solo pausado.
+#[tauri::command]
+pub fn write_csr(
+    indice: usize,
+    val: u32,
+    manager: State<'_, EmuManager>,
+) -> Result<(), String> {
+    with_session(&manager, |s| {
+        exigir_pausa(s)?;
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::WriteCsr { indice, val, reply })
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        pedir(rx)
+    })
+}
+
 /// Edición en vivo de memoria (RP7): 1, 2 o 4 bytes little-endian. Solo
 /// con la máquina pausada.
 #[tauri::command]
-pub fn write_mem(
-    addr: u32,
-    bytes: Vec<u8>,
-    manager: State<'_, EmuManager>,
-) -> Result<(), String> {
+pub fn write_mem(addr: u32, bytes: Vec<u8>, manager: State<'_, EmuManager>) -> Result<(), String> {
     with_session(&manager, |s| {
         exigir_pausa(s)?;
         let (reply, rx) = channel();

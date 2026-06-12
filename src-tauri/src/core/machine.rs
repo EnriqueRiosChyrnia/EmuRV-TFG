@@ -616,6 +616,43 @@ impl Machine<'_> {
         Ok(())
     }
 
+    /// Estado de los 8 CSRs con nombre (RP8), en el orden
+    /// mstatus, mie, mtvec, mscratch, mepc, mcause, mtval, mip.
+    pub fn read_csrs(&self) -> [u32; 8] {
+        let ids = [
+            super::CSR_ID_MSTATUS,
+            super::CSR_ID_MIE,
+            super::CSR_ID_MTVEC,
+            super::CSR_ID_MSCRATCH,
+            super::CSR_ID_MEPC,
+            super::CSR_ID_MCAUSE,
+            super::CSR_ID_MTVAL,
+            super::CSR_ID_MIP,
+        ];
+        ids.map(|id| self.uc.reg_read(id).unwrap_or(0) as u32)
+    }
+
+    /// Edición en vivo de un CSR con nombre (RP8, panel avanzado). El
+    /// índice es la posición en el orden de `read_csrs`.
+    pub fn write_csr(&mut self, indice: usize, val: u32) -> Result<(), String> {
+        let ids = [
+            super::CSR_ID_MSTATUS,
+            super::CSR_ID_MIE,
+            super::CSR_ID_MTVEC,
+            super::CSR_ID_MSCRATCH,
+            super::CSR_ID_MEPC,
+            super::CSR_ID_MCAUSE,
+            super::CSR_ID_MTVAL,
+            super::CSR_ID_MIP,
+        ];
+        let id = *ids
+            .get(indice)
+            .ok_or_else(|| format!("índice de CSR inválido: {indice}"))?;
+        self.uc
+            .reg_write(id, u64::from(val))
+            .map_err(|e| format!("no se pudo escribir el CSR: {e:?}"))
+    }
+
     /// Edición en vivo (RP7): escribe el registro `n` (1..=31). `x0` se
     /// rechaza con explicación; para el pc usá [`Machine::write_pc`].
     /// Pensado para usarse con la máquina PAUSADA (el guard de estado vive

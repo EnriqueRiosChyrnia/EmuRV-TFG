@@ -32,7 +32,11 @@ fn editar_t0_pausado_la_siguiente_instruccion_usa_el_valor() {
     m.write_reg(5, 99).expect("escribir t0");
     // Paso 2: addi t1, t0, 0 — debe usar el 99 recién escrito.
     assert!(matches!(m.step(), StopReason::StepDone));
-    assert_eq!(m.registers().expect("regs")[6], 99, "t1 tomó el valor editado");
+    assert_eq!(
+        m.registers().expect("regs")[6],
+        99,
+        "t1 tomó el valor editado"
+    );
 }
 
 /// Editar el pc: la ejecución continúa exactamente ahí y last_bp queda
@@ -103,10 +107,14 @@ v: .word 0
     m.write_mem(DATA_BASE, &0xDEAD_BEEFu32.to_le_bytes())
         .expect("word");
     // half y byte encima (little-endian: byte bajo primero)
-    m.write_mem(DATA_BASE, &0xBE_EFu16.to_le_bytes()).expect("half");
+    m.write_mem(DATA_BASE, &0xBE_EFu16.to_le_bytes())
+        .expect("half");
     m.write_mem(DATA_BASE + 3, &[0x7F]).expect("byte");
     let leido = u32::from_le_bytes(
-        m.read_mem(DATA_BASE, 4).expect("host lee").try_into().unwrap(),
+        m.read_mem(DATA_BASE, 4)
+            .expect("host lee")
+            .try_into()
+            .unwrap(),
     );
     assert_eq!(leido, 0x7FAD_BEEF, "composición word+half+byte");
     // El PROGRAMA ve el valor editado.

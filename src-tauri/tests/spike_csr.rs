@@ -19,7 +19,7 @@ const BASE: u64 = 0x0040_0000;
 // Registros x del binding: xN = N+1 (X0 == 1).
 const T1: i32 = 7; // x6
 const T2: i32 = 8; // x7
-// CSRs (ids crudos del binding).
+                   // CSRs (ids crudos del binding).
 const MSCRATCH: i32 = 127;
 const MTVEC: i32 = 121;
 const MEPC: i32 = 128;
@@ -48,8 +48,7 @@ const NOP: u32 = 0x0000_0013;
 /// Motor con .text mapeado y el programa cargado. Sin hooks de Machine:
 /// este spike mide el comportamiento CRUDO primero.
 fn motor(words: &[u32]) -> Unicorn<'static, ()> {
-    let mut uc =
-        Unicorn::new(Arch::RISCV, Mode::RISCV32).expect("unicorn");
+    let mut uc = Unicorn::new(Arch::RISCV, Mode::RISCV32).expect("unicorn");
     uc.mem_map(BASE, 0x1000, Prot::READ | Prot::WRITE | Prot::EXEC)
         .expect("map");
     let bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
@@ -112,12 +111,7 @@ fn p1b_csrrwi() {
 fn p2_mret() {
     let (res, pc) = correr("p2", || {
         // lui t0, 0x400; addi t0, t0, 0x100 (=0x400100); csrw mepc, t0; mret
-        let prog = [
-            lui(5, 0x400),
-            addi(5, 5, 0x100),
-            csrrw_x0(0x341, 5),
-            MRET,
-        ];
+        let prog = [lui(5, 0x400), addi(5, 5, 0x100), csrrw_x0(0x341, 5), MRET];
         let mut uc = motor(&prog);
         // destino con un nop para que el run pueda terminar ahí
         uc.mem_write(BASE + 0x100, &NOP.to_le_bytes()).unwrap();
@@ -135,12 +129,7 @@ fn p3a_ecall_sin_hook() {
     let (res, pc, mcause, mepc) = correr("p3a", || {
         // handler en BASE+0x200: csrr t2, mcause; nop (queda ahí)
         // main: csrw mtvec = BASE+0x200; ecall
-        let prog = [
-            lui(5, 0x400),
-            addi(5, 5, 0x200),
-            csrrw_x0(0x305, 5),
-            ECALL,
-        ];
+        let prog = [lui(5, 0x400), addi(5, 5, 0x200), csrrw_x0(0x305, 5), ECALL];
         let mut uc = motor(&prog);
         let handler = [csrrs_rd(0x342, 7), NOP];
         let hbytes: Vec<u8> = handler.iter().flat_map(|w| w.to_le_bytes()).collect();
@@ -199,7 +188,9 @@ fn p3b_ecall_con_hook_reinyeccion() {
             visto.load(std::sync::atomic::Ordering::SeqCst),
         )
     });
-    eprintln!("[P3b ecall con hook] res={res:?} pc={pc:#x} t2(mcause leído)={t2} hook={hook_visto}");
+    eprintln!(
+        "[P3b ecall con hook] res={res:?} pc={pc:#x} t2(mcause leído)={t2} hook={hook_visto}"
+    );
     // Documental: lo crítico es saber si t2 == 8/11 (handler corrió) y si
     // el mret volvió (pc avanzó más allá del ecall).
 }
@@ -252,7 +243,9 @@ fn p3d_acceso_invalido_sin_hook() {
             uc.reg_read(MTVAL).unwrap_or(u64::MAX),
         )
     });
-    eprintln!("[P3d acceso inválido sin hook] res={res:?} pc={pc:#x} mcause={mcause} mtval={mtval:#x}");
+    eprintln!(
+        "[P3d acceso inválido sin hook] res={res:?} pc={pc:#x} mcause={mcause} mtval={mtval:#x}"
+    );
 }
 
 /// P3e: ebreak con mtvec, sin hooks (RP-1 dice que sin mtvec es
@@ -319,8 +312,8 @@ fn p3b2_reinyeccion_con_mepc_conocido() {
             lui(5, 0x400),
             addi(5, 5, 0x200),
             csrrw_x0(0x305, 5),
-            ECALL,          // BASE+0xC
-            addi(6, 0, 7),  // BASE+0x10 ← mret debe aterrizar acá
+            ECALL,         // BASE+0xC
+            addi(6, 0, 7), // BASE+0x10 ← mret debe aterrizar acá
             NOP,
         ];
         let mut uc = motor(&prog);
@@ -345,7 +338,10 @@ fn p3b2_reinyeccion_con_mepc_conocido() {
     });
     eprintln!("[P3b2] res={res:?} t1={t1} t2(mcause)={t2}");
     assert!(res.is_ok(), "el flujo completo debe terminar: {res:?}");
-    assert_eq!(t2, 8, "el handler leyó mcause (ECALL desde M en Unicorn = 8)");
+    assert_eq!(
+        t2, 8,
+        "el handler leyó mcause (ECALL desde M en Unicorn = 8)"
+    );
     assert_eq!(t1, 7, "mret volvió DESPUÉS del ecall y el programa siguió");
 }
 
@@ -361,21 +357,26 @@ fn p3f_reinyeccion_desde_mem_invalid() {
             csrrw_x0(0x305, 5),
             lui(6, 0x99999),
             (6 << 15) | (2 << 12) | (7 << 7) | 0x03, // lw t2, 0(t1) ← inválido (BASE+0x10)
-            addi(6, 0, 7),                            // BASE+0x14 ← mret debería aterrizar acá
+            addi(6, 0, 7),                           // BASE+0x14 ← mret debería aterrizar acá
             NOP,
         ];
         let mut uc = motor(&prog);
         let handler = [csrrs_rd(0x343, 7), MRET]; // csrr t2, mtval ; mret
         let hbytes: Vec<u8> = handler.iter().flat_map(|w| w.to_le_bytes()).collect();
         uc.mem_write(BASE + 0x200, &hbytes).unwrap();
-        uc.add_mem_hook(HookType::MEM_INVALID, 1, 0, move |uc, _tipo, dir, _sz, _v| {
-            let _ = uc.reg_write(MEPC, BASE + 0x14); // post-lw, conocido
-            let _ = uc.reg_write(MCAUSE, 5u64); // load access fault
-            let _ = uc.reg_write(MTVAL, dir);
-            let mtvec = uc.reg_read(MTVEC).unwrap_or(0);
-            let _ = uc.reg_write(RegisterRISCV::PC, mtvec);
-            true // "manejado"
-        })
+        uc.add_mem_hook(
+            HookType::MEM_INVALID,
+            1,
+            0,
+            move |uc, _tipo, dir, _sz, _v| {
+                let _ = uc.reg_write(MEPC, BASE + 0x14); // post-lw, conocido
+                let _ = uc.reg_write(MCAUSE, 5u64); // load access fault
+                let _ = uc.reg_write(MTVAL, dir);
+                let mtvec = uc.reg_read(MTVEC).unwrap_or(0);
+                let _ = uc.reg_write(RegisterRISCV::PC, mtvec);
+                true // "manejado"
+            },
+        )
         .expect("mem hook");
         let res = uc.emu_start(BASE, BASE + 0x1C, 0, 80);
         (
