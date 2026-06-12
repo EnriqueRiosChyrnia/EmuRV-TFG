@@ -385,3 +385,41 @@ Gate TEC4 ✓: tsc limpio, vite build ok (47 módulos).
 - Menú de ejemplos + i18n: «Eco de teclado (tiempo real)» y «Tetris en tiempo real» agregados (08 sigue en el menú).
 
 Gate TEC5 ✓: 84 tests + 6 ignore (fb3 verde, integración 6/6), clippy 0, tsc limpio, vite build ok.
+
+## TEC6 — Docs, revisión adversarial y cierre de sesión (2026-06-12)
+
+### Documentación
+
+`docs/TECLADO.md` nuevo (mapa MMIO, semántica leer-consume con advertencia lb/extensión de signo para flechas 0x80+, tabla de códigos, syscalls 30/32, decisiones del spike con cifras, limitaciones). ARQUITECTURA.md con notas fechadas (bucle por count, dispositivos emulados), README/docs/README con las features y los 9 ejemplos, MEMORIA-GRAFICA con referencia cruzada. Matiz nuevo documentado: el visor de memoria muestra el último valor refrescado de CONTROL/DATA, no el estado instantáneo de la cola.
+
+### Revisión adversarial del diff (d047ccf..HEAD)
+
+3 dimensiones (concurrencia/hook, syscalls de tiempo, ejemplos/frontend) + verificador adversarial por hallazgo: **10 confirmados, 0 refutados**. Corregidos en esta fase:
+
+1. **stop_flag colgado [medio]:** Reiniciar/Detener dejaban el flag en true y el próximo «Paso» sobre syscall 32 salteaba el sleep (dependencia de historia de botones). Fix: los brazos Step y Reset limpian el flag como ya hacía Run.
+2. **Breakpoint salteado en borde de count [medio]:** si el tramo agotaba el count EXACTO sobre la dirección de un breakpoint, la continuación lo suprimía y se ejecutaba de largo sin reportar (reproducido determinista). Fix: la supresión del bp del pc de arranque vale solo para el PRIMER tramo de una orden Run (`run_slice_continuation` nuevo); test de regresión rojo→verde `breakpoint_en_borde_de_count_se_reporta_en_la_continuacion`.
+3. **Hilo zombi al re-ensamblar durante un sleep [medio]:** la sesión vieja quedaba dormida hasta a0 ms (49.7 días con `li a0,-1`) reteniendo su Unicorn y podía emitir registros viejos al despertar. Fix: `assemble` setea el stop_flag viejo + manda `Cancel` antes de reemplazar (mismo gesto que Detener).
+4. **AltGr bloqueado [medio]:** `mapearTecla` rechazaba Alt → en teclados español/LATAM (el público de esta tesis) @ # [ ] eran imposibles de tipear. Fix: imprimibles 32-126 se aceptan con Alt/AltGr (incluido el pseudo-Ctrl del AltGr de Windows vía `getModifierState("AltGraph")`); Ctrl/Cmd reales siguen bloqueados.
+5. **Eco de caracteres de control [bajo]:** el 09 imprimía basura con flechas/Backspace por syscall 11. Fix: filtro didáctico — solo eco de imprimibles 32-126 y Enter; el resto solo dibuja su bloque.
+
+**Limitación aceptada y documentada (cluster sleep, 5 hallazgos restantes):** la syscall 32 duerme dentro del hook de Unicorn, así que durante un sleep no se atienden `read_mem`/`get_state` (visor congelado) y un «Paso» sobre un sleep largo no ofrece «Detener» en la UI (el botón está deshabilitado en ese modo). Vías de rescate REALES: «Reiniciar» y «Ensamblar» despiertan el sleep en ≤10 ms (setean el mismo stop_request; verificado por los fixes 1 y 3). a0 es u32 sin cota (hasta ~49.7 días), documentado en TECLADO.md. El rediseño (sleep como deadline entre tramos del bucle de comandos) queda como propuesta fuera de alcance. [Probable — el rediseño es la solución completa; las vías de rescate están testadas]
+
+### Suite final y cifras de cierre (release, Apple Silicon)
+
+- `cargo test`: **85 pasan + 6 `#[ignore]` = 91** · clippy 0 warnings · tsc limpio · vite build ok.
+- Benchmarks release: RNF-02 **1.01 ms** · RNF-03 libre **1562.4 M instr/s** · **con slicing 330.6 M instr/s** (gate ≥10 M: ~33×) · con breakpoint 104.9 M · FB1 conversión **105 µs** · FB4 **831 FPS** lado Rust.
+- **Latencia de tecla percibida** = tramo de emulación (~2-3 ms) + timer UI (33 ms) + intervalo de polling del programa (10-15 ms en los ejemplos) ≈ **<50 ms** — dentro del objetivo del checklist humano.
+- `cargo tauri build`: **EmuRV.app 21 MB / DMG 7.2 MB** (<30 MB ✓).
+- Hallazgo de Etapa 4 (2026-06-11) "Detener podría no responder": **CERRADO** (TEC1 + test + fixes de esta fase).
+
+## PENDIENTE DE VERIFICACIÓN VISUAL DEL USUARIO (sesión teclado)
+
+1. **Jugar `10-tetris-tiempo-real`** (build nuevo): pieza cae sola cada `gravedad_ms` (500); WASD y flechas responden <50 ms percibidos; Esc sale limpio.
+2. **Detener** durante: bucle infinito puro (`inicio: j inicio`), Tetris RT corriendo, y sleep largo (syscall 32 con 10000) — los tres deben frenar al instante. (Durante un «Paso» sobre sleep largo, el rescate es «Reiniciar».)
+3. Captura de teclado: click en pantalla captura (indicador «Teclado capturado» visible), click en editor suelta, flechas NO scrollean capturado; en ventana desacoplada las teclas van directo. Probar signos con AltGr/Option (@, #, [) en teclado español/LATAM.
+4. Consola clásica intacta: «Suma interactiva» (syscall 5) pide y lee igual que siempre.
+5. Heredadas de FB aún abiertas: refresco con ventana desacoplada al cambiar de programa; panel oculto al desacoplar/arrancar; FPS real del canvas.
+6. Captura nueva para la tesis: `docs/capturas/fb5-tetris-tiempo-real.png` (+ las 3 pendientes de FB2/FB3).
+7. Tras validar todo: decisión con tutor — aval framebuffer+teclado → merge a main + SPEC v0.2.
+
+Sesión TEC0-TEC6 completada. Rama `feature/teclado` (desde `feature/framebuffer`). **NO mergeada.**

@@ -13,9 +13,10 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - Ejecución completa o paso a paso sobre [Unicorn Engine](https://www.unicorn-engine.org/); la línea por ejecutarse queda resaltada.
 - Vista de registros (x0–x31 + pc, nombres ABI, hex y decimal) con **resaltado de los que cambiaron** en el último paso.
 - Vista de memoria navegable con accesos rápidos a `.text`, `.data` y la pila.
-- Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar.
+- Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar, tiempo en ms y dormir.
+- **Teclado en tiempo real**: dispositivo MMIO compatible RARS/MARS (`0xFFFF_0000`) que el programa consulta por polling sin bloquearse — ver [`docs/TECLADO.md`](docs/TECLADO.md).
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).
-- 7 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240.
+- 9 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 
 ## Modo gráfico (Framebuffer VGA 13h)
@@ -30,6 +31,19 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - **Compatibilidad:** los programas sin gráficos no pagan ningún costo (RF4).
 
 Detalles: ver [`docs/MEMORIA-GRAFICA.md`](docs/MEMORIA-GRAFICA.md) y [`BITACORA.md`](BITACORA.md) (decisiones técnicas, mediciones RF1-RF4).
+
+## Teclado en tiempo real (rama `feature/teclado`)
+
+Entrada interactiva sin bloquear el programa: un **dispositivo de teclado mapeado en memoria**, con las mismas direcciones y semántica que RARS/MARS (el material didáctico existente funciona sin cambios).
+
+- **`RECEIVER_CONTROL` (`0xFFFF_0000`):** bit 0 en 1 cuando hay una tecla pendiente (el bit 1 —interrupciones— queda reservado: solo polling).
+- **`RECEIVER_DATA` (`0xFFFF_0004`):** código de la tecla más vieja; **leerlo la consume**. Cola de 64 teclas con descarte de la más vieja.
+- **Captura en la UI:** click en el canvas del panel «Pantalla» (o ventana de pantalla desacoplada); imprimibles ASCII, Enter (10), Esc (27), Backspace (8) y flechas (`0x80`–`0x83`).
+- **Syscalls nuevas:** 30 (tiempo del sistema en ms, par `a1:a0`, reloj no decreciente) y 32 (dormir `a0` ms, interrumpible por «Detener»).
+- **«Detener» responde siempre:** la ejecución corre en tramos de 1 M de instrucciones (~2-3 ms), así que hasta un `loop: j loop` se detiene al instante.
+- **Ejemplos:** «Eco de teclado» (polling mínimo comentado) y **«Tetris en tiempo real»** (mismo motor del Tetris gráfico; a/d/w/s o flechas, gravedad por reloj).
+
+Detalles completos —mapa MMIO, semántica exacta, tabla de códigos, decisiones de diseño con mediciones—: [`docs/TECLADO.md`](docs/TECLADO.md).
 
 ## Instalación
 
@@ -95,7 +109,7 @@ main:
 4. Click en el margen izquierdo del editor para poner un **breakpoint** (punto rojo): «Ejecutar» se detiene ahí, antes de ejecutar esa línea.
 5. **Reiniciar** vuelve la máquina al estado inicial (registros y memoria como recién ensamblado).
 
-Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada), «Fibonacci» paso a paso, y «Tetris gráfico» para un programa grande de verdad (tablero en memoria, bitmaps, colisiones, líneas completas, dibujado en la pantalla gráfica).
+Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando el programa pide entrada), «Fibonacci» paso a paso, «Tetris gráfico» para un programa grande de verdad (tablero en memoria, bitmaps, colisiones, líneas completas, dibujado en la pantalla gráfica), y «Tetris en tiempo real» o «Eco de teclado» para jugar con el teclado MMIO (click en la pantalla gráfica para capturar las teclas).
 
 ## Syscalls (convención RARS)
 
@@ -106,16 +120,18 @@ Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando 
 | 5  | leer entero | devuelve en `a0` |
 | 10 | terminar | — |
 | 11 | imprimir carácter | `a0` = código |
+| 30 | tiempo del sistema en ms | devuelve `a0` = bits bajos, `a1` = bits altos |
+| 32 | dormir | `a0` = milisegundos (interrumpible con «Detener») |
 
 Tabla completa, mapa de memoria y directivas: botón **Ayuda** dentro de la app.
 
 ## Estructura del proyecto
 
 ```
-src-tauri/src/core/   núcleo Rust: assembler, machine (Unicorn), syscalls, elf_export
+src-tauri/src/core/   núcleo Rust: assembler, machine (Unicorn), syscalls, elf_export, video, keyboard
 src-tauri/src/commands.rs   comandos Tauri + hilo de emulación
 src/                  frontend TS: editor (CodeMirror 6), paneles, i18n
-ejemplos/             los 5 programas de ejemplo
+ejemplos/             los 9 programas de ejemplo
 docs/                 contrato de trabajo del TFG y capturas
 BITACORA.md           registro de decisiones técnicas (material de tesis)
 ```
