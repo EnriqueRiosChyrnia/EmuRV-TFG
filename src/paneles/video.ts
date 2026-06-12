@@ -8,6 +8,7 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api } from "../api";
 import { t } from "../i18n";
+import { mapearTecla } from "../teclado";
 
 const ANCHO = 320;
 const ALTO = 240;
@@ -16,6 +17,9 @@ const VENTANA = "pantalla"; // label de la ventana desacoplada
 
 export class Video {
   private seccion: HTMLElement;
+  private canvas: HTMLCanvasElement;
+  /** Aviso de «teclado capturado» visible mientras el canvas tiene foco. */
+  private indicador: HTMLElement;
   private ctx: CanvasRenderingContext2D;
   private imageData: ImageData; // reusado entre frames (RB-1)
   private timer: number | null = null;
@@ -28,11 +32,37 @@ export class Video {
 
   constructor(seccion: HTMLElement, canvas: HTMLCanvasElement, botonDesacoplar: HTMLElement) {
     this.seccion = seccion;
+    this.canvas = canvas;
     canvas.width = ANCHO;
     canvas.height = ALTO;
     this.ctx = canvas.getContext("2d")!;
     this.imageData = this.ctx.createImageData(ANCHO, ALTO);
     botonDesacoplar.onclick = () => void this.abrirVentanaAparte();
+
+    // Captura de teclado (TEC4): SOLO tras un click explícito del usuario
+    // en el canvas, nunca robándole el foco al editor. Los listeners viven
+    // en el propio canvas (no en window/document), así que con el panel
+    // oculto o desacoplado el canvas no puede tener foco y no captura nada;
+    // no hay listener global que limpiar en el ciclo de vida del panel.
+    canvas.tabIndex = 0; // hace al canvas enfocable
+    this.indicador = document.createElement("div");
+    this.indicador.className = "video-indicador";
+    this.indicador.textContent = t("video.tecladoCapturado");
+    this.indicador.hidden = true;
+    canvas.insertAdjacentElement("afterend", this.indicador);
+    canvas.addEventListener("click", () => canvas.focus());
+    canvas.addEventListener("focus", () => {
+      this.indicador.hidden = false;
+    });
+    canvas.addEventListener("blur", () => {
+      this.indicador.hidden = true;
+    });
+    canvas.addEventListener("keydown", (ev) => {
+      const code = mapearTecla(ev);
+      if (code === null) return; // tecla no mapeada: que la maneje el navegador
+      ev.preventDefault(); // imprescindible en flechas/espacio: no scrollear
+      api.pushKey(code);
+    });
   }
 
   get visible(): boolean {
@@ -56,6 +86,7 @@ export class Video {
     else {
       this.seccion.hidden = true;
       this.detenerTimer();
+      this.canvas.blur(); // soltar la captura de teclado al ocultar
     }
   }
 
@@ -120,6 +151,7 @@ export class Video {
     this.desacoplada = true;
     this.seccion.hidden = true;
     this.detenerTimer();
+    this.canvas.blur(); // la captura de teclado pasa a la ventana aparte
     const w = new WebviewWindow(VENTANA, {
       url: "pantalla.html",
       title: t("video.ventana"),

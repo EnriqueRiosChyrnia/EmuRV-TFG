@@ -46,6 +46,13 @@ export const api = {
   stop: () => invoke<void>("stop"),
   setBreakpoints: (addrs: number[]) => invoke<void>("set_breakpoints", { addrs }),
   sendInput: (text: string) => invoke<void>("send_input", { text }),
+  /** Encola una tecla en el dispositivo de teclado MMIO (TEC4). Disparar y
+   *  olvidar: sin sesión de emulación no hay cola y la tecla se descarta. */
+  pushKey: (code: number): void => {
+    invoke<void>("push_key", { code }).catch(() => {
+      // sin sesión de emulación: nada que hacer con la tecla
+    });
+  },
   exportElf: (path: string) => invoke<void>("export_elf", { path }),
   /** Lee un archivo de texto (.asm) del disco para cargarlo en el editor. */
   abrirArchivo: (path: string) => invoke<string>("leer_archivo_texto", { path }),

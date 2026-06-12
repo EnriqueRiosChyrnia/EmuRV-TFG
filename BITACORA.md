@@ -366,3 +366,13 @@ Gate TEC2 ✓: 76 tests + 6 ignore (integración 6/6, regresiones JIT y fb* inta
 - Tests (`tec3_tiempo.rs`, 4): plausibilidad y no-decrecimiento del par a1:a0 entre dos llamadas; sleep de 80 ms → delta ∈ [60, 5000) ms; **sleep de 10 000 ms interrumpido a los ~50 ms retorna `Paused` en <1 s** (y ≥30 ms: durmió de verdad), con guardián anticuelgue; animación durante sleep: 3 frames con color distinto + sleep 30 ms → `seq ≥ 2` (el publish pre-sleep es el mecanismo).
 
 Gate TEC3 ✓: 80 tests + 6 ignore, clippy 0. (tsc se gatea con TEC4, que está en curso sobre src/.)
+
+## TEC4 — Frontend: captura de teclado (2026-06-12)
+
+- `src/teclado.ts` (módulo único de mapeo): imprimibles ASCII (<128), Enter 10, Esc 27, Backspace 8, flechas 0x80-0x83; `null` con Ctrl/Cmd/Alt (no robar atajos) y para teclas no mapeadas. El criterio de `preventDefault` es exactamente "mapeada": flechas/espacio no scrollean mientras se captura.
+- Panel embebido (`video.ts`): canvas con `tabindex=0`; la captura SOLO arranca por click explícito del usuario en el canvas (jamás roba foco al editor); indicador i18n «Teclado capturado — clic afuera para soltar» visible con foco; blur suelta. Los listeners viven en el canvas (no hay listener global que limpiar); `blur()` explícito al ocultar el panel y al desacoplar.
+- Ventana desacoplada (`pantalla.ts`): keydown a nivel window siempre (toda la ventana es la pantalla), mismo módulo de mapeo.
+- Ayuda: filas de syscalls 30/32 + sección nueva "Teclado y tiempo" (mapa MMIO con bit 1 documentado reservado, tabla de códigos, ejemplo de polling de 5 líneas). Sigue el patrón existente de la Ayuda (prosa por i18n, literales técnicos en el template). `api.pushKey` fire-and-forget.
+- **Pendiente de verificación visual humana (no se declara cumplido):** foco/indicador real al click, preventDefault del scroll en WKWebView, no-interferencia con CodeMirror ni atajos del sistema, flujo end-to-end tecla→cola→guest, estética del indicador.
+
+Gate TEC4 ✓: tsc limpio, vite build ok (47 módulos).
