@@ -747,3 +747,10 @@ Compuerta F3 ✓: 23 suites verdes, clippy 0.
 - **Pendiente de verificación visual humana (6 flujos, NO declarados cumplidos):** condición que para solo al cumplirse + error visible; watchpoints alta/baja/rechazo/disparo con navegación; edición inline de registros (Enter/Esc/rechazos/resaltado); edición de memoria; persistencia tras re-ensamblar; colapso del panel y layout con 4 paneles.
 
 Compuerta F4 ✓: tsc limpio, vite ok (50 módulos), 23 suites src-tauri + CLI verdes, clippy 0 ambos.
+
+## RP7 Fase 5 — Documentación y cierre (2026-06-12)
+
+- `docs/DEPURACION.md`: watchpoints (regiones, veto MMIO con porqué, cifra de rendimiento), gramática exacta de condiciones con ejemplos, edición en vivo con los rechazos didácticos, límites (TEC6 sleep, re-aplicación tras re-ensamblar, qué queda para gdb). Ayuda integrada: párrafo nuevo en Breakpoints. README enlaza ambas guías de depuración.
+- Decisiones consolidadas: hooks instalar-solo-si-hace-falta como LEY cumplida (watch_hooks espejo de bp_hook, con introspección de test); supresión de re-disparo de watchpoint (hallazgo propio F1, espejo de suppress_bp); condición FALSA ≠ parada (last_bp intacto, RP-1 F4 vigente); guard de pausa en Session.corriendo; parseo de condiciones en el hilo UI. Mediciones: **71.4 M instr/s con watchpoint activo y carga por iteración** (gate ≥10 M ~7×); corrida libre sin watchpoints: cero hooks (test).
+
+**Compuerta F5 (cierre RP7) ✓ [Seguro — corridas reales]:** `cargo test` + clippy 0 en AMBOS crates (23 suites + CLI) · tsc limpio · `scripts/ci-local.sh --skip-bundle` exit 0 · `cargo tauri build` ok · bundle dentro del límite RNF-04.

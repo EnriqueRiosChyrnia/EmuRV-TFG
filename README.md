@@ -225,7 +225,9 @@ gdbserver): conectá `riscv64-elf-gdb` o VS Code por TCP y depurá con
 breakpoints **por nombre de etiqueta** (el ELF exportado lleva símbolos),
 paso a paso, registros y memoria. La app de escritorio no cambia (la feature
 `gdb` solo entra en el CLI). Guía completa, sesión de referencia y
-limitaciones: [`docs/DEPURACION-GDB.md`](docs/DEPURACION-GDB.md).
+limitaciones: [`docs/DEPURACION-GDB.md`](docs/DEPURACION-GDB.md). Las herramientas didácticas
+integradas (watchpoints, breakpoints condicionales, edición en vivo desde el
+panel «Depuración»): [`docs/DEPURACION.md`](docs/DEPURACION.md).
 
 ## Integración continua
 

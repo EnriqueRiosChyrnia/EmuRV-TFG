@@ -91,6 +91,7 @@ export class Ayuda {
           <section>
             <h3>${t("ayuda.breakpoints.titulo")}</h3>
             <p>${t("ayuda.breakpoints.texto")}</p>
+            <p>${t("ayuda.depuracion.texto")}</p>
           </section>
         </div>
       </div>`;
