@@ -601,3 +601,16 @@ Plan `docs/PLAN-RP5-multiarchivo.md` (punto de mayor riesgo del roadmap: el inva
 - 9 tests nuevos en el módulo del ensamblador (46 lib en total).
 
 Compuerta F1 ✓: 18 suites src-tauri + 13/13 emurv-cli, clippy 0 en ambos.
+
+## RP5 Fase 2 — Preprocesador e .include con tabla de procedencia (2026-06-12)
+
+La fase de mayor riesgo del punto de mayor riesgo: el source_map sobrevive por diseño, no por suerte.
+
+- **`core/preprocess.rs` nuevo**: aplana `.include` ANTES de las dos pasadas, con `PpLine { text, file, line, main_line }`. **Regla de atribución main_line** (el corazón del invariante): línea del principal → su propia línea; línea traída por include (directo o anidado) → la línea de la directiva `.include` DEL PRINCIPAL que la introdujo. El SourceMap sigue hablando SOLO de líneas del principal → la UI actual (breakpoints, resaltado, un buffer) funciona sin cambios. [Seguro — diseño del plan aplicado tal cual]
+- **Errores con procedencia REAL**: `AsmError.file: Option<String>` (None = principal; el Display antepone «archivo.s: » solo en Some — cero cambio de formato para el caso de siempre). Pass1/Pass2/fixups adjuntan el archivo vía cursor de procedencia en Pass1 (`cur_file`/`cur_main_line`) y campos nuevos de `PInstr`/`DataFixup` — sin enhebrar firmas por todo el parser.
+- **`assemble_with_includes(source, base_dir, main_name)`** nueva; `assemble()` queda como wrapper con `base_dir: None` → CERO cambios en los ~20 archivos de tests existentes (la suite vieja verde lo prueba). Sin base_dir, `.include` da el error didáctico «necesita que el archivo esté guardado en disco».
+- `.include "ruta"` relativo al archivo CONTENEDOR; pila anti-ciclos con la cadena completa en el error («a.s → b.s → a.s»); profundidad máx. 16; archivo faltante → error con la ruta intentada. `Program.origins/files` registran la procedencia real palabra a palabra (para la futura vista multi-archivo; la UI no lo consume aún).
+- CLI: `assemble_with_includes` con el directorio del archivo de entrada (cambio puntual en emurv-cli).
+- Tests (`rp5_include.rs`, 6): símbolos en ambas direcciones, anidado + en .data, ciclo con cadena, faltante + sin base_dir, error dentro del include con archivo:línea REALES, y **el INVARIANTE: breakpoint sobre la línea del `.include` frena en la PRIMERA instrucción traída por el include** (test a nivel Machine, verde a la primera).
+
+Compuerta F2 ✓: 19 suites src-tauri (TEC/FB/RP1/RNF intactas = invariante vivo) + 13/13 CLI, clippy 0 ambos.

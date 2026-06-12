@@ -14,7 +14,6 @@
 //! El parsing de argumentos es manual con `std::env` (regla CLAUDE.md de
 //! dependencias: `clap` no se justifica para dos subcomandos y cuatro flags).
 
-use emurv_lib::core::assembler::assemble;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -311,7 +310,13 @@ fn ensamblar_archivo(ruta: &Path) -> Result<emurv_lib::core::assembler::Program,
         eprintln!("emurv-cli: no se pudo leer «{}»: {e}", ruta.display());
         1u8
     })?;
-    assemble(&fuente).map_err(|errores| {
+    // RP5: los .include se resuelven relativos al directorio del archivo.
+    let base = ruta.parent();
+    let nombre = ruta
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "programa.s".to_string());
+    emurv_lib::core::assembler::assemble_with_includes(&fuente, base, &nombre).map_err(|errores| {
         for err in &errores {
             eprintln!("{err}");
         }
