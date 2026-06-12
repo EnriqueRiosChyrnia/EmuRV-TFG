@@ -497,3 +497,13 @@ Plan `docs/PLAN-RP3-cli.md`. `src-tauri/src/bin/emurv-cli.rs` + `[[bin]]` explí
 - Tests (`tests/rp3_cli.rs`, como proceso real vía `CARGO_BIN_EXE`): ELF con magic `\x7fELF` y class 32; error de sintaxis → exit 2 con diagnóstico en español y stdout vacío; sin argumentos → exit 3 con uso y stdout vacío.
 
 Compuerta F1 ✓: 3/3 nuevos + 19 suites verdes, clippy 0.
+
+## RP3 Fase 2 — Subcomando run con puente de consola (2026-06-12)
+
+- **Arquitectura del puente [Seguro]:** la máquina se BLOQUEA dentro del tramo al esperar entrada (syscall 5: `input.recv()` dentro del hook) — en un solo hilo el CLI se trabaría. El puente corre en un hilo propio: `Output` → stdout con flush por evento y SIN saltos propios; `InputRequest` → una línea de stdin → `Line` (sin el salto final), EOF → `Cancel` + marca. Es el espejo exacto del modelo GUI (UI en un hilo, emulación en otro), con la máquina en el hilo principal porque Unicorn no es Send.
+- **Bucle de tramos de producción:** `run_slice`/`run_slice_continuation` con SLICE=1M (espejo documentado de `RUN_SLICE_COUNT`, privado de commands.rs) + timeout de respaldo 100 ms. `--max-instr` se descuenta por tramo EMITIDO (cota superior: un tramo cortado antes cuenta entero — precisión suficiente para acotar, documentado en código). `--timeout-s` con doble despertador: hilo temporizador que setea `stop_request` (corta sleeps de syscall 32 en ≤10 ms) Y manda `Cancel` (despierta un `read_int` bloqueado).
+- **Semántica headless aplicada (diseño acordado):** `EbreakPause`/`Breakpoint` → aviso por stderr («ebreak en 0x… — continuando») y la corrida sigue con continuación. `Paused` con marca de EOF → diagnóstico didáctico + exit 1; `Paused` por tramo/stop → según límite.
+- **Cierre sin deadlock [Probable — razonado y testeado]:** al salir, `drop(maquina)` cierra el canal y el puente termina tras drenar; si el puente quedó bloqueado leyendo stdin, el canal está vacío por construcción (la máquina no produce salida mientras espera entrada), así que se sale sin join. Ventana de carrera teórica (puente entrando a stdin justo tras el chequeo) es inocua por el mismo argumento.
+- Tests como proceso (5 nuevos, guardián anticuelgue propio con try_wait+kill): 01 stdout EXACTO; 02 con pipe "8\n34\n" → 42; 03/04/05 salidas conocidas; EOF prematuro → exit 1 con diagnóstico; bucle infinito + --max-instr 1M → exit 124 acotado con stdout limpio.
+
+Compuerta F2 ✓: 8/8 rp3_cli + 20 suites verdes, clippy 0.
