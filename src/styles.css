@@ -358,6 +358,20 @@ html, body {
   image-rendering: pixelated;
 }
 
+/* el canvas con foco captura el teclado (TEC4): borde acento como seña,
+   sin el anillo de foco por defecto del navegador */
+#video-canvas:focus {
+  outline: none;
+  border-color: var(--acento);
+}
+
+/* indicador de «teclado capturado» bajo el canvas (TEC4) */
+.video-indicador {
+  padding: 3px 8px;
+  font-size: 11.5px;
+  color: var(--acento);
+}
+
 .panel-titulo-con-boton {
   display: flex;
   align-items: center;

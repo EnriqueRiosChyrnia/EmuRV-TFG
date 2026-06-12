@@ -34,6 +34,8 @@ export class Ayuda {
                 <tr><td>5</td><td>${t("ayuda.syscalls.s5")}</td><td>→ a0 = valor leído</td></tr>
                 <tr><td>10</td><td>${t("ayuda.syscalls.s10")}</td><td>—</td></tr>
                 <tr><td>11</td><td>${t("ayuda.syscalls.s11")}</td><td>a0 = código de carácter</td></tr>
+                <tr><td>30</td><td>${t("ayuda.syscalls.s30")}</td><td>→ a0 = ms (bits bajos), a1 = ms (bits altos)</td></tr>
+                <tr><td>32</td><td>${t("ayuda.syscalls.s32")}</td><td>a0 = milisegundos</td></tr>
               </tbody>
             </table>
             <pre class="ayuda-ejemplo">    li   a7, 4        # servicio: imprimir cadena
@@ -49,6 +51,32 @@ export class Ayuda {
                 <tr><td class="mono">0x7FFFFFF0</td><td>${t("ayuda.memoria.sp")}</td></tr>
               </tbody>
             </table>
+          </section>
+          <section>
+            <h3>${t("ayuda.teclado.titulo")}</h3>
+            <p>${t("ayuda.teclado.texto")}</p>
+            <table>
+              <tbody>
+                <tr><td class="mono">0xFFFF0000</td><td>${t("ayuda.teclado.control")}</td></tr>
+                <tr><td class="mono">0xFFFF0004</td><td>${t("ayuda.teclado.dato")}</td></tr>
+              </tbody>
+            </table>
+            <p>${t("ayuda.teclado.codigos")}</p>
+            <table>
+              <thead><tr><th>${t("ayuda.teclado.colCodigo")}</th><th>${t("ayuda.teclado.colTecla")}</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">32–126</td><td>${t("ayuda.teclado.ascii")}</td></tr>
+                <tr><td class="mono">10</td><td>Enter</td></tr>
+                <tr><td class="mono">27</td><td>Escape</td></tr>
+                <tr><td class="mono">8</td><td>Backspace</td></tr>
+                <tr><td class="mono">0x80–0x83</td><td>${t("ayuda.teclado.flechas")}</td></tr>
+              </tbody>
+            </table>
+            <pre class="ayuda-ejemplo">espera:
+    li   t0, 0xFFFF0000   # RECEIVER_CONTROL del teclado
+    lw   t1, 0(t0)        # bit 0 = hay tecla pendiente
+    beqz t1, espera       # nada todavía: seguir esperando
+    lw   a0, 4(t0)        # RECEIVER_DATA: leer consume la tecla</pre>
           </section>
           <section>
             <h3>${t("ayuda.directivas.titulo")}</h3>

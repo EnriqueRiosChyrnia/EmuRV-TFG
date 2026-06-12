@@ -3,6 +3,7 @@
 // de seq permite que ambos consuman frames en paralelo sin robárselos:
 // esta ventana arranca con seq=0, así recibe el frame vigente al abrirse.
 import { api } from "./api";
+import { mapearTecla } from "./teclado";
 
 const ANCHO = 320;
 const ALTO = 240;
@@ -34,3 +35,13 @@ async function refrescar(): Promise<void> {
 
 void refrescar();
 window.setInterval(() => void refrescar(), PERIODO_MS);
+
+// Captura de teclado (TEC4): toda la ventana ES la pantalla, así que se
+// escucha a nivel window, siempre y sin indicador (tener la ventana al
+// frente ya dice que las teclas van al programa emulado).
+window.addEventListener("keydown", (ev) => {
+  const code = mapearTecla(ev);
+  if (code === null) return; // no robar atajos ni teclas sin mapeo
+  ev.preventDefault(); // imprescindible en flechas/espacio: no scrollear
+  api.pushKey(code);
+});
