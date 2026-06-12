@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export interface AsmError {
+  /** Archivo de origen si el error está dentro de un .include (RP5). */
+  file?: string | null;
   line: number;
   col: number;
   msg: string;
@@ -40,7 +42,8 @@ export interface StoppedEvent {
 
 export const api = {
   /** Ensambla; rechaza con AsmError[] si el fuente tiene errores. */
-  assemble: (source: string) => invoke<AssembleOk>("assemble", { source }),
+  assemble: (source: string, ruta: string | null = null) =>
+    invoke<AssembleOk>("assemble", { source, ruta }),
   run: () => invoke<void>("run_program"),
   step: () => invoke<void>("step"),
   reset: () => invoke<void>("reset"),

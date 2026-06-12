@@ -351,10 +351,24 @@ fn console_thread(
 #[tauri::command]
 pub fn assemble(
     source: String,
+    ruta: Option<String>,
     app: AppHandle,
     manager: State<'_, EmuManager>,
 ) -> Result<AssembleOk, Vec<AsmError>> {
-    let program: Program = assembler::assemble(&source)?;
+    // RP5: si el buffer tiene archivo en disco, su carpeta es la base de
+    // resolución de .include; sin ruta (buffer nunca guardado), .include
+    // produce el error didáctico del preprocesador.
+    let program: Program = match &ruta {
+        Some(r) => {
+            let path = std::path::Path::new(r);
+            let nombre = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "programa.s".to_string());
+            assembler::assemble_with_includes(&source, path.parent(), &nombre)?
+        }
+        None => assembler::assemble(&source)?,
+    };
 
     let ok = AssembleOk {
         text_base: TEXT_BASE,

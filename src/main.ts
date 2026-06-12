@@ -56,6 +56,9 @@ class App {
   /** El texto del editor cambió desde el último ensamblado exitoso:
    *  line_to_addr ya no es confiable para validar breakpoints. */
   private programaDesactualizado = false;
+  /** Ruta en disco del buffer (RP5): base de resolución de .include.
+   *  null = buffer nunca guardado (ejemplos embebidos incluidos). */
+  private rutaArchivo: string | null = null;
   private reinicioPedido = false;
   /** Cancelaciones de los listen() de Tauri (evita fugas al re-suscribir). */
   private unlisteners: UnlistenFn[] = [];
@@ -131,6 +134,7 @@ class App {
       if (!Number.isNaN(i) && sel.value !== "") {
         setDoc(this.editor, EJEMPLOS[i].codigo);
         this.programa = null;
+        this.rutaArchivo = null; // ejemplo embebido: sin base de .include
         this.setModo("sin_programa", t("estado.sin_programa"));
       }
       sel.value = "";
@@ -252,7 +256,7 @@ class App {
 
   private async ensamblar(): Promise<void> {
     try {
-      const ok = await api.assemble(getDoc(this.editor));
+      const ok = await api.assemble(getDoc(this.editor), this.rutaArchivo);
       this.programa = ok;
       this.programaDesactualizado = false;
       this.consola.clear();
@@ -282,7 +286,7 @@ class App {
       setExecLine(this.editor, null);
       for (const err of errores) {
         this.consola.append(
-          `${t("error.posicion", { line: err.line, col: err.col, msg: err.msg })}\n`,
+          `${err.file ? `${err.file}: ` : ""}${t("error.posicion", { line: err.line, col: err.col, msg: err.msg })}\n`,
           "error",
         );
       }
@@ -338,6 +342,7 @@ class App {
       const contenido = await api.abrirArchivo(path);
       setDoc(this.editor, contenido);
       this.programa = null;
+      this.rutaArchivo = path; // base para .include (RP5)
       this.setModo("sin_programa", t("archivo.abierto", { path }));
     } catch (e) {
       this.consola.append(`${t("archivo.errorAbrir", { message: String(e) })}\n`, "error");
@@ -355,6 +360,7 @@ class App {
     if (!path) return;
     try {
       await api.guardarArchivo(path, getDoc(this.editor));
+      this.rutaArchivo = path; // base para .include (RP5)
       this.estadoEl.textContent = t("archivo.guardado", { path });
       this.estadoEl.className = "ok";
     } catch (e) {

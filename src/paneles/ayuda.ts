@@ -81,7 +81,8 @@ export class Ayuda {
           </section>
           <section>
             <h3>${t("ayuda.directivas.titulo")}</h3>
-            <p class="mono">.text .data .word .half .byte .ascii .asciiz .string .space .align .globl</p>
+            <p class="mono">.text .data .word .half .byte .ascii .asciiz .string .space .align .globl .include .eqv .equ .macro .end_macro</p>
+            <p>${t("ayuda.directivas.rp5")}</p>
           </section>
           <section>
             <h3>${t("ayuda.ejemplos.titulo")}</h3>

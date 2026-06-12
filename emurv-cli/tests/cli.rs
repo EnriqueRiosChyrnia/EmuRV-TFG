@@ -324,3 +324,50 @@ fn rutas_invalidas_salen_1_sin_panico() {
     assert!(stderr.contains("no se pudo escribir"), "stderr: {stderr}");
     assert!(!stderr.contains("panic"), "{stderr}");
 }
+
+// ---------------------------------------------------------------------------
+// RP5 Fase 4 — ejemplo multi-archivo por CLI.
+// ---------------------------------------------------------------------------
+
+/// `run` del ejemplo 11 (usa .include, .eqv, .macro y %hi/%lo): salida
+/// exacta y exit 0. El CLI resuelve los .include relativo al main.s.
+#[test]
+fn run_ejemplo_multiarchivo() {
+    let out = run_con_stdin(&["run", "../ejemplos/11-multiarchivo/main.s"], "", limite());
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "¡Hola desde varios archivos!\n¡Hola desde varios archivos!\n¡Hola desde varios archivos!\nListo.\n"
+    );
+}
+
+/// `asm` del ejemplo 11 produce un ELF32 válido.
+#[test]
+fn asm_ejemplo_multiarchivo() {
+    let dir = std::env::temp_dir().join("rp5_asm_multi");
+    let _ = std::fs::create_dir_all(&dir);
+    let salida = dir.join("multi.elf");
+    let out = cli()
+        .args([
+            "asm",
+            "../ejemplos/11-multiarchivo/main.s",
+            "-o",
+            salida.to_str().unwrap(),
+        ])
+        .output()
+        .expect("lanzar emurv-cli");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&salida).expect("leer ELF");
+    assert_eq!(&bytes[0..4], b"\x7fELF");
+    assert_eq!(bytes[4], 1, "ELFCLASS32");
+    let _ = std::fs::remove_file(&salida);
+}

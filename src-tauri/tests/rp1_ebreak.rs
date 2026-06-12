@@ -553,7 +553,9 @@ fn bp_en_la_siguiente_al_ebreak_se_reporta_en_run_nuevo() {
     );
     assert_eq!(
         obs.1,
-        StopReason::Breakpoint { addr: DIR_EBREAK + 4 },
+        StopReason::Breakpoint {
+            addr: DIR_EBREAK + 4
+        },
         "el bp en la instrucción siguiente al ebreak DEBE reportarse aunque \
          el Run nuevo arranque con supresión (la pausa previa no fue ese bp)"
     );
