@@ -522,3 +522,68 @@ fn syscall_60_en_pipe_no_emite_ansi() {
         "ni un byte ESC en el stdout de un pipe"
     );
 }
+
+// ---------------------------------------------------------------------------
+// RP11 Fase 2 — run de ELF importados (detección por magic).
+// ---------------------------------------------------------------------------
+
+/// Round-trip por procesos: `asm` exporta el ELF y `run` lo ejecuta con la
+/// MISMA salida que el fuente. La extensión no importa: detecta por magic.
+#[test]
+fn run_elf_round_trip_misma_salida() {
+    let dir = std::env::temp_dir().join("rp11_roundtrip");
+    let _ = std::fs::create_dir_all(&dir);
+    let fuente = dir.join("prog.s");
+    std::fs::write(
+        &fuente,
+        ".data\nmsj: .asciiz \"hola elf\\n\"\n.text\n  la a0, msj\n  li a7, 4\n  ecall\n  li a7, 10\n  ecall\n",
+    )
+    .expect("fuente");
+    // Sin extensión .elf a propósito: la detección es por magic.
+    let binario = dir.join("prog.bin");
+
+    let out = run_con_stdin(
+        &["asm", fuente.to_str().unwrap(), "-o", binario.to_str().unwrap()],
+        "",
+        limite(),
+    );
+    assert_eq!(out.status.code(), Some(0), "asm: {}", String::from_utf8_lossy(&out.stderr));
+
+    let del_fuente = run_con_stdin(&["run", fuente.to_str().unwrap()], "", limite());
+    let del_binario = run_con_stdin(&["run", binario.to_str().unwrap()], "", limite());
+    assert_eq!(del_binario.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&del_binario.stdout),
+        String::from_utf8_lossy(&del_fuente.stdout),
+        "misma salida fuente vs ELF"
+    );
+    assert_eq!(String::from_utf8_lossy(&del_binario.stdout), "hola elf\n");
+}
+
+/// La fixture REAL de gcc corre por CLI: "42\n" y exit 0 (sale con 93).
+#[test]
+fn run_fixture_gnu() {
+    let out = run_con_stdin(
+        &["run", "../src-tauri/tests/fixtures/rp11/fixture.elf"],
+        "",
+        limite(),
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "42\n");
+}
+
+/// Un archivo que NO es ELF ni ensambla → exit 2 con diagnóstico claro.
+#[test]
+fn run_binario_no_elf_sale_2() {
+    let dir = std::env::temp_dir().join("rp11_noelf");
+    let _ = std::fs::create_dir_all(&dir);
+    let ruta = dir.join("basura.elf");
+    std::fs::write(&ruta, b"\x00\x01\x02no soy un elf").expect("escribir");
+    let out = run_con_stdin(&["run", ruta.to_str().unwrap()], "", limite());
+    assert_eq!(out.status.code(), Some(2));
+}

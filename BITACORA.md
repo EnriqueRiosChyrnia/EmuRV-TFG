@@ -1137,3 +1137,39 @@ intersección. La fixture y su Makefile entran en F2.
 
 Compuerta F1: números medidos ✓ · decisión fundamentada ✓ · rama spike
 sin mergear (queda como evidencia) ✓.
+
+## 2026-06-12 — RP11-F2: import de ELF32 RISC-V con validaciones didácticas
+
+[Seguro] `core/elf_import.rs`: import_elf(bytes) → Program normal (la
+abstracción de Machine NO cambió — la prueba de que RP-3/RP-6 cortaron
+bien). Program ganó dos campos: `entry: u32` (el ensamblador pone
+TEXT_BASE; un ELF puede traer otro e_entry DENTRO de .text — la fixture
+gcc real entra por 0x400068) y `from_binary: bool` (source_map vacío).
+
+[Seguro] Estrategia de carga: por SECCIONES SHF_ALLOC cuando existen
+(PROGBITS se copia, NOBITS/.bss reserva ceros; ejecutable→.text, resto→
+.data) — esquiva la página de cabeceras que gcc mapea bajo TEXT_BASE
+(hallazgo del spike F1). Fallback para binarios strip: segmentos PT_LOAD
+con recorte del preámbulo de cabeceras. Validaciones didácticas en orden
+de diagnóstico: magic / clase 32 / little-endian / EM_RISCV(243) /
+ET_EXEC (ET_DYN → «agregá -no-pie»; ET_REL → «falta el linkeo»); sección
+fuera del mapa y entry fuera de .text cortan CON los flags canónicos
+completos en el mensaje (-march=rv32im -mabi=ilp32 -Ttext=0x00400000
+-Tdata=0x10010000 -nostdlib). object: feature read_core agregado a la dep
+EXISTENTE (cero deps nuevas, como verificó la coordinadora).
+
+[Seguro] CLI: run/debug detectan ELF por MAGIC (la extensión no importa);
+error de import → exit 2 (mismo significado que «el fuente no ensambla»).
+`asm` sigue siendo solo para fuentes. Fixture real commiteada en
+src-tauri/tests/fixtures/rp11/ (fixture.c + Makefile de regeneración +
+fixture.elf — gcc de brew instalado en F1).
+
+[Seguro] Tests (5 núcleo + 3 CLI + 1 gdb): round-trip asm→ELF→import→
+correr con MISMA salida y símbolos preservados; cada validación parcheando
+bytes de un ELF válido (incl. sección movida a 0x1000 → error con flags);
+fixture gcc importa y corre («42\n», exit 0 por syscall 93, entry
+variable real); gdb stub sobre ELF importado con breakpoint en la
+dirección del símbolo del .symtab IMPORTADO (Z0/c/g, RP-6 intacto).
+
+Compuerta F2: suites verdes (28 binarios src-tauri; CLI 44 tests en sus
+suites), clippy 0 ambos.

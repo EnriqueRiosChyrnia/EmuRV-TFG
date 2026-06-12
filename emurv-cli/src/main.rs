@@ -166,7 +166,7 @@ fn subcomando_run(args: &[String]) -> u8 {
         return 3;
     };
 
-    let programa = match ensamblar_archivo(&entrada) {
+    let programa = match cargar_programa(&entrada) {
         Ok(p) => p,
         Err(code) => return code,
     };
@@ -322,7 +322,7 @@ fn subcomando_debug(args: &[String]) -> u8 {
         return 3;
     };
 
-    let programa = match ensamblar_archivo(&entrada) {
+    let programa = match cargar_programa(&entrada) {
         Ok(p) => p,
         Err(code) => return code,
     };
@@ -458,6 +458,24 @@ fn puente_consola(
             }
         }
     })
+}
+
+/// Carga la entrada de `run`/`debug`: si el archivo empieza con la firma
+/// ELF se importa como binario (RP11, detección por magic — la extensión
+/// no importa); si no, se ensambla como fuente. Error de import → exit 2
+/// (mismo código que un fuente que no ensambla: «la entrada está mal»).
+fn cargar_programa(ruta: &Path) -> Result<emurv_lib::core::assembler::Program, u8> {
+    let bytes = std::fs::read(ruta).map_err(|e| {
+        eprintln!("emurv-cli: no se pudo leer «{}»: {e}", ruta.display());
+        1u8
+    })?;
+    if emurv_lib::core::elf_import::es_elf(&bytes) {
+        return emurv_lib::core::elf_import::import_elf(&bytes).map_err(|e| {
+            eprintln!("emurv-cli: {e}");
+            2u8
+        });
+    }
+    ensamblar_archivo(ruta)
 }
 
 /// Lee y ensambla un fuente. Errores de E/S → exit 1; de ensamblado → 2,
