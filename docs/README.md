@@ -9,7 +9,7 @@ Carpeta de trabajo del prototipo técnico del TFG: entorno educativo de ensambla
 
 ## Cómo lanzar
 ```bash
-cd ~/Desktop/EmuRV-TFG
+cd ~/Documents/UNI/Tesis/EmuRV-TFG
 claude --dangerously-skip-permissions
 ```
 y pegar el prompt de arranque.

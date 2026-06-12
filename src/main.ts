@@ -168,8 +168,8 @@ class App {
     // Refresco periódico (~10 Hz) durante ejecución larga (RNF-03):
     // solo registros; la memoria se relee al detenerse.
     this.unlisteners.push(await events.onRegisters((st) => this.registros.actualizar(st)));
-    // El programa usa la pantalla gráfica: mostrar el panel (RF4) y
-    // arrancar el volcado a ~30 Hz mientras corre (RF2).
+    // El programa usa la pantalla gráfica: mostrar el panel (RB-4) y
+    // arrancar el volcado a ~30 Hz mientras corre (RB-2).
     this.unlisteners.push(
       await events.onVideoActivo(() => {
         this.video.mostrar();

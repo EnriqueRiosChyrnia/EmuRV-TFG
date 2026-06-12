@@ -31,7 +31,8 @@ pub const SP_INIT: u32 = 0x7FFF_FFF0;
 /// Valor inicial de `gp` (puntero global, convención RARS).
 pub const GP_INIT: u32 = 0x1000_8000;
 
-/// Región de video (framebuffer VGA 13h): 320×240 píxeles, 1 byte/píxel (paleta indexada).
+/// Región de video (framebuffer inspirado en el modo 13h de VGA, que es 320×200;
+/// acá 320×240): 1 byte/píxel (paleta indexada).
 pub const FRAMEBUFFER_BASE: u32 = 0x9000_0000;
 /// Bytes de datos en framebuffer (320 × 240).
 pub const FRAMEBUFFER_DATA_SIZE: u32 = 320 * 240;
@@ -45,7 +46,9 @@ pub const PALETTE_DATA_SIZE: u32 = 256 * 3;
 /// Tamaño mapeado de paleta (alineado a página 4K).
 pub const PALETTE_SIZE: u32 = 0x00001000;
 
-/// Registro de control de video: escribir 1 = vsync/refresh.
+/// Registro de control de video: el programa escribe 1 para marcar uso de pantalla;
+/// el emulador lo lee pasivamente (no hay hook de escritura) y publica el frame al
+/// final de cada tramo de ejecución (ver `publicar_frame`).
 pub const VIDEO_CONTROL_BASE: u32 = 0x9003_0000;
 /// Tamaño mapeado del control (alineado a página 4K).
 pub const VIDEO_CONTROL_SIZE: u32 = 0x00001000;

@@ -6,11 +6,11 @@ import { api } from "./api";
 
 const ANCHO = 320;
 const ALTO = 240;
-const PERIODO_MS = 33; // ~30 Hz (RF2)
+const PERIODO_MS = 33; // ~30 Hz (RB-2)
 
 const canvas = document.getElementById("pantalla-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
-const imageData = ctx.createImageData(ANCHO, ALTO); // reusado (RF1)
+const imageData = ctx.createImageData(ANCHO, ALTO); // reusado (RB-1)
 
 let seq = 0n;
 let leyendo = false;

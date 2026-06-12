@@ -1,6 +1,6 @@
-# MEMORIA — Mapa de memoria gráfica (VGA modo 13h)
+# MEMORIA — Mapa de memoria gráfica (inspirado en el modo 13h de VGA, con resolución 320×240)
 
-Extensión del mapa de memoria RARS estándar con soporte para pantalla gráfica de 320×240 píxeles.
+Extensión del mapa de memoria RARS estándar con soporte para pantalla gráfica de 320×240 píxeles. El diseño está **inspirado en el modo 13h de VGA** (framebuffer lineal, 1 byte por píxel, paleta indexada de 256 colores), pero no lo replica: el modo 13h real es de 320×200; aquí se adopta una resolución de 320×240.
 
 ## Regiones mapeadas
 
@@ -11,7 +11,7 @@ Extensión del mapa de memoria RARS estándar con soporte para pantalla gráfica
 | Pila | `0x7FFF_FFF0` (sp inicial) | — | 8 MB | Stack | R/W |
 | **Framebuffer** | **`0x9000_0000`** | **76 800 B** | **128 KB** | Píxeles 320×240 | R/W |
 | **Paleta** | **`0x9002_0000`** | **768 B** | **4 KB** | 256 colores RGB888 | R/W |
-| **Control** | **`0x9003_0000`** | **4 B** | **4 KB** | Vsync/refresh | R/W |
+| **Control** | **`0x9003_0000`** | **4 B** | **4 KB** | Marca de uso de pantalla | R/W |
 
 ## Framebuffer (0x9000_0000 — 0x9001_FFFF)
 
@@ -21,24 +21,31 @@ Indexación:
 - Byte en desplazamiento `d` corresponde al píxel en posición `(x, y)` donde `x = d mod 320`, `y = d / 320`.
 - Rango válido: `[0, 76800)`.
 
-**Semántica:** cada byte es un índice de 0–255 en la tabla de paleta. Escribir un byte actualiza ese píxel inmediatamente en memoria; el redibujado en pantalla se dispara según RF2 (timer de vsync o escritura al registro de control).
+**Semántica:** cada byte es un índice de 0–255 en la tabla de paleta. Escribir un byte actualiza ese píxel inmediatamente en memoria; el frame se publica hacia la UI al final de cada tramo de ejecución (paso, tramo de corrida continua, detención) y antes de bloquearse en una syscall de entrada, y la UI refresca con un timer de ~30 Hz (RB-2, ex RF2 del plan de framebuffer; ver la sección del registro de control).
 
 ## Paleta (0x9002_0000 — 0x9002_02FF)
 
-**Formato:** 256 entradas × 3 bytes RGB (8 bits cada canal), base 0x9001_0000.
+**Formato:** 256 entradas × 3 bytes RGB (8 bits cada canal), base `0x9002_0000` (`PALETTE_BASE` en `src-tauri/src/core/mod.rs`).
 
 Indexación:
 - Entrada `i` (0–255) se almacena en desplazamientos `[3i, 3i+1, 3i+2]` desde la base.
-  - Byte en `0x9001_0000 + 3i`: componente R (bits 7–0).
-  - Byte en `0x9001_0000 + 3i + 1`: componente G.
-  - Byte en `0x9001_0000 + 3i + 2`: componente B.
+  - Byte en `0x9002_0000 + 3i`: componente R (bits 7–0).
+  - Byte en `0x9002_0000 + 3i + 1`: componente G.
+  - Byte en `0x9002_0000 + 3i + 2`: componente B.
 
-**Ejemplo:** color rojo puro (R=255, G=0, B=0) en entrada 10 se escribe como:
-- `sw 0xFF, 0x9002_0030` (R=255, desplazamiento 3×10=30)
-- `sw 0x00, 0x9002_0031` (G=0)
-- `sw 0x00, 0x9002_0032` (B=0)
+**Ejemplo:** color rojo puro (R=255, G=0, B=0) en la entrada 10. El desplazamiento de la entrada `i` es `3i`; para `i = 10` es 3×10 = 30 decimal = `0x1E`. Los tres componentes quedan entonces en `0x9002_001E` (R), `0x9002_001F` (G) y `0x9002_0020` (B):
 
-O más compactamente, escribiendo un word (4 bytes) alineado al píxel: `sw 0x000000FF, 0x9002_0030` (si la alineación lo permite; recomendado: bytes individuales).
+```asm
+li   t0, 0x9002_0000   # base de la paleta (PALETTE_BASE)
+li   t1, 0xFF
+sb   t1, 0x1E(t0)      # R = 255 (entrada 10: desplazamiento 3×10 = 30 = 0x1E)
+sb   zero, 0x1F(t0)    # G = 0
+sb   zero, 0x20(t0)    # B = 0
+```
+
+Conviene `sb` porque cada componente ocupa exactamente 1 byte: un `sw` escribiría 4 bytes, pisando el componente R de la entrada siguiente, y además las entradas de 3 bytes no quedan en general alineadas a word (`0x1E` no es múltiplo de 4). La sintaxis usada (`li` con literal hexadecimal —los guiones bajos como separador son válidos— y store con direccionamiento `desplazamiento(base)`) es la que soporta el ensamblador propio (ver ENSAMBLADOR.md §4.1–4.2).
+
+> **Nota de corrección (2026-06-11):** una versión anterior de esta sección daba la base de la paleta como `0x9001_0000`, contradiciendo la tabla de regiones de este mismo documento y el valor real `PALETTE_BASE = 0x9002_0000` del código. El ejemplo, además, escribía `sw 0xFF, 0x9002_0030`, con dos errores: el desplazamiento de la entrada 10 es 30 **decimal** (`0x1E`), no `0x30`, y `sw inmediato, dirección` no es sintaxis RISC-V válida (los stores exigen un registro fuente y direccionamiento base+desplazamiento; no aceptan direcciones absolutas como operando). Se reescribió el ejemplo con código válido para el ensamblador del proyecto.
 
 **Paleta por defecto (FB1):** los primeros 16 colores se inicializan con la paleta CGA estándar (rojo, verde, azul, etc.). Las entradas 16–255 se inicializan como rampa lineal de grises.
 
@@ -46,10 +53,14 @@ O más compactamente, escribiendo un word (4 bytes) alineado al píxel: `sw 0x00
 
 **Formato:** palabra de 32 bits (lw/sw).
 
-**Semántica:**
-- Escribir cualquier valor no nulo dispara un redibujado (vsync lógico) e inmediatamente entrega el framebuffer actual a la interfaz de usuario para que pinte el canvas.
-- Leer devuelve 0 (sin información de estado reservada por ahora).
-- Escribir 0 no tiene efecto.
+**Semántica (implementada):**
+- Es memoria común mapeada: **no hay hook de escritura**, de modo que escribir en el registro no dispara ninguna acción inmediata.
+- El emulador lo lee **pasivamente** al publicar frames (`publicar_frame` en `machine.rs`): un valor no nulo —igual que cualquier píxel no nulo en la VRAM— marca que el programa "usa la pantalla", lo que activa el panel de video en la UI (RB-4, ex RF4). Es la única función del registro hoy.
+- La publicación del frame ocurre al final de cada tramo de ejecución (paso, tramo de corrida continua, detención) y desde el hook de syscalls antes de bloquearse esperando entrada; solo se publica si la VRAM o la paleta cambiaron desde la última publicación (flag sucio).
+- La UI consume los frames publicados con el comando `read_framebuffer` mediante un timer de ~30 Hz.
+- Leer devuelve el último valor escrito (es memoria común); se inicializa en 0 al cargar/reiniciar.
+
+> **Nota de divergencia (2026-06-11):** versiones anteriores de este documento prometían que escribir un valor no nulo "dispara un redibujado (vsync lógico) e inmediatamente entrega el framebuffer actual a la interfaz" y que "leer devuelve 0". La implementación no materializó ese hook de escritura: se eligió la vía pasiva descripta arriba por menor riesgo (decisión registrada en PLAN-FRAMEBUFFER.md, divergencia 2 y riesgo RB-2). Se corrigió esta documentación para reflejar la implementación real.
 
 **Uso típico en un programa gráfico:**
 
@@ -65,7 +76,8 @@ loop:
   addi t1, t1, -1
   bne t1, zero, loop
 
-# Señalar "frame listo" → redibujado
+# Marcar uso de pantalla (opcional si ya se escribieron píxeles no nulos):
+# el frame se publica solo, al final del tramo de ejecución.
 li t0, 0x9003_0000
 li t1, 1
 sw t1, 0(t0)
@@ -74,7 +86,7 @@ sw t1, 0(t0)
 ## Ventajas de este diseño
 
 1. **Semántica simple:** la VRAM es una región lineal normal; no hay acceso indirecto ni comandos especiales.
-2. **Eficiencia de emulación:** el framebuffer se lee de golpe al vsync (RF3); no hay overhead de hook por píxel.
+2. **Eficiencia de emulación:** el framebuffer se lee de golpe al publicar cada frame, al final del tramo de ejecución (RB-3, ex RF3); no hay overhead de hook por píxel.
 3. **Compatibilidad con v0.1:** programas sin uso de video no pagan ningún costo (las regiones no son visitadas).
 
 ## Uso desde EmuRV (UI)
@@ -82,5 +94,5 @@ sw t1, 0(t0)
 Comando Tauri `read_framebuffer` (implementado en FB1):
 - Retorna buffer RGBA de 320×240 como bytes crudos.
 - Se escala con `image-rendering: pixelated` en CSS para 1:1 pixel art.
-- Volcado a canvas con `putImageData` sobre `ImageData` reusado, no recreado cada frame (RF1).
-- Timer de redibujado: ~30 Hz o por vsync explícito (RF2).
+- Volcado a canvas con `putImageData` sobre `ImageData` reusado, no recreado cada frame (RB-1, ex RF1).
+- Timer de redibujado en la UI: ~30 Hz (RB-2, ex RF2). No existe vsync explícito disparado por escritura al registro de control (ver la nota de divergencia en la sección de ese registro).
