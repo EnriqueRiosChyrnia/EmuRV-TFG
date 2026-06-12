@@ -237,6 +237,42 @@ BITACORA.md           registro de decisiones técnicas (material de tesis)
 cd src-tauri && cargo test     # suite completa (núcleo + integración de ejemplos)
 ```
 
+## Abrir binarios ELF (import y desensamblador)
+
+EmuRV carga ejecutables **ELF32 RISC-V** además de fuentes (RP11): en la app,
+**«Abrir»** acepta `.elf` (la detección es por la firma del archivo, no por la
+extensión); en terminal, `emurv-cli run programa.elf` y `emurv-cli debug
+programa.elf` funcionan igual que con un fuente.
+
+Al abrir un binario, el editor pasa a **modo binario**: muestra el listado
+desensamblado de `.text` (solo lectura, banner «binario importado») y
+Ejecutar/Paso/Reiniciar/breakpoints funcionan sobre las líneas del listado.
+El panel «Memoria» muestra además la instrucción decodificada de cada palabra
+de `.text` (también para fuentes normales).
+
+Para compilar un C/asm propio con gcc y cargarlo en EmuRV:
+
+```sh
+brew install riscv64-elf-gcc   # macOS
+riscv64-elf-gcc -march=rv32im -mabi=ilp32 \
+  -Ttext=0x00400000 -Tdata=0x10010000 -nostdlib -o programa.elf programa.c
+```
+
+Esos flags son obligatorios (el mapa de memoria de EmuRV es el de RARS); un
+ELF con otras direcciones, de 64 bits o PIE se rechaza con un error que
+explica exactamente qué flag falta. Solo ET_EXEC con direcciones absolutas
+(sin relocaciones/PIE ni DWARF); las syscalls siguen la convención RARS, no
+la de Linux. Hay una fixture completa con su Makefile en
+`src-tauri/tests/fixtures/rp11/`.
+
+El desensamblador también está disponible como subcomando:
+
+```sh
+emurv-cli disasm programa.elf    # o un fuente .s
+# 00400000:  00a00893  addi a7, zero, 0xa
+# 00400004:  00000073  ecall
+```
+
 ## Traps y CSRs (Zicsr)
 
 El programa puede instalar su **propio manejador de excepciones** (`csrw
