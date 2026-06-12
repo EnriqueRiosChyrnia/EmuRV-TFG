@@ -10,6 +10,8 @@ export class Consola {
 
   constructor(root: HTMLElement) {
     root.innerHTML = `
+      <button type="button" class="consola-limpiar" data-rol="limpiar"
+              title="${t("consola.limpiar.titulo")}">${t("consola.limpiar")}</button>
       <div class="consola-salida" data-rol="salida"></div>
       <form class="consola-entrada" data-rol="form">
         <span class="consola-prompt">›</span>
@@ -19,6 +21,11 @@ export class Consola {
     this.out = root.querySelector("[data-rol=salida]")!;
     this.form = root.querySelector("[data-rol=form]")!;
     this.input = this.form.querySelector("input")!;
+    // Botón Limpiar (RP10): siempre visible, con o sin sesión — solo borra
+    // el texto del panel; la máquina ni se entera.
+    root.querySelector<HTMLButtonElement>("[data-rol=limpiar]")!.addEventListener("click", () => {
+      this.clear();
+    });
     this.form.addEventListener("submit", (e) => {
       e.preventDefault();
       const line = this.input.value;

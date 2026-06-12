@@ -122,4 +122,7 @@ export const events = {
   /** El programa empezó a usar la pantalla gráfica (VRAM o control). */
   onVideoActivo: (cb: () => void): Promise<UnlistenFn> =>
     listen("emu://video-activo", () => cb()),
+  /** El programa pidió limpiar la consola (syscall 60, extensión EmuRV). */
+  onConsoleClear: (cb: () => void): Promise<UnlistenFn> =>
+    listen("emu://consola-limpiar", () => cb()),
 };

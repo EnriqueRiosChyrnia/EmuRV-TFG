@@ -194,6 +194,7 @@ class App {
     // suscripciones anteriores para no duplicar listeners.
     this.desuscribirEventos();
     this.unlisteners.push(await events.onConsole((text) => this.consola.append(text)));
+    this.unlisteners.push(await events.onConsoleClear(() => this.consola.clear()));
     this.unlisteners.push(
       await events.onInputRequest(() => {
         this.consola.setInputMode(true);

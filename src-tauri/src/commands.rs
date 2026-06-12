@@ -396,6 +396,9 @@ fn console_thread(
                 waiting.store(true, Ordering::SeqCst);
                 let _ = app.emit("emu://pedir-entrada", ());
             }
+            ConsoleEvent::Clear => {
+                let _ = app.emit("emu://consola-limpiar", ());
+            }
         }
     }
 }

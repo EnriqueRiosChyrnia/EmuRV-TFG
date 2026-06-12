@@ -54,6 +54,8 @@
   "memoria.error": "No se pudo leer esa zona de memoria",
 
   "consola.placeholder": "El programa espera una línea de entrada…",
+  "consola.limpiar": "Limpiar",
+  "consola.limpiar.titulo": "Borrar el texto de la consola (el programa no se entera)",
 
   "breakpoint.lineaSinCodigo": "La línea {linea} no tiene código ejecutable; el breakpoint no se aplicó.",
 
