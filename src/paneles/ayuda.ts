@@ -33,10 +33,14 @@ export class Ayuda {
                 <tr><td>1</td><td>${t("ayuda.syscalls.s1")}</td><td>a0 = valor</td></tr>
                 <tr><td>4</td><td>${t("ayuda.syscalls.s4")}</td><td>a0 = dirección (terminada en NUL)</td></tr>
                 <tr><td>5</td><td>${t("ayuda.syscalls.s5")}</td><td>→ a0 = valor leído</td></tr>
+                <tr><td>8</td><td>${t("ayuda.syscalls.s8")}</td><td>a0 = buffer, a1 = tamaño</td></tr>
+                <tr><td>9</td><td>${t("ayuda.syscalls.s9")}</td><td>a0 = bytes → a0 = dirección</td></tr>
                 <tr><td>10</td><td>${t("ayuda.syscalls.s10")}</td><td>—</td></tr>
                 <tr><td>11</td><td>${t("ayuda.syscalls.s11")}</td><td>a0 = código de carácter</td></tr>
                 <tr><td>30</td><td>${t("ayuda.syscalls.s30")}</td><td>→ a0 = ms (bits bajos), a1 = ms (bits altos)</td></tr>
                 <tr><td>32</td><td>${t("ayuda.syscalls.s32")}</td><td>a0 = milisegundos</td></tr>
+                <tr><td>60</td><td>${t("ayuda.syscalls.s60")}</td><td>—</td></tr>
+                <tr><td>93</td><td>${t("ayuda.syscalls.s93")}</td><td>a0 = código de salida</td></tr>
               </tbody>
             </table>
             <pre class="ayuda-ejemplo">    li   a7, 4        # servicio: imprimir cadena

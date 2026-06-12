@@ -138,10 +138,17 @@ El recorrido: registros → aritmética (con el complemento a 2 demostrado) → 
 | 1  | imprimir entero | `a0` = valor |
 | 4  | imprimir cadena | `a0` = dirección de cadena NUL |
 | 5  | leer entero | devuelve en `a0` |
+| 8  | leer cadena | `a0` = buffer, `a1` = tamaño (guarda ≤ `a1`−1 bytes + NUL; trunca sin error) |
+| 9  | sbrk (reservar memoria) | `a0` = bytes → devuelve `a0` = dirección (heap en `0x10040000`, sin free) |
 | 10 | terminar | — |
 | 11 | imprimir carácter | `a0` = código |
 | 30 | tiempo del sistema en ms | devuelve `a0` = bits bajos, `a1` = bits altos |
 | 32 | dormir | `a0` = milisegundos (interrumpible con «Detener») |
+| 60 | limpiar la consola | — (**extensión EmuRV**, no existe en RARS; en el CLI solo limpia si stdout es una terminal) |
+| 93 | terminar con código (Exit2) | `a0` = código de salida |
+
+El servicio **17** (Exit2 de MARS/MIPS) no existe en RARS ni en EmuRV: se
+rechaza con un mensaje que apunta al 93.
 
 Tabla completa, mapa de memoria y directivas: botón **Ayuda** dentro de la app.
 
@@ -200,6 +207,12 @@ con su formato didáctico, errores de runtime, avisos de `ebreak`— van por std
 Códigos de salida: `0` programa terminado · `1` error de runtime o de E/S (incluye
 EOF de stdin con el programa pidiendo entrada) · `2` error de ensamblado · `3` uso
 inválido · `124` límite agotado (convención de `timeout(1)`).
+
+El código que el programa invitado elige con la syscall **93** se propaga al
+shell (`echo $?`), primero `& 0xFF` (estilo Unix: −1 → 255) y después acotado
+a `0..=125` — 126/127/128+ tienen significado propio del shell; un exceso se
+acota a 125 con aviso por stderr. **Limitación documentada:** si el invitado
+elige 124, es indistinguible del 124 por límite agotado del propio CLI.
 
 Ejemplo de corrección automática:
 

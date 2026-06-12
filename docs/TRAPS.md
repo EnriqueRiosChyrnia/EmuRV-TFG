@@ -28,12 +28,15 @@ espec y ejecutados nativos (spike RP8-F1).
 
 | Situación | mtvec == 0 (inicial) | mtvec configurado |
 |---|---|---|
-| `ecall` con servicio CONOCIDO (1,4,5,10,11,30,32) | syscall de EmuRV | **syscall de EmuRV — JAMÁS se delega** |
+| `ecall` con servicio CONOCIDO (1,4,5,8,9,10,11,30,32,60,93) | syscall de EmuRV | **syscall de EmuRV — JAMÁS se delega** |
 | `ecall` con servicio desconocido | error didáctico | delegado: mcause=11, mepc=dir. del ecall |
 | instrucción ilegal | error didáctico | delegado: mcause=2, mtval=la palabra |
 | acceso a memoria inválido | error didáctico | delegado: mcause=5 (carga) / 7 (almacenamiento), mtval=la dirección |
 | `ebreak` | pausa didáctica (RP-1) | **pausa didáctica — JAMÁS se delega** |
 
+- El **17** (Exit2 de MARS/MIPS, inexistente en RARS) es un desconocido más
+  para esta tabla: con mtvec va al handler del guest; sin mtvec, EmuRV da el
+  mensaje didáctico que apunta al 93 (RP-10).
 - `mepc` apunta **a la instrucción que trapeó** (fiel a la espec): el
   manejador debe avanzarlo (`+4`) antes de `mret` para no repetir el trap —
   exactamente lo que hace un kernel real (el ejemplo 12 lo enseña).

@@ -87,17 +87,19 @@ fn leccion_06_funciones() {
     assert_eq!(out, "doble de 7 = 14\ncuádruple de 7 = 28\n");
 }
 
-/// Interactiva: 25 está fuera de rango (revalida), 7 es válido. Además
-/// demuestra 30/32 sin imprimir la hora cruda (determinismo garantizado).
+/// Interactiva: 25 está fuera de rango (revalida), 7 es válido, «Ana» se
+/// lee con el servicio 8 a un buffer del 9, y el 93 sale con código 0
+/// (RP10 amplió la lección). Demuestra 30/32 sin imprimir la hora cruda.
 #[test]
 fn leccion_07_syscalls() {
-    let (code, out) = correr_leccion("../lecciones/07-syscalls/leccion.s", "25\n7\n");
+    let (code, out) = correr_leccion("../lecciones/07-syscalls/leccion.s", "25\n7\nAna\n");
     assert_eq!(code, Some(0));
     assert_eq!(
         out,
         "Ingresá un número del 1 al 10: Fuera de rango, probá de nuevo.\n\
          Ingresá un número del 1 al 10: El doble es 14\n\
-         el reloj avanzó: dormimos 100 ms y se notó\n"
+         el reloj avanzó: dormimos 100 ms y se notó\n\
+         ¿Cómo te llamás? ¡Hola, Ana!\n"
     );
 }
 
