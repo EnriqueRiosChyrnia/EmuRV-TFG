@@ -31,6 +31,11 @@ USO:
       por stderr. --max-instr y --timeout-s acotan la corrida
       (al agotarse: código de salida 124).
 
+  emurv-cli debug <entrada.s> [--port N]
+      Ensambla y espera un cliente GDB (protocolo gdbserver) en el
+      puerto dado (3333 por defecto). Conectar con:
+      gdb → target remote 127.0.0.1:N. stdout sigue siendo del programa.
+
   emurv-cli --help | --version
 
 CÓDIGOS DE SALIDA:
@@ -55,6 +60,7 @@ fn ejecutar_cli(args: &[String]) -> u8 {
         }
         Some("asm") => subcomando_asm(&args[1..]),
         Some("run") => subcomando_run(&args[1..]),
+        Some("debug") => subcomando_debug(&args[1..]),
         Some(otro) => {
             eprintln!("emurv-cli: subcomando desconocido «{otro}»\n\n{USO}");
             3
@@ -167,7 +173,6 @@ fn subcomando_run(args: &[String]) -> u8 {
 
     use emurv_lib::core::machine::{Machine, StopReason};
     use emurv_lib::core::syscalls::{ConsoleEvent, InputMsg};
-    use std::io::{BufRead, Write};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::Arc;
@@ -204,36 +209,12 @@ fn subcomando_run(args: &[String]) -> u8 {
     // Hilo puente: salida del invitado → stdout (sin saltos propios, con
     // flush por evento); InputRequest → una línea de stdin → Line, o EOF →
     // Cancel + marca para el diagnóstico del hilo principal.
-    let puente = {
-        let eof_stdin = Arc::clone(&eof_stdin);
-        let en_stdin = Arc::clone(&en_stdin);
-        std::thread::spawn(move || {
-            let mut stdout = std::io::stdout();
-            let stdin = std::io::stdin();
-            while let Ok(ev) = out_rx.recv() {
-                match ev {
-                    ConsoleEvent::Output(s) => {
-                        let _ = stdout.write_all(s.as_bytes());
-                        let _ = stdout.flush();
-                    }
-                    ConsoleEvent::InputRequest => {
-                        en_stdin.store(true, Ordering::SeqCst);
-                        let mut linea = String::new();
-                        let n = stdin.lock().read_line(&mut linea).unwrap_or(0);
-                        en_stdin.store(false, Ordering::SeqCst);
-                        if n == 0 {
-                            eof_stdin.store(true, Ordering::SeqCst);
-                            let _ = in_tx.send(InputMsg::Cancel);
-                        } else {
-                            let _ = in_tx.send(InputMsg::Line(
-                                linea.trim_end_matches(['\n', '\r']).to_string(),
-                            ));
-                        }
-                    }
-                }
-            }
-        })
-    };
+    let puente = puente_consola(
+        out_rx,
+        in_tx.clone(),
+        Arc::clone(&eof_stdin),
+        Arc::clone(&en_stdin),
+    );
 
     // Bucle de tramos. El presupuesto de --max-instr se descuenta por tramo
     // EMITIDO (cota superior: un tramo cortado antes —ebreak, pausa— cuenta
@@ -301,6 +282,146 @@ fn subcomando_run(args: &[String]) -> u8 {
         let _ = puente.join();
     }
     codigo
+}
+
+/// `debug <entrada.s> [--port N]` — stub GDB (RP6, feature `gdb`).
+///
+/// Modelo de ejecución PROPIO (decidido por el spike de F1, BITACORA RP6):
+/// `udbserver(uc, port, 0)` bloquea sirviendo al cliente hasta el primer
+/// continue/step; después la emulación corre LIBRE con `machine.run(0)` y
+/// los hooks del stub retoman el control en cada breakpoint/step. Acá NO
+/// hay tramos por count: el depurador manda.
+fn subcomando_debug(args: &[String]) -> u8 {
+    let mut entrada: Option<PathBuf> = None;
+    let mut port: u16 = 3333;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--port" => match it.next().map(|v| v.parse::<u16>()) {
+                Some(Ok(p)) if p > 0 => port = p,
+                _ => {
+                    eprintln!("emurv-cli debug: --port requiere un puerto válido (1-65535)\n\n{USO}");
+                    return 3;
+                }
+            },
+            _ if entrada.is_none() => entrada = Some(PathBuf::from(a)),
+            otro => {
+                eprintln!("emurv-cli debug: argumento inesperado «{otro}»\n\n{USO}");
+                return 3;
+            }
+        }
+    }
+    let Some(entrada) = entrada else {
+        eprintln!("emurv-cli debug: falta el archivo de entrada\n\n{USO}");
+        return 3;
+    };
+
+    let programa = match ensamblar_archivo(&entrada) {
+        Ok(p) => p,
+        Err(code) => return code,
+    };
+
+    use emurv_lib::core::machine::{Machine, StopReason};
+    use emurv_lib::core::syscalls::{ConsoleEvent, InputMsg};
+    use std::sync::mpsc::channel;
+
+    // udbserver con start_addr=0 PANIQUEA si el bind falla (expect interno):
+    // pre-chequeo del puerto acá para dar un error claro. Queda una ventana
+    // de carrera mínima entre soltar y re-bindear; aceptable en uso real.
+    match std::net::TcpListener::bind(("127.0.0.1", port)) {
+        Ok(l) => drop(l),
+        Err(e) => {
+            eprintln!("emurv-cli debug: no se pudo usar el puerto {port}: {e}");
+            return 1;
+        }
+    }
+
+    let (out_tx, out_rx) = channel::<ConsoleEvent>();
+    let (in_tx, in_rx) = channel::<InputMsg>();
+    let mut maquina = match Machine::new(programa, out_tx, in_rx) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("emurv-cli debug: no se pudo crear la máquina: {e}");
+            return 1;
+        }
+    };
+    let puente = puente_consola(
+        out_rx,
+        in_tx,
+        std::sync::Arc::default(),
+        std::sync::Arc::default(),
+    );
+
+    eprintln!("esperando conexión gdb en 127.0.0.1:{port} (target remote 127.0.0.1:{port})…");
+    let uc = maquina.unicorn_for_debug();
+    if let Err(e) = emurv_lib::udbserver::udbserver(uc, port, 0) {
+        eprintln!("emurv-cli debug: el stub gdb falló: {e}");
+        return 1;
+    }
+    eprintln!("cliente gdb conectado; la ejecución queda bajo control del depurador");
+
+    // Corrida libre: breakpoints/steps del cliente retoman vía hooks. Si el
+    // cliente se desconecta, el programa sigue hasta terminar (mensaje y
+    // salida normales — no nos colgamos esperándolo).
+    let razon = maquina.run(0);
+    let codigo = match razon {
+        StopReason::Exited { .. } => {
+            eprintln!("programa terminado bajo el depurador");
+            0
+        }
+        StopReason::RuntimeError { message } => {
+            eprintln!("{message}");
+            1
+        }
+        otra => {
+            eprintln!("sesión de depuración finalizada ({otra:?})");
+            0
+        }
+    };
+    drop(maquina);
+    let _ = puente.join();
+    codigo
+}
+
+/// Hilo puente de consola compartido por `run` y `debug`: salida del
+/// invitado → stdout (sin saltos propios, flush por evento); InputRequest →
+/// una línea de stdin → Line, o EOF → Cancel + marca. Termina solo cuando
+/// el canal de salida se cierra (drop de la máquina).
+fn puente_consola(
+    out_rx: std::sync::mpsc::Receiver<emurv_lib::core::syscalls::ConsoleEvent>,
+    in_tx: std::sync::mpsc::Sender<emurv_lib::core::syscalls::InputMsg>,
+    eof_stdin: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    en_stdin: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> std::thread::JoinHandle<()> {
+    use emurv_lib::core::syscalls::{ConsoleEvent, InputMsg};
+    use std::io::{BufRead, Write};
+    use std::sync::atomic::Ordering;
+    std::thread::spawn(move || {
+        let mut stdout = std::io::stdout();
+        let stdin = std::io::stdin();
+        while let Ok(ev) = out_rx.recv() {
+            match ev {
+                ConsoleEvent::Output(s) => {
+                    let _ = stdout.write_all(s.as_bytes());
+                    let _ = stdout.flush();
+                }
+                ConsoleEvent::InputRequest => {
+                    en_stdin.store(true, Ordering::SeqCst);
+                    let mut linea = String::new();
+                    let n = stdin.lock().read_line(&mut linea).unwrap_or(0);
+                    en_stdin.store(false, Ordering::SeqCst);
+                    if n == 0 {
+                        eof_stdin.store(true, Ordering::SeqCst);
+                        let _ = in_tx.send(InputMsg::Cancel);
+                    } else {
+                        let _ = in_tx.send(InputMsg::Line(
+                            linea.trim_end_matches(['\n', '\r']).to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+    })
 }
 
 /// Lee y ensambla un fuente. Errores de E/S → exit 1; de ensamblado → 2,
