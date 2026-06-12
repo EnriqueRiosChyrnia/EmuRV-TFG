@@ -23,6 +23,7 @@ export class Ayuda {
             <h3>${t("ayuda.ciclo.titulo")}</h3>
             <p>${t("ayuda.ciclo.texto")}</p>
             <p>${t("ayuda.lecciones")}</p>
+            <p>${t("ayuda.binario")}</p>
           </section>
           <section>
             <h3>${t("ayuda.syscalls.titulo")}</h3>

@@ -66,3 +66,13 @@ Con la ejecución detenida (Detener, breakpoint, watchpoint o paso):
   estado de la máquina, no del programa).
 - Condiciones compuestas, watchpoints condicionales y edición de `.text`:
   fuera de alcance por diseño — gdb (RP-6) cubre los dos primeros.
+
+## Modo binario (RP11)
+
+Con un ELF importado («Abrir» → binario) no hay fuente: el editor muestra el
+listado desensamblado y **cada línea del listado es una dirección**. Todo lo
+de este documento funciona igual: breakpoints (también condicionales) se
+ponen clickeando el margen sobre una línea del listado, el resaltado de
+ejecución avanza por el listado, y los watchpoints/edición en vivo no
+distinguen binario de fuente. Lo único deshabilitado es «Ensamblar» (no hay
+qué ensamblar).

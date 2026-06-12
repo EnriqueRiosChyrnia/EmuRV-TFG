@@ -103,6 +103,13 @@ stdout del proceso: 5! = 120
 - Funciona sobre programas multi-archivo (RP-5): breakpoints en etiquetas
   definidas dentro de un `.include` (probado con `saludar` del ejemplo 11).
 
+## Binarios importados (RP11)
+
+`emurv-cli debug programa.elf` funciona igual que con un fuente: el stub no
+distingue origen. Si el ELF trae `.symtab` (los exportados por EmuRV lo
+traen; los de gcc también salvo strip), `b nombre` funciona en el gdb real
+porque el cliente lee los símbolos del MISMO archivo que le pasaste a EmuRV.
+
 ## Limitaciones
 
 - Sin DWARF: no hay información de líneas de fuente — se depura por

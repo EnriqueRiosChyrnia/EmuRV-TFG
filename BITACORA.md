@@ -1218,3 +1218,30 @@ el listado, columna de instrucción en «Memoria» → «.text».
 
 Compuerta F3: suites verdes (29 binarios src-tauri, CLI 46) · clippy 0
 ambos · tsc limpio · bundle ≤ 30 MB re-verificado ✓.
+
+## 2026-06-12 — RP11-F4: docs de import/desensamblador y cierre de RP-11
+
+[Seguro] Docs: README con sección «Abrir binarios ELF (import y
+desensamblador)» — flags de gcc copiables, límites honestos (solo
+ET_EXEC absoluto, syscalls RARS no Linux), subcomando disasm con salida
+de ejemplo, fixture señalada; docs/DEPURACION.md §Modo binario (cada
+línea del listado = una dirección; todo RP-7 funciona igual);
+docs/DEPURACION-GDB.md §Binarios importados (b nombre funciona si hay
+.symtab: el cliente lee símbolos del mismo archivo); Ayuda integrada con
+párrafo «ayuda.binario» (flags incluidos).
+
+[Seguro] CIERRE RP-11 — resumen del punto contra los criterios:
+- Cargar y correr ELF round-trip ✓ (test núcleo + proceso) y uno de gcc
+  REAL ✓ (toolchain instalada en F1; fixture commiteada con Makefile).
+- Desensamblado verificado contra el repertorio propio ✓ (~55 fuentes,
+  alias documentados); objdump no se usó (no hacía falta: la fixture gcc
+  y el round-trip cubren el contrato).
+- Depuración por dirección sobre binario ✓ (breakpoint en línea del
+  listado) + gdb stub sobre ELF importado ✓ (símbolo del .symtab).
+- Decisión capstone-vs-propio POR MEDICIÓN con RNF-04 intocable ✓:
+  capstone full+arch_riscv, bundle final 22 MB ≤ 30 (margen ~8 MB);
+  rama spike/rp11-capstone como evidencia, sin mergear.
+
+[PENDIENTE HUMANO] (heredado de F3) modo binario visual en la app; y la
+verificación del dueño: round-trip a mano (asm→import→run), listado de
+disasm contra el ensamblador, y el peso del bundle.
