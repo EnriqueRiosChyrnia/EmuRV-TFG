@@ -13,15 +13,18 @@
 //! puede usar su JIT a pleno y la velocidad cae en órdenes de magnitud.
 
 use super::assembler::Program;
+use super::keyboard::KeyboardShared;
 use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::video::{FramebufferRGBA, VideoShared};
 use super::{
     DATA_BASE, DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE,
-    FRAMEBUFFER_SIZE, GP_INIT, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE, SP_INIT, STACK_SIZE,
-    STACK_TOP, TEXT_BASE, TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
+    FRAMEBUFFER_SIZE, GP_INIT, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE,
+    PALETTE_SIZE, RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE,
+    TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
 };
 use serde::Serialize;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use unicorn_engine::Arch;
@@ -73,11 +76,19 @@ pub struct MachData {
     pub video_last: Option<Vec<u8>>,
     /// Ya se detectó uso de la pantalla (evita reescanear la VRAM, RF4).
     pub video_used: bool,
+    /// Cola de teclas compartida con la UI (TEC2, espejo de `video_shared`):
+    /// la UI empuja con `push_key` y el hook MEM_READ del teclado consume.
+    pub keyboard: Arc<Mutex<KeyboardShared>>,
+    /// Señal de stop de la sesión (mismo `Arc` que mira el hilo de
+    /// emulación entre tramos). Por ahora solo se cablea: la fase siguiente
+    /// la usará para hacer interrumpible la syscall de sleep.
+    pub stop_request: Arc<AtomicBool>,
 }
 
 /// La máquina NO es `Send` (Unicorn usa `Rc` internamente): debe crearse y
 /// usarse dentro del hilo de emulación. La señal de stop entre hilos vive
-/// fuera (en la sesión), no acá.
+/// en la sesión; acá solo entra un espejo del mismo `Arc`
+/// (`set_stop_request`) para que los hooks puedan consultarla.
 pub struct Machine<'a> {
     uc: Unicorn<'a, MachData>,
     program: Program,
@@ -123,6 +134,8 @@ impl Machine<'_> {
             video_shared,
             video_last: None,
             video_used: false,
+            keyboard: Arc::default(),
+            stop_request: Arc::default(),
         };
         let mut uc = Unicorn::new_with_data(Arch::RISCV, Mode::RISCV32, data)
             .map_err(|e| format!("no se pudo iniciar el emulador: {e:?}"))?;
@@ -161,6 +174,17 @@ impl Machine<'_> {
         )
         .map_err(|e| format!("no se pudo mapear el registro de control: {e:?}"))?;
 
+        // Página del teclado CON respaldo real de memoria (TEC2): las
+        // lecturas de host (visor de memoria de la UI) leen los bytes sin
+        // disparar hooks, así inspeccionar memoria NO consume teclas. La
+        // alternativa mmio_map se descartó por eso (tests/spike_mmio.rs B6).
+        uc.mem_map(
+            KEYBOARD_BASE as u64,
+            KEYBOARD_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear la página del teclado: {e:?}"))?;
+
         // Syscalls y excepciones: llegan como interrupción con la causa
         // RISC-V en intno (ver syscalls::handle_trap).
         uc.add_intr_hook(syscalls::handle_trap)
@@ -178,6 +202,42 @@ impl Machine<'_> {
             },
         )
         .map_err(|e| format!("no se pudo instalar el hook de memoria: {e:?}"))?;
+
+        // Teclado MMIO (TEC2, mecanismo validado en tests/spike_mmio.rs):
+        // hook MEM_READ permanente sobre CONTROL y DATA que escribe el
+        // valor fresco en memoria ANTES de que la lectura del guest
+        // complete. Funciona igual con lb y con lw (el spike midió ambos
+        // anchos) y con la caché JIT caliente.
+        uc.add_mem_hook(
+            HookType::MEM_READ,
+            RECEIVER_CONTROL as u64,
+            u64::from(RECEIVER_DATA) + 3,
+            |uc, _tipo, addr, _size, _val| {
+                // Clonar el Arc primero: `get_data()` presta `uc` inmutable
+                // y `mem_write` lo necesita `&mut`; con el clon, el lock no
+                // retiene ningún préstamo sobre `uc`. Si la UI entró en
+                // pánico con el lock tomado, se recupera igual: la cola es
+                // POD, no hay invariantes a medio romper.
+                let keyboard = Arc::clone(&uc.get_data().keyboard);
+                let mut k = keyboard.lock().unwrap_or_else(|e| e.into_inner());
+                // Un lb puede caer desalineado dentro del registro: se
+                // normaliza a la palabra base (mismo truco del spike).
+                let registro = (addr as u32) & !0x3;
+                if registro == RECEIVER_DATA {
+                    // Leer DATA consume (semántica RARS); cola vacía da 0.
+                    let byte = u32::from(k.pop().unwrap_or(0));
+                    let _ = uc.mem_write(RECEIVER_DATA as u64, &byte.to_le_bytes());
+                }
+                // CONTROL siempre se refresca al estado actual de la cola
+                // (en lectura de CONTROL es lo único que pasa: no consume).
+                // Los mem_write no pueden fallar: la página queda mapeada
+                // de por vida; si fallaran, el guest leería el valor viejo.
+                let ready = u32::from(k.hay_dato());
+                let _ = uc.mem_write(RECEIVER_CONTROL as u64, &ready.to_le_bytes());
+                true
+            },
+        )
+        .map_err(|e| format!("no se pudo instalar el hook del teclado: {e:?}"))?;
 
         let mut m = Machine {
             uc,
@@ -197,6 +257,13 @@ impl Machine<'_> {
             let d = self.uc.get_data_mut();
             d.video_last = None;
             d.video_used = false;
+            // Sin teclas fantasma entre sesiones/reinicios (TEC2): lo
+            // tipeado durante la corrida anterior no debe llegarle al
+            // programa reiniciado.
+            d.keyboard
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .limpiar();
             // Si la pantalla estaba en uso, publicar un frame negro: tras
             // Reiniciar el panel debe reflejar la VRAM limpia, no el último
             // frame de la corrida anterior.
@@ -244,6 +311,11 @@ impl Machine<'_> {
         self.uc.mem_write(PALETTE_BASE as u64, &pal).map_err(err)?;
         self.uc
             .mem_write(VIDEO_CONTROL_BASE as u64, &[0u8; 4])
+            .map_err(err)?;
+        // CONTROL y DATA del teclado vuelven a 0 (acompaña el vaciado de
+        // la cola de más arriba: el respaldo real tampoco conserva restos).
+        self.uc
+            .mem_write(RECEIVER_CONTROL as u64, &[0u8; 8])
             .map_err(err)?;
         self.uc
             .mem_write(TEXT_BASE as u64, &self.program.text)
@@ -359,6 +431,21 @@ impl Machine<'_> {
     /// hilo de emulación (que puede estar bloqueado esperando entrada).
     pub fn video_shared(&self) -> Arc<Mutex<VideoShared>> {
         Arc::clone(&self.uc.get_data().video_shared)
+    }
+
+    /// `Arc` de la cola de teclas (TEC2), para que la GUI empuje teclas
+    /// sin pasar por el hilo de emulación (espejo de `video_shared`).
+    pub fn keyboard_shared(&self) -> Arc<Mutex<KeyboardShared>> {
+        Arc::clone(&self.uc.get_data().keyboard)
+    }
+
+    /// Cablea la señal de stop de la sesión dentro de `MachData` (mismo
+    /// `Arc` que mira el hilo de emulación entre tramos). Setter y no
+    /// parámetro del constructor a propósito: no rompe ningún call site
+    /// existente (tests y GUI siguen usando `new`/`new_with_video`) y la
+    /// señal recién se consumirá en la fase del sleep interrumpible.
+    pub fn set_stop_request(&mut self, stop: Arc<AtomicBool>) {
+        self.uc.get_data_mut().stop_request = stop;
     }
 
     /// Define el conjunto de breakpoints (direcciones de .text). Instala o

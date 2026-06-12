@@ -6,6 +6,7 @@
 
 pub mod assembler;
 pub mod elf_export;
+pub mod keyboard;
 pub mod machine;
 pub mod syscalls;
 pub mod video;
@@ -52,3 +53,19 @@ pub const PALETTE_SIZE: u32 = 0x00001000;
 pub const VIDEO_CONTROL_BASE: u32 = 0x9003_0000;
 /// Tamaño mapeado del control (alineado a página 4K).
 pub const VIDEO_CONTROL_SIZE: u32 = 0x00001000;
+
+/// Base de la página MMIO del teclado (TEC2). Misma dirección que el
+/// receptor del teclado de RARS/MARS, a propósito: el material didáctico
+/// existente para esos simuladores funciona sin cambiar direcciones.
+pub const KEYBOARD_BASE: u32 = 0xFFFF_0000;
+/// Tamaño mapeado de la página del teclado (4 KB, mínimo de Unicorn).
+pub const KEYBOARD_SIZE: u32 = 0x1000;
+/// RECEIVER_CONTROL (compatible RARS/MARS): el bit 0 en 1 indica que hay
+/// una tecla lista en RECEIVER_DATA. El bit 1 (habilitar interrupciones de
+/// teclado, semántica MARS) queda RESERVADO: no está implementado, el
+/// programa debe consultar por encuesta (polling).
+pub const RECEIVER_CONTROL: u32 = 0xFFFF_0000;
+/// RECEIVER_DATA (compatible RARS/MARS): código de la tecla más vieja
+/// pendiente. Leerlo CONSUME la tecla: la siguiente lectura de
+/// RECEIVER_CONTROL devuelve 0 si la cola quedó vacía.
+pub const RECEIVER_DATA: u32 = 0xFFFF_0004;

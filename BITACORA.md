@@ -346,3 +346,14 @@ Limitaciones registradas por los propios PoC: B5 no mide guests con muchas carga
 - Edge case preexistente registrado (no tocado, fuera de alcance): borde de tramo cayendo exacto sobre un breakpoint puede suprimirlo una vez (`suppress_bp`); ya existía con tramos por timeout y con breakpoints el hook baja la velocidad ~100×, así que el tramo corta por timeout igual que antes. [Probable]
 
 Gate TEC1 ✓: 70 tests + 6 ignore, clippy 0, tsc limpio.
+
+## TEC2 — Dispositivo de teclado MMIO compatible RARS/MARS (2026-06-12)
+
+- **Mapa**: página 0xFFFF_0000 (4 KB) con `RECEIVER_CONTROL` (+0, bit 0 = hay dato; bit 1 —interrupciones, semántica MARS— RESERVADO y documentado como no implementado) y `RECEIVER_DATA` (+4, leerlo CONSUME). Mismas direcciones que RARS/MARS a propósito: el material didáctico existente aplica sin cambios. [Seguro]
+- **Mecanismo (decisión TEC0)**: hook `MEM_READ` permanente sobre los 8 bytes; en cada lectura refresca CONTROL = estado de la cola y, si es DATA, escribe el byte poppeado ANTES de que la lectura del guest complete (patrón validado en spike B1-B4). Página con respaldo real: el visor de memoria de la UI lee sin disparar hooks → NO consume teclas (razón del descarte de `mmio_map`, spike B6). `lb` desalineado se normaliza con `& !0x3`.
+- **Cola**: `KeyboardShared` (`VecDeque<u8>` cap 64, descarte del más viejo al llenarse, sin panic) en `MachData` como espejo de `video_shared`; el Arc viaja a la `Session` por el canal `init` existente (Unicorn no es Send: la máquina nace dentro del hilo). Comando Tauri `push_key(code)` con recuperación de mutex envenenado (mismo criterio que `publicar_frame`).
+- `load()`/`reset()`: cola vaciada + CONTROL/DATA en 0 — sin teclas fantasma entre sesiones ni reinicios.
+- **Cableado anticipado para TEC3**: `MachData.stop_request: Arc<AtomicBool>` conectado al `stop_flag` de la sesión vía `set_stop_request` (setter para no romper call sites); aún sin uso — lo consumirá el sleep interrumpible de syscall 32.
+- Tests (`tec2_teclado.rs`, 6): lectura CONTROL/DATA/CONTROL con lw y con lb; cola vacía → 0/0; overflow 65→64 perdiendo la más vieja; reset limpia; **eco end-to-end**: programa asm que pollea CONTROL, lee DATA, imprime con syscall 11 y sale con Esc — cola "ab\x1b" inyectada → consola "ab", Exited{0}.
+
+Gate TEC2 ✓: 76 tests + 6 ignore (integración 6/6, regresiones JIT y fb* intactas), clippy 0, tsc limpio.
