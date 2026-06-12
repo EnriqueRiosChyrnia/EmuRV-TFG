@@ -54,7 +54,51 @@ Nota de diseño: `call`/`tail` se expanden a `jal`/`j` simples (alcance ±1 MB) 
 
 `.text`, `.data`, `.word`, `.half`, `.byte`, `.asciiz`, `.space`, con alineación automática del segmento de datos. Las etiquetas en la misma línea de un dato se definen *después* de alinear, de modo que `w: .word 7` apunte al word y no al relleno de alineación (comportamiento capturado por un test).
 
-### 4.4. Diagnóstico de errores didáctico (RF-02)
+### 4.4. Multi-archivo: includes, constantes, macros y %hi/%lo (RP5, 2026-06-12)
+
+Un **preprocesador** corre antes de las dos pasadas y aplana el fuente llevando una
+tabla de procedencia por línea (`core/preprocess.rs`):
+
+- **`.include "ruta.s"`** — inserta otro archivo, con ruta relativa al archivo que
+  lo contiene. Anidable (máx. 16 niveles); los ciclos se detectan y el error muestra
+  la cadena completa (`a.s → b.s → a.s`). En la app, el buffer debe estar **guardado
+  en disco** para que haya carpeta base; el CLI usa la carpeta del archivo de entrada.
+- **`.eqv NOMBRE valor`** (RARS) y **`.equ NOMBRE, valor`** (GNU) — constantes
+  simbólicas. Deben definirse **antes** de usarse (la sustitución ocurre al parsear
+  operandos, porque la pasada 1 necesita el valor para decidir tamaños); pueden
+  encadenarse, valen en todo operando inmediato, en `.word/.half/.byte` y como
+  dirección en `la`/cargas/almacenamientos. Redefinir es error.
+- **`.macro NOMBRE (%p1, %p2)` … `.end_macro`** (o `.endm`) — macros con sustitución
+  textual de `%parámetro`. Invocables con etiquetas delante (`et: macro arg`),
+  anidables en invocación (profundidad máx. 64; la recursión se corta con error);
+  definir una macro dentro de otra es error. Una macro definida en un include vale
+  después del punto de inclusión. *Limitación:* una macro que define etiquetas e
+  invocada más de una vez produce «etiqueta duplicada».
+- **`%hi(x)` / `%lo(x)`** — partes alta (20 bits, con ajuste de signo) y baja
+  (12 bits con signo) de una dirección o constante; en `lui`, `addi`, `ori` y como
+  desplazamiento `%lo(x)(base)` en cargas/almacenamientos. `lui+addi` con `%hi/%lo`
+  produce el mismo binario que `la` (testeado byte a byte). `%hi` con `auipc` se
+  rechaza con explicación (sería `%pcrel_hi`, no soportado).
+
+**La regla de atribución del source_map** (el invariante de breakpoints/resaltado):
+
+```
+main.s                          línea atribuida en el source_map
+  1  li t0, 1            ←———   1   (línea propia)
+  2  .include "inc.s"
+       inc.s:1  li t1, 7 ←———   2   (la línea del .include que lo trajo)
+       inc.s:2  li t2, 8 ←———   2   (ídem: TODO el include vive en su línea)
+  3  par                 ←———   3   (invocación de macro: sus N instrucciones
+       (cuerpo expandido)            expandidas se atribuyen a la línea 3)
+```
+
+El editor (un solo buffer) sigue funcionando sin cambios: un breakpoint sobre la
+línea del `.include` frena en la **primera** instrucción que ese include aporta.
+Los **errores**, en cambio, reportan archivo y línea reales («`utiles.s: línea 3,
+columna 5: …`»). La procedencia completa por palabra queda en `Program::origins`
+para una futura vista multi-archivo.
+
+### 4.5. Diagnóstico de errores didáctico (RF-02)
 
 Es la ventaja diferencial frente a un ensamblador genérico, y la razón por la que el plan B resultó ser una mejora y no solo un reemplazo:
 

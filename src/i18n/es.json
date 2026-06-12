@@ -43,6 +43,7 @@
   "estado.paso_sin_linea": "Paso ejecutado",
   "estado.breakpoint": "Detenido en breakpoint (línea {line})",
   "estado.ebreak": "Pausado por ebreak (línea {line})",
+  "ayuda.directivas.rp5": "«.include \"archivo.s\"» inserta otro archivo (el programa debe estar guardado en disco); «.eqv NOMBRE valor» define constantes; «.macro nombre (%p)…/.end_macro» define macros; «%hi(x)»/«%lo(x)» parten una dirección para «lui»+«addi». Detalle: docs/ENSAMBLADOR.md §4.4.",
   "ayuda.ebreak": "Además, la instrucción «ebreak» pausa el programa (pausa por software, como un breakpoint puesto desde el código): podés inspeccionar registros y memoria, y reanudar con «Ejecutar» o «Paso» desde la instrucción siguiente.",
   "estado.terminado": "Programa terminado (código {code})",
   "estado.pausado": "Ejecución pausada",

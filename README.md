@@ -20,7 +20,7 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar, tiempo en ms y dormir.
 - **Teclado en tiempo real**: dispositivo MMIO compatible RARS/MARS (`0xFFFF_0000`) que el programa consulta por polling sin bloquearse — ver [`docs/TECLADO.md`](docs/TECLADO.md).
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).
-- 9 ejemplos comentados en español, accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
+- 10 ejemplos comentados en español (uno multi-archivo), accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 
 ## Modo gráfico (Framebuffer VGA 13h)
@@ -138,6 +138,23 @@ Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando 
 | 32 | dormir | `a0` = milisegundos (interrumpible con «Detener») |
 
 Tabla completa, mapa de memoria y directivas: botón **Ayuda** dentro de la app.
+
+### Directivas del ensamblador
+
+| Directiva | Uso |
+|---|---|
+| `.text` / `.data` | sección de código / de datos |
+| `.word .half .byte` | valores de 4/2/1 bytes (admiten etiquetas y constantes) |
+| `.ascii .asciiz .string` | cadenas (con o sin NUL final) |
+| `.space .align .globl` | reserva, alineación, símbolo global |
+| `.include "archivo.s"` | inserta otro archivo (relativo al que lo contiene) |
+| `.eqv` / `.equ` | constantes simbólicas (`.eqv VECES 3`) |
+| `.macro … .end_macro` | macros con parámetros `%nombre` |
+| `%hi(x)` / `%lo(x)` | partes alta/baja de una dirección para `lui`+`addi` |
+
+El ejemplo `ejemplos/11-multiarchivo/` muestra todo junto (corre por CLI:
+`emurv-cli run ejemplos/11-multiarchivo/main.s`; en la app, abrilo con «Abrir» —
+los `.include` se resuelven desde la carpeta del archivo guardado).
 
 ## Uso por línea de comandos (`emurv-cli`)
 
