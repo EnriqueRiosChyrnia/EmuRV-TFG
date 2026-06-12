@@ -63,6 +63,44 @@ fn rnf03_velocidad_de_ejecucion() {
     assert!(mips >= 10.0, "RNF-03 exige ≥10 M instr/s; midió {mips:.1}");
 }
 
+/// RNF-03 (TEC1): la MISMA carga que `rnf03_velocidad_de_ejecucion`, pero
+/// ejecutada como producción tras TEC1: tramos de RUN_SLICE_COUNT
+/// instrucciones (`run_slice`) hasta terminar. Mide cuánto cuesta el
+/// slicing que hace que «Detener» responda siempre.
+#[test]
+#[ignore]
+fn rnf03_velocidad_con_slicing() {
+    /// Mismo valor que RUN_SLICE_COUNT en commands.rs (~2,3 ms por tramo).
+    const RUN_SLICE_COUNT: u64 = 1_000_000;
+    let src = "li t0, 20000000\nbucle:\naddi t0, t0, -1\nbnez t0, bucle\nli a7, 10\necall";
+    let programa = assemble(src).expect("debe ensamblar");
+    let (out_tx, _out_rx) = channel();
+    let (_in_tx, in_rx) = channel();
+    let mut m = Machine::new(programa, out_tx, in_rx).expect("máquina");
+
+    let instrucciones: f64 = 2.0 * 20_000_000.0 + 4.0;
+    let inicio = Instant::now();
+    let mut tramos = 0u64;
+    let reason = loop {
+        match m.run_slice(100, RUN_SLICE_COUNT) {
+            StopReason::Paused => {
+                tramos += 1;
+                assert!(tramos < 1_000, "demasiados tramos: el programa no avanza");
+            }
+            other => break other,
+        }
+    };
+    let segs = inicio.elapsed().as_secs_f64();
+    assert_eq!(reason, StopReason::Exited { code: 0 });
+    let mips = instrucciones / segs / 1.0e6;
+    println!(
+        "RNF-03 (slicing): {instrucciones:.0} instrucciones en {} tramos de \
+         {RUN_SLICE_COUNT} → {segs:.3} s → {mips:.1} M instr/s",
+        tramos + 1
+    );
+    assert!(mips >= 10.0, "RNF-03 exige ≥10 M instr/s; midió {mips:.1}");
+}
+
 /// RNF-03 (caso adverso): velocidad CON un breakpoint activo lejos del
 /// bucle — mide el costo del hook de código.
 #[test]
