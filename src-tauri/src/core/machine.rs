@@ -720,6 +720,18 @@ fn runtime_error_message(e: uc_error, pc: u32, bad_mem: Option<(MemType, u64)>) 
     }
 }
 
+#[cfg(feature = "gdb")]
+impl Machine<'static> {
+    /// Puerta EXCLUSIVA del stub GDB (RP6, feature `gdb`): acceso crudo al
+    /// motor para `udbserver`, que necesita `&mut Unicorn`. NO usarla para
+    /// ninguna otra cosa: por acá se saltean los invariantes de `Machine`
+    /// (tb_de_corrida, last_bp, supresión de breakpoints) bajo
+    /// responsabilidad del depurador remoto.
+    pub fn unicorn_for_debug(&mut self) -> &mut Unicorn<'static, MachData> {
+        &mut self.uc
+    }
+}
+
 /// Publica el frame actual (VRAM + paleta → RGBA) en `video_shared` si la
 /// VRAM cambió desde la última publicación (flag sucio, RF2). Función libre
 /// sobre `Unicorn` para poder llamarla también desde el hook de syscalls,

@@ -10,4 +10,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-emurv = { path = "../src-tauri" }
+emurv = { path = "../src-tauri", features = ["gdb"] }
