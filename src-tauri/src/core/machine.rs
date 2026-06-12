@@ -109,6 +109,12 @@ pub struct Machine<'a> {
     /// ejecuta el bloque cacheado entero): hay que flushear la caché antes
     /// de steppear. Era el bug "Reiniciar → Paso no avanza".
     tb_de_corrida: bool,
+    /// Dirección del último `Breakpoint` REPORTADO (None si la última
+    /// parada fue por otra causa). El primer tramo de una orden Run solo
+    /// suprime el bp del pc de arranque si fue ESTE bp ya reportado: tras
+    /// una pausa por `ebreak` (o por stop de usuario) un bp en ese pc
+    /// todavía no frenó y debe reportarse (RP1-F4, sub-caso 5C).
+    last_bp: Option<u32>,
 }
 
 /// Dirección "hasta" que nunca se alcanza en RV32: ejecuta sin tope.
@@ -256,6 +262,7 @@ impl Machine<'_> {
             program,
             bp_hook: None,
             tb_de_corrida: false,
+            last_bp: None,
         };
         m.load()?;
         Ok(m)
@@ -537,7 +544,12 @@ impl Machine<'_> {
         self.uc.get_data_mut().suppress_bp = Some(pc);
         let result = self.uc.emu_start(pc as u64, NEVER, 0, 1);
         self.uc.get_data_mut().suppress_bp = None;
-        self.interpret(result, StopReason::StepDone)
+        let reason = self.interpret(result, StopReason::StepDone);
+        self.last_bp = match &reason {
+            StopReason::Breakpoint { addr } => Some(*addr),
+            _ => None,
+        };
+        reason
     }
 
     /// Ejecuta hasta breakpoint/salida/error o hasta agotar `timeout_ms`
@@ -589,10 +601,15 @@ impl Machine<'_> {
             Ok(pc) => pc,
             Err(message) => return StopReason::RuntimeError { message },
         };
-        // Al reanudar sobre un breakpoint, ese breakpoint no cuenta — pero
-        // SOLO en el primer tramo de la orden: en una continuación el bp
-        // del pc de arranque todavía no se reportó y debe frenar.
-        if suppress_bp_at_start && self.uc.get_data().breakpoints.contains(&pc) {
+        // Al reanudar sobre un breakpoint YA REPORTADO, ese breakpoint no
+        // cuenta — pero SOLO en el primer tramo de la orden Y solo si la
+        // última parada fue ese mismo bp: tras una pausa por ebreak o por
+        // stop de usuario, un bp en este pc todavía no frenó y debe
+        // reportarse (RP1-F4 5C). En una continuación tampoco se suprime.
+        if suppress_bp_at_start
+            && self.last_bp == Some(pc)
+            && self.uc.get_data().breakpoints.contains(&pc)
+        {
             self.uc.get_data_mut().suppress_bp = Some(pc);
         }
         let result = self
@@ -603,7 +620,12 @@ impl Machine<'_> {
         // step() sigue cubriendo el caso histórico (count=0) sin distinguir.
         self.tb_de_corrida = true;
         self.uc.get_data_mut().suppress_bp = None;
-        self.interpret(result, StopReason::Paused)
+        let reason = self.interpret(result, StopReason::Paused);
+        self.last_bp = match &reason {
+            StopReason::Breakpoint { addr } => Some(*addr),
+            _ => None,
+        };
+        reason
     }
 
     /// Traduce el resultado de `emu_start` + flags de los hooks a un
