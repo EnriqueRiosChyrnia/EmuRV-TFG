@@ -1777,3 +1777,30 @@ lecciones embebidas con ?raw, sin impacto medible — texto liviano).
 [PENDIENTE HUMANO] Verificación visual: navegador (objetivos/paneles por
 lección), progreso persistente al recargar, siguiente/anterior, y el flujo
 de la 08 (elegir carpeta → ensambla con includes / cancelar → aviso).
+
+## 2026-06-13 — RP16-F1: loader multi-idioma, selector y persistencia
+
+[Seguro] i18n pasó de dict estático a multi-idioma: `index.ts` con idioma
+ACTIVO (es default), `setLang`/`getLang`, fallback a español en `t()`, y
+persistencia en localStorage (`emurv.lang.v1`, patrón RP-15). La resolución
+es una función PURA `traducir(dicts, lang, key, params)` (idioma → fallback
+es → la clave; interpola {params}) — separada para testearla sin
+localStorage ni los JSON reales.
+
+[Seguro — decisión registrada] Aplicar el cambio de idioma = PERSISTIR +
+`location.reload()`. La UI se construye de forma imperativa (toolbar y
+paneles leen `t()` al crearse, sin re-render reactivo); recargar la ventana
+es lo más simple y robusto, sin estado a medio traducir. Alternativa
+(re-render reactivo de todos los paneles) descartada por invasiva y de bajo
+ROI para un cambio que el usuario hace una vez.
+
+[Seguro] Selector «ES/EN» en la toolbar (español primero, lengua primaria);
+al cambiar persiste y recarga. en.json arranca como COPIA de es.json (164
+claves) — el mecanismo ya funciona; la traducción inglesa es F2. Clave
+nueva `toolbar.idioma` en ambos JSON (165 claves c/u por ahora).
+
+[Seguro] Tests (5 nuevos, 32 UI): traducir lee del activo, fallback a es si
+falta la clave, clave inexistente→la clave, interpolación por idioma,
+setLang/getLang persisten con stub de localStorage.
+
+Compuerta F1: tests verdes (32 UI) · tsc limpio · suite Rust intacta (37).

@@ -674,3 +674,9 @@ html, body {
 
 .lecciones-detalle button.principal { background: var(--acento); color: #10151b; font-weight: 600; }
 .lecciones-detalle button:disabled { opacity: 0.45; cursor: default; }
+
+/* selector de idioma (RP16) */
+#idioma {
+  margin-left: 6px;
+  min-width: 56px;
+}
