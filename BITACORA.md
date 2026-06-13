@@ -1959,3 +1959,32 @@ vivo (sin recargar), ver el ámbar + scanlines, y que persiste al reabrir.
 
 Compuerta F3: tests verdes (42 UI) · contraste AA verificado por test en
 ambos temas · tsc/build limpios · bundle 22 MB ≤ 30.
+
+## 2026-06-13 — RP17-F4: docs sistema de temas (cierre Parte A)
+
+[Seguro] Docs: README con la característica de temas (selector, cambio en
+vivo, contraste AA, fuente JetBrains Mono OFL); Ayuda integrada con sección
+«Temas»/«Themes» (ayuda.temas.*, anti-drift es/en cubre, 172 claves c/u);
+nota en tokens.css «CÓMO AGREGAR UN TEMA» para la Parte B (un tema = un
+bloque [data-tema] + entrada en TEMAS + traducción + el selector del test
+de contraste; sin tocar styles.css ni lógica).
+
+[Seguro] CIERRE RP-17 PARTE A — criterios:
+- Estética 100% por tokens; refactor invisible verificado ✓ F1
+- Fuente mono self-hosted (JetBrains Mono, OFL) + iconos SVG (Lucide, ISC),
+  licencias registradas, bundle OK ✓ F2
+- Mecanismo de temas con 2 built-in (Educativo default + Retro-CRT), cambio
+  EN VIVO sin recargar, persistencia localStorage ✓ F3
+- Legibilidad AA en ambos temas (test de contraste, mín 4.99 / 7.19) ✓ F3
+- Agregar un tema = un bloque de tokens, documentado para Parte B ✓ F4
+- Sin frameworks, CSS puro ✓
+Suites verdes (37 src-tauri, 50 CLI, 42 UI), clippy 0 ambos, tsc limpio,
+ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30.
+
+PARTE B (NO en este plan): temas experimentales del diseño con Claude
+Desktop + tema de usuario; se montan sobre este mecanismo (bloques de
+tokens), sin reingeniería.
+
+[PENDIENTE HUMANO] Verificación visual del conjunto: tipografía JetBrains
+Mono, iconos en la toolbar, cambio Educativo↔Retro-CRT en vivo con
+scanlines, persistencia al reabrir.

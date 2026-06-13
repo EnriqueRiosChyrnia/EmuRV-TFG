@@ -95,3 +95,18 @@
     rgba(0, 0, 0, 0.06) 3px
   );
 }
+
+/* ----------------------------------------------------------------------
+   CÓMO AGREGAR UN TEMA (nota para la Parte B de RP-17)
+   ----------------------------------------------------------------------
+   Un tema nuevo es SOLO DATOS, no código:
+   1. Agregá un bloque `[data-tema="mi-tema"] { --token: valor; … }` acá,
+      sobrescribiendo las variables que quieras (las que no toques heredan
+      de :root/«educativo»).
+   2. Sumá "mi-tema" a TEMAS y la traducción `tema.mi-tema` en es/en.json.
+   3. El test de contraste (contraste.test.ts) lo cubre si agregás su
+      selector a la lista — la legibilidad AA es obligatoria.
+   No hace falta tocar styles.css ni la lógica: el mecanismo (data-tema +
+   selector + persistencia) ya está. Así se integran los temas del diseño
+   con Claude Desktop (Parte B) sin reingeniería.
+   ---------------------------------------------------------------------- */
