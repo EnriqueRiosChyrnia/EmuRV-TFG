@@ -41,8 +41,11 @@ const PATHS: Record<string, string> = {
 export function icono(nombre: string): string {
   const paths = PATHS[nombre];
   if (!paths) return "";
+  // El play (Ejecutar) va relleno por convención (RP19): clase .ico-fill,
+  // que en styles.css lo pinta con currentColor sin trazo.
+  const clase = nombre === "ejecutar" ? "ico ico-fill" : "ico";
   return (
-    `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+    `<svg class="${clase}" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ` +
     `aria-hidden="true" focusable="false">${paths}</svg>`
   );
