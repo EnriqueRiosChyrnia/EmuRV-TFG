@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# graphify (grafo vive en ../graphify-out, este dir solo guarda punteros)
+graphify-out
+
+# screenshots del diseño (pesados, referencia local)
+docs/diseno-ui/uploads/

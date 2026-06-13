@@ -18,3 +18,12 @@ Prototipo técnico de TFG (FIUNI, Ing. en Computación): entorno educativo moder
 - Frontend: TypeScript estricto. Preferencia: Svelte o vanilla TS + CodeMirror 6. Nada de frameworks pesados sin justificación registrada.
 - Identificadores de código en inglés; comentarios, docs y UI en español.
 - Rendimiento es requisito de primera clase (ver RNF en SPEC.md): nunca refresques la UI instrucción por instrucción durante ejecución continua.
+
+## Roadmap profesional (post-v0.1)
+Existe `docs/ROADMAP-PRO.md`: extensiones aprobadas por el autor (RP-1..RP-8) con un
+protocolo de trabajo propio (plan → prompt → ejecución en otra terminal → verificación
+y actualización de docs). Si el autor pide "creá el plan para el siguiente punto" o
+nombra un RP-N, leé ese archivo y seguí su protocolo al pie de la letra. Los planes
+RP se escriben como `docs/PLAN-RP<N>-<slug>.md` y los commits de su ejecución usan
+formato `rp<N>-fase-M: descripción`. La regla 2 de este archivo (no expandir alcance)
+aplica dentro de cada plan RP, no contra el roadmap.
