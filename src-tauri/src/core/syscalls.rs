@@ -3,8 +3,12 @@
 //! | a7 | Servicio        | Entrada              | Salida        |
 //! |----|-----------------|----------------------|---------------|
 //! | 1  | imprimir entero | a0 = valor (i32)     | —             |
+//! | 2  | imprimir float  | fa0 = valor (f32)    | —             |
+//! | 3  | imprimir double | fa0 = valor (f64)    | —             |
 //! | 4  | imprimir cadena | a0 = dir. cadena NUL | —             |
 //! | 5  | leer entero     | —                    | a0 = valor    |
+//! | 6  | leer float      | —                    | fa0 = valor (NaN-boxed) |
+//! | 7  | leer double     | —                    | fa0 = valor   |
 //! | 8  | leer cadena     | a0 = buffer, a1 = máx (con NUL) | escribe ≤ a1−1 bytes + NUL |
 //! | 9  | sbrk            | a0 = bytes           | a0 = dirección |
 //! | 10 | terminar        | —                    | —             |
@@ -26,6 +30,7 @@
 use super::machine::MachData;
 use super::{
     CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC, DATA_REGION_BASE,
+    FREG_ID_BASE,
     DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_SIZE, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE,
     PALETTE_BASE, PALETTE_SIZE, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
 };
@@ -59,6 +64,8 @@ use super::EBREAK_WORD;
 const A0: i32 = 11;
 const A1: i32 = 12;
 const A7: i32 = 18;
+/// fa0 = f10 (RP12): id del binding = FREG_ID_BASE + 10.
+const FA0: i32 = FREG_ID_BASE + 10;
 /// Límite de seguridad al leer cadenas NUL-terminated (RF-07).
 const MAX_STR: u64 = 1 << 20;
 
@@ -213,7 +220,21 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
                 ),
             }
         }
+        // RP12 — flotantes RARS (2/3 imprimen fa0; 6/7 leen a fa0).
+        // Formato de impresión: el «{}» de Rust (1.5, -0, NaN, inf) —
+        // DIVERGENCIA REGISTRADA con RARS/Java (que imprime 1.5 igual,
+        // pero p. ej. Infinity en vez de inf); el test fija NUESTRO formato.
+        2 => {
+            let bits = uc.reg_read(FA0).unwrap_or(0) as u32;
+            send_output(uc, f32::from_bits(bits).to_string());
+        }
+        3 => {
+            let bits = uc.reg_read(FA0).unwrap_or(0);
+            send_output(uc, f64::from_bits(bits).to_string());
+        }
         5 => read_int(uc),
+        6 => read_float(uc, true),
+        7 => read_float(uc, false),
         8 => leer_cadena(uc),
         9 => sbrk(uc),
         10 => {
@@ -281,8 +302,9 @@ fn dispatch(uc: &mut Unicorn<'_, MachData>, pc: u64) {
                     uc,
                     format!(
                         "syscall desconocida: a7 = {other} (pc = 0x{pc:08X}). \
-                         Servicios disponibles: 1 imprimir entero, 4 imprimir cadena, \
-                         5 leer entero, 8 leer cadena, 9 reservar memoria (sbrk), \
+                         Servicios disponibles: 1 imprimir entero, 2/3 imprimir \
+                         float/double, 4 imprimir cadena, 5 leer entero, 6/7 leer \
+                         float/double, 8 leer cadena, 9 reservar memoria (sbrk), \
                          10 terminar, 11 imprimir carácter, \
                          30 tiempo del sistema en ms, 32 dormir a0 ms, \
                          60 limpiar consola, 93 terminar con código (a0)"
@@ -473,6 +495,52 @@ fn sbrk(uc: &mut Unicorn<'_, MachData>) {
     let nuevo = actual.saturating_add((pedido as u32).div_ceil(4) * 4).min(tope);
     uc.get_data_mut().heap_next = nuevo;
     let _ = uc.reg_write(A0, u64::from(actual));
+}
+
+/// Syscalls 6/7 (RP12): leen una línea y la parsean como float (punto
+/// decimal); reintento didáctico ante basura (patrón read_int). El single
+/// se escribe NaN-BOXED en fa0 (espec D: un f32 en registro de 64 lleva
+/// los 32 altos en unos — el panel y las ops .s dependen de eso).
+fn read_float(uc: &mut Unicorn<'_, MachData>, single: bool) {
+    super::machine::publicar_frame(uc);
+    loop {
+        let _ = uc.get_data().out.send(ConsoleEvent::InputRequest);
+        let received = uc.get_data().input.recv();
+        match received {
+            Ok(InputMsg::Line(line)) => {
+                let texto = line.trim();
+                if single {
+                    match texto.parse::<f32>() {
+                        Ok(v) => {
+                            let bits = 0xFFFF_FFFF_0000_0000u64 | u64::from(v.to_bits());
+                            let _ = uc.reg_write(FA0, bits);
+                            return;
+                        }
+                        Err(_) => avisar_float(uc, texto),
+                    }
+                } else {
+                    match texto.parse::<f64>() {
+                        Ok(v) => {
+                            let _ = uc.reg_write(FA0, v.to_bits());
+                            return;
+                        }
+                        Err(_) => avisar_float(uc, texto),
+                    }
+                }
+            }
+            Ok(InputMsg::Cancel) | Err(_) => {
+                let _ = uc.emu_stop();
+                return;
+            }
+        }
+    }
+}
+
+fn avisar_float(uc: &mut Unicorn<'_, MachData>, texto: &str) {
+    send_output(
+        uc,
+        format!("«{texto}» no es un número (usá punto decimal, ej. 1.5); probá de nuevo: "),
+    );
 }
 
 /// Ancla del reloj de la syscall 30: par (instante monotónico, ms de época

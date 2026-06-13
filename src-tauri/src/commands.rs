@@ -75,6 +75,14 @@ enum EmuCmd {
         val: u32,
         reply: Sender<Result<(), String>>,
     },
+    GetFregs {
+        reply: Sender<(Result<[u64; 32], String>, u32)>,
+    },
+    WriteRegF {
+        n: usize,
+        bits: u64,
+        reply: Sender<Result<(), String>>,
+    },
     ReadMem {
         addr: u32,
         len: usize,
@@ -356,6 +364,14 @@ fn handle_aux(machine: &mut Machine<'static>, cmd: EmuCmd) -> Result<(), String>
         }
         EmuCmd::WriteCsr { indice, val, reply } => {
             let _ = reply.send(machine.write_csr(indice, val));
+            Ok(())
+        }
+        EmuCmd::GetFregs { reply } => {
+            let _ = reply.send((machine.registers_f(), machine.fcsr().unwrap_or(0)));
+            Ok(())
+        }
+        EmuCmd::WriteRegF { n, bits, reply } => {
+            let _ = reply.send(machine.write_reg_f(n, bits));
             Ok(())
         }
         EmuCmd::ReadMem { addr, len, reply } => {
@@ -815,6 +831,46 @@ pub fn write_csr(
         let (reply, rx) = channel();
         s.cmd_tx
             .send(EmuCmd::WriteCsr { indice, val, reply })
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        pedir(rx)
+    })
+}
+
+/// Registros f del panel flotante (RP12): 32 valores de 64 bits como hex
+/// (JSON no representa u64 sin perder precisión) + fcsr.
+#[tauri::command]
+pub fn get_fregs(manager: State<'_, EmuManager>) -> Result<(Vec<String>, u32), String> {
+    with_session(&manager, |s| {
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::GetFregs { reply })
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        let (regs, fcsr) = rx
+            .recv()
+            .map_err(|_| "la sesión de emulación terminó".to_string())?;
+        let regs = regs?;
+        Ok((regs.iter().map(|v| format!("{v:016x}")).collect(), fcsr))
+    })
+}
+
+/// Edición de un registro f (RP12): bits crudos de 64 en hex. Solo pausado.
+#[tauri::command]
+pub fn write_reg_f(
+    indice: usize,
+    bits: String,
+    manager: State<'_, EmuManager>,
+) -> Result<(), String> {
+    let bits = u64::from_str_radix(bits.trim_start_matches("0x"), 16)
+        .map_err(|_| "bits inválidos: se esperaban 16 dígitos hexadecimales".to_string())?;
+    with_session(&manager, |s| {
+        exigir_pausa(s)?;
+        let (reply, rx) = channel();
+        s.cmd_tx
+            .send(EmuCmd::WriteRegF {
+                n: indice,
+                bits,
+                reply,
+            })
             .map_err(|_| "la sesión de emulación terminó".to_string())?;
         pedir(rx)
     })

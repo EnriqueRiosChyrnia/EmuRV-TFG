@@ -26,6 +26,9 @@
   "registros.dec": "Decimal",
   "registros.editarHint": "Doble click en un valor para editarlo (con la máquina pausada)",
   "registros.csrs.titulo": "CSRs (avanzado)",
+  "registros.fregs.titulo": "Registros F (flotante)",
+  "registros.valor": "Valor",
+  "edicion.valorFInvalido": "Valor inválido: usá decimal con punto (1.5, -0.25, NaN) o bits crudos en hexadecimal (0x3fc00000…).",
 
   "edicion.valorInvalido": "Valor inválido: usá decimal (42, -7) o hexadecimal (0x2a).",
 

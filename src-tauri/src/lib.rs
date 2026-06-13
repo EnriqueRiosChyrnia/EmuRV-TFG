@@ -28,6 +28,8 @@ pub fn run() {
             commands::leer_archivo_texto,
             commands::abrir_programa,
             commands::get_disasm,
+            commands::get_fregs,
+            commands::write_reg_f,
             commands::guardar_archivo_texto,
         ])
         .run(tauri::generate_context!())

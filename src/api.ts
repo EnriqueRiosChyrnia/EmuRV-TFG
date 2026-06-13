@@ -103,6 +103,11 @@ export const api = {
   abrirPrograma: (path: string) => invoke<AperturaOk>("abrir_programa", { path }),
   /** Listado desensamblado del .text de la sesión: dirección → texto. */
   getDisasm: () => invoke<Record<string, string>>("get_disasm"),
+  /** Registros f (RP12): 32 hex de 16 dígitos (u64 no entra en JSON) + fcsr. */
+  getFregs: () => invoke<[string[], number]>("get_fregs"),
+  /** Edición de un registro f: bits crudos de 64 como hex (RP12). */
+  writeRegF: (indice: number, bits: string) =>
+    invoke<void>("write_reg_f", { indice, bits }),
   /** Guarda el contenido del editor como archivo de texto (.asm). */
   guardarArchivo: (path: string, contenido: string) =>
     invoke<void>("guardar_archivo_texto", { path, contenido }),
