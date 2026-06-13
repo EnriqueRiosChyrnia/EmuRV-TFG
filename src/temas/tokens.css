@@ -1,0 +1,40 @@
+/* Design tokens de EmuRV (RP17 Parte A). TODA la estética temable vive
+   acá como variables CSS. `:root` = tema «Educativo» (default), con los
+   valores EXACTOS que tenía la app antes del refactor (la Fase 1 es
+   invisible). Un tema nuevo = un bloque `[data-tema="x"]` que sobrescribe
+   estas variables — cero CSS duplicado (ver styles.css, que solo usa
+   var(--…)). */
+
+:root,
+[data-tema="educativo"] {
+  /* superficies */
+  --fondo: #1e2227;
+  --fondo-panel: #23282f;
+  --fondo-claro: #2b323b;
+  --borde: #3a424d;
+
+  /* texto */
+  --texto: #d7dde5;
+  --texto-suave: #8b97a5;
+  /* texto sobre el color de acento (botón principal) */
+  --texto-sobre-acento: #10151b;
+
+  /* acentos y estados */
+  --acento: #4ea1ff;
+  --ok: #6fcf6f;
+  --error: #ff7a7a;
+  --cambio: #ffd166;
+
+  /* resaltados derivados (alfa de su color base) */
+  --resaltado-linea: rgba(78, 161, 255, 0.18); /* línea en ejecución (acento) */
+  --resaltado-cambio: rgba(255, 209, 102, 0.16); /* registro modificado (cambio) */
+  --fila-par: rgba(255, 255, 255, 0.025); /* zebra de tablas */
+
+  /* superpuestos (modales) y pantalla */
+  --overlay-fondo: rgba(0, 0, 0, 0.55);
+  --sombra-modal: 0 18px 60px rgba(0, 0, 0, 0.5);
+  --fondo-pantalla: #000; /* lienzo del framebuffer */
+
+  /* tipografía monoespaciada (la fuente self-hosted llega en F2) */
+  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+}

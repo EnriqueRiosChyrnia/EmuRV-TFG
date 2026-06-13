@@ -1865,3 +1865,33 @@ haya demanda.
 [PENDIENTE HUMANO] Verificación visual: cambiar ES↔EN (recarga, UI en el
 idioma elegido), persistencia al reabrir, y comprobar que un error de
 ensamblado en modo EN sale en español (limitación esperada).
+
+## 2026-06-13 — RP17-F1: design tokens (refactor invisible de la estética)
+
+[Seguro] Toda la estética TEMABLE extraída a `src/temas/tokens.css` como
+variables CSS en `:root` (= tema «Educativo», default). styles.css ya NO
+tiene literales de color: solo `var(--…)`. Importado en index.html ANTES
+de styles.css (define las variables que styles consume). Vite los
+concatena en un solo CSS bundleado (tokens presentes, verificado).
+
+[Seguro] Tokens nuevos (capturan literales que estaban sueltos, valor
+EXACTO): --texto-sobre-acento (#10151b, texto del botón principal),
+--resaltado-linea (rgba acento .18, línea en ejecución), --resaltado-cambio
+(rgba cambio .16, registro modificado), --fila-par (zebra), --overlay-fondo
+(backdrop de modales, 2 usos), --sombra-modal, --fondo-pantalla (#000 del
+framebuffer). Los color-mix con var(--acento) (14/22/12%) se dejan: son
+derivados que ya SIGUEN al acento, ideal para temas.
+
+[Seguro — alcance del refactor] Tokenizados TODOS los colores/sombras (la
+dimensión que un tema varía). La geometría (paddings, border-radius en px)
+queda como literal: no varía entre Educativo y Retro y tokenizar cada px
+sería desproporcionado y arriesgaría la invisibilidad. styles.css quedó sin
+literales de COLOR (grep verificado: solo color-mix con var).
+
+[Seguro — refactor INVISIBLE] Los tokens toman los valores actuales exactos
+→ apariencia idéntica. pantalla.html (ventana de pantalla aparte) tiene su
+propio <style> inline, no usa tokens ni styles.css: no afectado. tsc/vite
+build limpios; suite Rust intacta (37); UI 35; bundle 22 MB ≤ 30.
+
+Compuerta F1: estética 100% por tokens · refactor invisible (valores
+copiados exactos) · tsc/build limpios · Rust intacto · bundle OK.
