@@ -2099,3 +2099,36 @@ los claros).
 Compuerta F2: highlight por clases siguiendo --sx-* · chrome por tokens ·
 exec-line/breakpoints/gutter intactos · anti-drift de clases verde · tsc/
 build limpios · Rust intacto.
+
+## 2026-06-13 — RP17B-F3: docs temas nuevos (cierre Parte B)
+
+[Seguro] Docs: README pasa a listar los 5 temas y aclara que el editor
+recolorea con el tema (sigue los tokens --sx-*) y que el contraste AA cubre
+texto Y sintaxis. Ayuda integrada (ayuda.temas.texto, es y en) lista los 5
+con su descripción y menciona el recoloreo del editor (RP-19/RP-20 rehará
+el modal de ayuda; acá solo el dato, anti-drift es/en verde). Nota «CÓMO
+AGREGAR UN TEMA» en tokens.css ampliada: un tema puede definir sus --sx-*
+(o heredarlos), el test cubre AA de UI + sintaxis sobre --fondo, y se
+corrige el token (no el umbral) si raspa. ROADMAP-PRO y Cap. VI: NO se
+tocaron (los gestiona otra sesión).
+
+[Seguro] CIERRE RP-17 PARTE B — criterios:
+- 3 temas nuevos (Pergamino, Retro Kawaii, Disquete 90s) seleccionables,
+  persistidos, contraste AA ✓ F1
+- Retro-CRT y Educativo intactos: 5 temas en total ✓ F1
+- El editor recolorea con el tema (syntax highlight por --sx-*, por clases
+  no por color fijo) ✓ F2
+- i18n es/en de los nombres + ayuda (anti-drift verde) ✓ F1/F3
+- Legibilidad AA innegociable en los 5 temas, texto Y sintaxis: valores del
+  diseño corregidos dentro de tono donde no llegaban (mín 4.60) ✓ F1
+- NO se tocó la estética Cálido / radio / IBM Plex / acento violeta del
+  Educativo / tema de usuario — todo eso es RP-19+ ✓
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0
+ambos · UI 53 con node:test), tsc estricto limpio, ci-local.sh completo
+verde, tauri build ok, bundle EmuRV.app 22 MB ≤ 30 (RNF-04). La fuente IBM
+Plex es de RP-19, no entra acá.
+
+[PENDIENTE HUMANO] Verificación visual de cierre: recorrer los 5 temas en
+vivo (selector), ver que cada uno se vea como el diseño y que el código del
+editor recolorea, con la línea en ejecución/breakpoints/números de línea
+correctos; confirmar que la persistencia aguanta al reabrir.
