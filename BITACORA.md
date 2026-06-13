@@ -2470,3 +2470,48 @@ bi-tono adaptándose al cambiar de tema.
 
 Compuerta F3: wordmark se adapta al tema (bi-tono por tokens) · ruido
 reducido como el mock · contraste AA intacto · tsc/build limpios.
+
+## 2026-06-13 — RP19-F4: docs estética Cálido (cierre)
+
+[Seguro] Docs: README estrena un punto «Estética Cálido» (paneles-tarjeta,
+aire, IBM Plex Sans de UI, acento violeta, wordmark bi-tono que recolorea,
+microinteracciones sutiles) y el punto «Temas» menciona el wordmark + el
+acento violeta del Educativo. La Ayuda integrada NO se tocó: la estética es
+GLOBAL (no hay toggle ni setting que explicar), así que documentarla en un
+modal de ayuda sería ruido para el usuario; vive en el README. ROADMAP-PRO y
+Cap. VI: NO tocados.
+
+[Seguro] CIERRE RP-19 — criterios de aceptación:
+- La app se ve como el mock: estética Cálido aplicada SIEMPRE (sin toggle),
+  trasladando lo que el mock tenía bajo [data-estetica="calido"] a :root y a
+  selectores sin prefijo ✓ F1-F3
+- IBM Plex Sans self-hosted (Regular+SemiBold, OFL 1.1 © IBM, licencia en
+  src/assets/fonts/IBMPlexSans-OFL.txt); bundle 22 MB ≤30 (suma ~47 KB) ✓ F1
+- Educativo con acento violeta #9b8cff cumpliendo AA (5.78/5.36, sin ajuste);
+  los 5 temas siguen verdes en contraste.test ✓ F1
+- Microinteracciones del mock: foco con anillo de acento, destello one-shot
+  de registros, caret de consola en acento, hover de breakpoint ✓ F2
+- grupo-ejec tokenizado (var(--radio)); refinados de ruido (th, xN, ceros de
+  memoria, sin cebra, separadores suaves); wordmark adaptable al tema ✓ F2-F3
+- 5 temas siguen AA; ids del JS / orden de registros / Rust intactos ✓ todas
+- Modales / ayuda 2-col / Acerca de: NO acá (RP-20) ✓
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0
+ambos · UI 56 con node:test), tsc estricto limpio, ci-local.sh completo
+verde, tauri build ok, bundle EmuRV.app 22 MB ≤ 30 (RNF-04, con IBM Plex).
+
+[Seguro] Las 3 ÚNICAS desviaciones permitidas del mock, registradas:
+1. Contraste AA: el violeta del Educativo se VERIFICÓ (pasó sin ajuste); no
+   hubo que mover ningún token.
+2. ids del JS: intactos (el wordmark es un <span> nuevo sin id contratado).
+3. Orden de registros: intacto (fijado por registros-meta.test de RP-18).
+Adaptaciones mock→app (no son cambios de diseño, son el mismo diseño sobre
+tecnología real): editor falso del mock → CodeMirror (.cm-content/.cm-line,
+gutter de breakpoint con :has(), caret nativo en vez de span falso);
+`.secundario`→`.panel-nota`. El número de la línea de EJECUCIÓN en acento se
+omitió (CM no lo expone simple; la barra de acento ya marca la exec-line).
+
+[PENDIENTE HUMANO] Verificación visual FINAL contra el mock, en los 5 temas:
+tarjetas con aire e IBM Plex, violeta del Educativo, headers tintados,
+densidad, wordmark bi-tono recoloreando, microinteracciones sutiles (foco,
+flash one-shot, caret, hover de breakpoint), ruido reducido. RP-20 (modales +
+ayuda 2-col + Acerca de) cierra el rediseño.
