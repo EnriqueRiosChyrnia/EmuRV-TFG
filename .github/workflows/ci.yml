@@ -29,10 +29,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - name: Frontend (npm ci + tsc + vite build)
+      - name: Frontend (npm ci + tsc + tests UI + vite build)
         run: |
           npm ci
           npx tsc --noEmit
+          npm run test:ui
           npx vite build
       - name: Tests y clippy (src-tauri)
         working-directory: src-tauri

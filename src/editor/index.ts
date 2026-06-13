@@ -1,6 +1,7 @@
 // Editor de código (RF-01, RF-02, RF-04): CodeMirror 6 con números de
 // línea, resaltado RV32, breakpoints en el margen, línea actual de
 // ejecución y errores de ensamblado anclados a línea/columna.
+import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { Compartment, EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
@@ -17,6 +18,7 @@ import {
   type DecorationSet,
 } from "@codemirror/view";
 import type { AsmError } from "../api";
+import { fuenteAutocompletado } from "./autocompletar";
 import { riscvLanguage } from "./riscv";
 
 // ---------------------------------------------------------------------------
@@ -177,8 +179,11 @@ export function createEditor(
         highlightActiveLine(),
         highlightActiveLineGutter(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        keymap.of([...defaultKeymap, ...completionKeymap, ...historyKeymap, indentWithTab]),
         riscvLanguage,
+        // Autocompletado contextual (RP14): mnemónicos, registros y
+        // etiquetas del buffer. El `info` (descripción) se enchufa en F3.
+        autocompletion({ override: [(ctx) => fuenteAutocompletado(ctx)] }),
         oneDark,
         // Al editar: limpiar diagnósticos viejos y reportar breakpoints
         // (sus posiciones se mueven con el texto).
