@@ -1,88 +1,103 @@
-// Navegador del currículo de lecciones (RP15): overlay modal con la lista
-// ordenada, los objetivos/paneles de la lección seleccionada ANTES de
-// abrirla, progreso (completadas) y navegación siguiente/anterior. Patrón
-// de overlay tomado de paneles/ayuda.ts. Separado del selector «Ejemplos».
+// Navegador de lecciones (RP15) con la CARA del mock (RP20-F3): un modal
+// con barra de progreso + lista de .modal-item (check si está completada,
+// número si está pendiente). La LÓGICA y la PERSISTENCIA son las de RP-15
+// (src/lecciones/: datos, parser, progreso) — acá SOLO cambia la
+// presentación. Al elegir una lección se abre directo (un click), igual que
+// «Abrir lección» del navegador viejo, reusando los callbacks.
+//
+// Nota (RP20): la vista de detalle del navegador de RP-15 (objetivos +
+// «qué paneles mirar» en una 2ª columna) NO existe en el mock — el mock es
+// una lista de un click. Acá se respeta el mock: el primer objetivo de cada
+// lección va como descripción del item; abrir es directo. La persistencia
+// de progreso no cambia.
 import { t } from "../i18n";
+import { Modal, ICONO_CERRAR } from "./modal";
 import { LECCIONES, type Leccion } from "../lecciones";
 import {
   alternarCompletada,
   guardarProgreso,
   leerProgreso,
   resetearProgreso,
-  vecina,
   type Progreso,
 } from "../lecciones/progreso";
 
 export interface CallbacksLecciones {
   /// Abrir una lección normal (carga su .s al editor).
   onAbrir: (leccion: Leccion) => void;
-  /// Abrir el caso multi-archivo (08): guardar a carpeta + abrir main.s con
-  /// base_dir, o aviso si el usuario cancela. La maneja la app (RP-5).
+  /// Abrir el caso multi-archivo (08): la app pide carpeta y resuelve .include.
   onAbrirMultiarchivo: (leccion: Leccion) => void;
 }
 
+const ICONO_CHECK = `<svg class="ico modal-check" viewBox="0 0 24 24" width="20" height="20"><path d="M20 6 9 17l-5-5"/></svg>`;
+
 export class Lecciones {
-  private overlay: HTMLElement;
-  private lista: HTMLElement;
-  private detalle: HTMLElement;
-  private seleccion = 0; // índice en LECCIONES
+  private modal: Modal;
   private progreso: Progreso;
 
   constructor(private cb: CallbacksLecciones) {
     this.progreso = leerProgreso();
-    this.overlay = document.createElement("div");
-    this.overlay.id = "lecciones-overlay";
-    this.overlay.hidden = true;
-    this.overlay.setAttribute("role", "dialog");
-    this.overlay.setAttribute("aria-modal", "true");
-    this.overlay.innerHTML = `
-      <div class="lecciones-caja">
-        <header>
-          <h2>${t("lecciones.titulo")}</h2>
-          <button class="lecciones-cerrar" aria-label="${t("lecciones.cerrar")}">✕</button>
-        </header>
-        <div class="lecciones-cuerpo">
-          <nav class="lecciones-lista" data-rol="lista"></nav>
-          <section class="lecciones-detalle" data-rol="detalle"></section>
-        </div>
-        <footer class="lecciones-pie">
-          <button class="lecciones-reset" data-rol="reset">${t("lecciones.reset")}</button>
-        </footer>
-      </div>`;
-    document.body.appendChild(this.overlay);
-    this.lista = this.overlay.querySelector("[data-rol=lista]")!;
-    this.detalle = this.overlay.querySelector("[data-rol=detalle]")!;
-    this.overlay.querySelector<HTMLButtonElement>(".lecciones-cerrar")!.onclick = () =>
+    this.modal = new Modal("modal-cuerpo-lecciones");
+
+    // Delegación: elegir una lección la abre; el botón reset reinicia.
+    this.modal.card.addEventListener("click", (e) => {
+      const objetivo = e.target as HTMLElement;
+      if (objetivo.closest("[data-rol=reset]")) {
+        resetearProgreso();
+        this.progreso = new Set();
+        this.render();
+        return;
+      }
+      const item = objetivo.closest<HTMLElement>("button.modal-item[data-i]");
+      if (!item) return;
+      const l = LECCIONES[Number(item.dataset.i)];
+      if (l.multiarchivo) this.cb.onAbrirMultiarchivo(l);
+      else this.cb.onAbrir(l);
       this.cerrar();
-    this.overlay.querySelector<HTMLButtonElement>("[data-rol=reset]")!.onclick = () => {
-      resetearProgreso();
-      this.progreso = new Set();
-      this.render();
-    };
-    this.overlay.addEventListener("click", (e) => {
-      if (e.target === this.overlay) this.cerrar();
     });
+
     this.render();
   }
 
-  private onKeydown = (e: KeyboardEvent): void => {
-    if (e.key === "Escape") this.cerrar();
-  };
+  private render(): void {
+    const total = LECCIONES.length;
+    const hechas = LECCIONES.filter((l) => this.progreso.has(l.numero)).length;
+    const pct = total === 0 ? 0 : Math.round((hechas / total) * 100);
+    // «en curso» = la primera lección no completada (la que toca seguir).
+    const enCurso = LECCIONES.find((l) => !this.progreso.has(l.numero))?.numero ?? -1;
 
-  abrir(): void {
-    this.progreso = leerProgreso();
-    this.render();
-    this.overlay.hidden = false;
-    document.addEventListener("keydown", this.onKeydown);
-  }
+    const filas = LECCIONES.map((l, i) => {
+      const hecha = this.progreso.has(l.numero);
+      const marca = hecha
+        ? ICONO_CHECK
+        : `<span class="modal-num">${l.numero}</span>`;
+      const nota =
+        l.numero === enCurso ? ` <span class="mh-sub">· ${t("lecciones.enCurso")}</span>` : "";
+      const desc = escapar(l.objetivos[0] ?? l.paneles);
+      return (
+        `<button class="modal-item" data-i="${i}">${marca}<div>` +
+        `<div class="mi-titulo">${escapar(l.titulo)}${nota}</div>` +
+        `<div class="mi-desc">${desc}</div></div></button>`
+      );
+    }).join("");
 
-  cerrar(): void {
-    this.overlay.hidden = true;
-    document.removeEventListener("keydown", this.onKeydown);
+    this.modal.card.innerHTML = `
+      <header class="modal-head">
+        <h2>${t("lecciones.titulo")}<span class="mh-sub">${t("lecciones.progresoSub", {
+          hechas: String(hechas),
+          total: String(total),
+        })}</span></h2>
+        <button class="modal-x" aria-label="${t("lecciones.cerrar")}">${ICONO_CERRAR}</button>
+      </header>
+      <div class="modal-progreso">
+        <div class="etq">${t("lecciones.tuProgreso")}
+          <button class="ml-reset" data-rol="reset">${t("lecciones.reset")}</button></div>
+        <div class="barra"><i style="width:${pct}%"></i></div>
+      </div>
+      <div class="modal-scroll">${filas}</div>`;
   }
 
   /// Marca la lección como completada (la llama la app tras abrirla) y
-  /// persiste. No abre el overlay.
+  /// persiste. No abre el modal. La lógica/persistencia son las de RP-15.
   marcarCompletada(numero: number): void {
     if (!this.progreso.has(numero)) {
       this.progreso = alternarCompletada(this.progreso, numero);
@@ -90,72 +105,18 @@ export class Lecciones {
     }
   }
 
-  // ----- render -----
-
-  private render(): void {
-    this.lista.innerHTML = "";
-    LECCIONES.forEach((l, i) => {
-      const item = document.createElement("button");
-      item.className = "lecciones-item" + (i === this.seleccion ? " activa" : "");
-      const hecha = this.progreso.has(l.numero);
-      item.innerHTML = `<span class="lecciones-check">${hecha ? "✓" : ""}</span>
-        <span class="lecciones-num">${String(l.numero).padStart(2, "0")}</span>
-        <span class="lecciones-tit">${escapar(l.titulo)}</span>`;
-      item.onclick = () => {
-        this.seleccion = i;
-        this.render();
-      };
-      this.lista.appendChild(item);
-    });
-    this.renderDetalle();
+  abrir(disparador?: HTMLElement | null): void {
+    this.progreso = leerProgreso();
+    this.render();
+    this.modal.abrir(disparador);
   }
 
-  private renderDetalle(): void {
-    const l = LECCIONES[this.seleccion];
-    const objetivos = l.objetivos.map((o) => `<li>${escapar(o)}</li>`).join("");
-    const hecha = this.progreso.has(l.numero);
-    const prev = vecina(l.numero, -1, LECCIONES.length);
-    const next = vecina(l.numero, +1, LECCIONES.length);
-    this.detalle.innerHTML = `
-      <h3>${t("lecciones.leccion", { n: String(l.numero).padStart(2, "0") })}: ${escapar(l.titulo)}</h3>
-      <h4>${t("lecciones.objetivos")}</h4>
-      <ul class="lecciones-objetivos">${objetivos}</ul>
-      <h4>${t("lecciones.paneles")}</h4>
-      <p class="lecciones-paneles">${escapar(l.paneles)}</p>
-      ${l.multiarchivo ? `<p class="lecciones-aviso">${t("lecciones.multiarchivoNota")}</p>` : ""}
-      <div class="lecciones-acciones">
-        <button data-rol="abrir" class="principal">${t("lecciones.abrir")}</button>
-        <button data-rol="completada">${hecha ? t("lecciones.desmarcar") : t("lecciones.marcar")}</button>
-      </div>
-      <div class="lecciones-nav">
-        <button data-rol="prev" ${prev === null ? "disabled" : ""}>${t("lecciones.anterior")}</button>
-        <button data-rol="next" ${next === null ? "disabled" : ""}>${t("lecciones.siguiente")}</button>
-      </div>`;
-
-    this.detalle.querySelector<HTMLButtonElement>("[data-rol=abrir]")!.onclick = () => {
-      if (l.multiarchivo) this.cb.onAbrirMultiarchivo(l);
-      else this.cb.onAbrir(l);
-      this.cerrar();
-    };
-    this.detalle.querySelector<HTMLButtonElement>("[data-rol=completada]")!.onclick = () => {
-      this.progreso = alternarCompletada(this.progreso, l.numero);
-      guardarProgreso(this.progreso);
-      this.render();
-    };
-    const irA = (num: number | null) => {
-      if (num === null) return;
-      this.seleccion = LECCIONES.findIndex((x) => x.numero === num);
-      this.render();
-    };
-    this.detalle.querySelector<HTMLButtonElement>("[data-rol=prev]")!.onclick = () => irA(prev);
-    this.detalle.querySelector<HTMLButtonElement>("[data-rol=next]")!.onclick = () => irA(next);
+  cerrar(): void {
+    this.modal.cerrar();
   }
 }
 
 /// Escape mínimo para interpolar texto de las lecciones en HTML.
 function escapar(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
