@@ -1926,3 +1926,36 @@ icono + texto alineados.
 
 Compuerta F2: licencias registradas (OFL/ISC) · bundle re-medido 22 MB ·
 tsc/build limpios · suite Rust intacta (37) · UI 35.
+
+## 2026-06-13 — RP17-F3: mecanismo de temas con Educativo y Retro-CRT
+
+[Seguro] Tema = valor de `data-tema` en <html> que selecciona un bloque de
+tokens. «Educativo» (default) = :root, sin atributo; «Retro-CRT» =
+`[data-tema="retro"]` sobrescribe SOLO variables (cero CSS duplicado).
+`src/temas/index.ts`: esTema/leerTema/aplicarTema/setTema/inicializarTema,
+persistencia localStorage `emurv.tema.v1` (patrón RP-15/16). Cambio EN VIVO
+sin recargar (las variables CSS aplican al instante — ventaja sobre el
+idioma, que sí recarga). Selector en la toolbar junto al de idioma
+(Educativo primero); inicializarTema() aplica el guardado al arrancar.
+
+[Seguro] Retro-CRT: fósforo ÁMBAR sobre negro cálido (identidad del
+dominio, nace del framebuffer — no necesitó inspiración externa) +
+scanlines sutiles (capa fija decorativa `body::after`, solo con el tema
+activo, pointer-events:none). i18n: tema.educativo/tema.retro/toolbar.tema
+en ambos catálogos (anti-drift es/en sigue verde, 170 claves c/u).
+
+[Seguro — LEGIBILIDAD, regla innegociable] Test contraste.test.ts calcula
+el ratio WCAG de 11 pares críticos (texto/fondos, texto-suave, error,
+acento, ok, cambio) de CADA tema leyendo los hex de tokens.css (fuente
+única, sin duplicar). Umbral AA = 4.5:1. Resultados: Educativo mín 4.99,
+Retro-CRT mín 7.19 — ambos pasan con holgura. Si un tema futuro no llega,
+el test rojo (se corrige el tema, no se baja la vara).
+
+[Seguro] Tests (7 nuevos, 42 UI): mecanismo (esTema/leer/aplicar/set/
+default/basura) + contraste AA de los 2 temas.
+
+[PENDIENTE HUMANO] Verificación visual: cambiar Educativo↔Retro-CRT en
+vivo (sin recargar), ver el ámbar + scanlines, y que persiste al reabrir.
+
+Compuerta F3: tests verdes (42 UI) · contraste AA verificado por test en
+ambos temas · tsc/build limpios · bundle 22 MB ≤ 30.

@@ -23,6 +23,7 @@ import {
 } from "./editor";
 import { getLang, setLang, t } from "./i18n";
 import { icono } from "./iconos";
+import { inicializarTema, leerTema, setTema, TEMAS, type Tema } from "./temas";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
@@ -220,6 +221,23 @@ class App {
       }
     };
     bar.appendChild(idioma);
+
+    // Selector de tema (RP17-F3): aplica EN VIVO, sin recargar (variables
+    // CSS). El default «Educativo» va primero.
+    const tema = document.createElement("select");
+    tema.id = "tema";
+    tema.title = t("toolbar.tema");
+    for (const valor of TEMAS) {
+      const o = document.createElement("option");
+      o.value = valor;
+      o.textContent = t(`tema.${valor}`);
+      if (valor === leerTema()) o.selected = true;
+      tema.appendChild(o);
+    }
+    tema.onchange = () => {
+      setTema(tema.value as Tema);
+    };
+    bar.appendChild(tema);
   }
 
   private sep(): HTMLElement {
@@ -644,6 +662,6 @@ class App {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+  inicializarTema(); // aplica el tema guardado antes de construir la UI (RP17)
   new App();
-
 });
