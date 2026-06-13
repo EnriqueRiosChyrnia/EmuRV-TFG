@@ -1834,3 +1834,34 @@ reabrir.
 
 Compuerta F2: anti-drift verde (35 UI) · auditoría hardcodeos = 0 · tsc
 limpio · suite Rust intacta (37).
+
+## 2026-06-13 — RP16-F3: docs internacionalización (cierre RP-16)
+
+[Seguro] Docs: README con la característica de idioma (selector ES/EN
+persistido) y la limitación explícita (diagnósticos del ensamblador y
+lecciones siguen en español en modo inglés — decisión de alcance, el
+español es el material de tesis, NO un olvido). Ayuda integrada con sección
+«Idioma»/«Language» (claves ayuda.idioma.* en ambos catálogos, anti-drift
+las cubre).
+
+[Seguro] CIERRE RP-16 — criterios del ROADMAP:
+- UI traducible es/en con selector y persistencia ✓ F1/F2
+- en.json completo (166 claves), anti-drift es==en por test ✓ F2
+- Cero strings de UI hardcodeados fuera de t() (auditados) ✓ F2
+- Limitación de v1 (capas 2 mensajes del core y 3 lecciones en español)
+  documentada como decisión, no omisión ✓ F3
+- i18n ya era base (CLAUDE.md regla 6): esto fue traducción + selector, no
+  reingeniería ✓
+Suites verdes (37 src-tauri, 50 CLI, 35 UI), clippy 0 ambos, tsc limpio,
+ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30.
+
+ALCANCE NO HECHO (registrado como futuro CON RAZÓN): capa 2 (~98 mensajes
+del ensamblador/runtime hardcodeados en Rust — externalizarlos es un
+refactor grande de bajo ROI para público hispanohablante) y capa 3 (las 10
+lecciones — traducirlas es rehacer el currículo). Propuestas: pasar un
+locale al core / catálogo de mensajes; `lecciones-en/` paralelo el día que
+haya demanda.
+
+[PENDIENTE HUMANO] Verificación visual: cambiar ES↔EN (recarga, UI en el
+idioma elegido), persistencia al reabrir, y comprobar que un error de
+ensamblado en modo EN sale en español (limitación esperada).

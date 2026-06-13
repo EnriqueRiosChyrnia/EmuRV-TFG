@@ -25,6 +25,7 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - **Coma flotante (RV32F/D)**: repertorio completo de single y double, registros `f0`–`f31` con nombres ABI, syscalls 2/3/6/7, panel de registros flotantes; encodings verificados palabra a palabra contra GNU `as`.
 - **Atómicas (RV32A) y comprimidas (RV32C)**: repertorio A completo (amoadd/lr/sc…, semántica mono-hart documentada) y C de 2 bytes (c.addi, c.li, c.lw… escritas a mano, sin compresión automática); ambas verificadas contra GNU `as`. RV64 queda fuera por decisión de alcance.
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
+- **Interfaz en español o inglés**: selector de idioma en la barra (ES/EN), persistido. La UI cáscara está traducida; **los diagnósticos del ensamblador/runtime y el contenido de las lecciones siguen en español** también en modo inglés — decisión de alcance (el español es el material didáctico de la tesis), no un olvido.
 
 ## Modo gráfico (Framebuffer VGA 13h)
 
