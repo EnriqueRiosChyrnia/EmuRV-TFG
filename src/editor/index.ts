@@ -5,7 +5,6 @@ import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { Compartment, EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
-import { oneDark } from "@codemirror/theme-one-dark";
 import {
   Decoration,
   EditorView,
@@ -26,6 +25,7 @@ import { ayudaDe, descripcionInstr } from "./ayuda-isa";
 import { definicionDeEtiqueta, palabraEn, usosDeEtiqueta } from "./etiquetas";
 import { esMnemonico } from "./isa";
 import { riscvLanguage } from "./riscv";
+import { temaEditor } from "./tema";
 
 // ---------------------------------------------------------------------------
 // Breakpoints (RF-04): toggle por click en el margen.
@@ -279,7 +279,9 @@ export function createEditor(
         hoverAyuda,
         resaltarUsosEtiqueta,
         irADefinicionEtiqueta,
-        oneDark,
+        // Tema del editor por tokens (RP17B-F2): chrome + sintaxis siguen el
+        // tema activo en vivo. Reemplaza al tema fijo que había antes.
+        temaEditor,
         // Al editar: limpiar diagnósticos viejos y reportar breakpoints
         // (sus posiciones se mueven con el texto).
         // El setTimeout(0) es necesario: CodeMirror prohíbe despachar una

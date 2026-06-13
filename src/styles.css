@@ -87,6 +87,17 @@ html, body {
   box-shadow: inset 3px 0 0 var(--acento);
 }
 
+/* sintaxis del editor (RP17B-F2): el HighlightStyle de CodeMirror emite
+   estas CLASES (no colores fijos); acá pintan con los tokens --sx-* del
+   tema activo, así el código recolorea en vivo al cambiar de tema.
+   Contraste AA sobre --fondo verificado en contraste.test.ts. */
+.cm-sx-com { color: var(--sx-com); } /* comentarios */
+.cm-sx-dir { color: var(--sx-dir); } /* directivas (.data/.text) */
+.cm-sx-lbl { color: var(--sx-lbl); } /* etiquetas */
+.cm-sx-ins { color: var(--sx-ins); } /* instrucciones/mnemónicos */
+.cm-sx-str { color: var(--sx-str); } /* cadenas y caracteres */
+.cm-sx-num { color: var(--sx-num); } /* números */
+
 /* ---------- paneles ---------- */
 #lateral {
   grid-area: lateral;
