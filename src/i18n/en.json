@@ -182,7 +182,7 @@
   "ayuda.ciclo.titulo": "Workflow",
   "ayuda.ciclo.texto": "Write your program, press «Assemble» and then «Run» (runs to the end) or «Step» (one instruction at a time). «Reset» returns the machine to its initial state without re-assembling. The panels on the right show the registers (changed ones are highlighted) and memory.",
   "ayuda.binario": "«Open» also accepts RISC-V ELF32 executables: the editor shows the disassembled listing (read-only) and Run/Step/breakpoints work on the listing. To compile with gcc: -march=rv32im -mabi=ilp32 -Ttext=0x00400000 -Tdata=0x10010000 -nostdlib (details: README §Open binaries).",
-  "ayuda.lecciones": "Starting from scratch? Press the «Lessons» button in the toolbar: a browser with the 10-lesson ordered course. When you pick one you see its objectives and which panels to watch before opening it; «Open lesson» loads the code into the editor to step through it. The browser tracks your progress and takes you to the next one. Lesson 8 uses several files: opening it asks for a folder to save them (the .include needs it).",
+  "ayuda.lecciones": "Starting from scratch? Press the «Lessons» button in the toolbar: a modal with the 10-lesson ordered course and a bar showing your progress. Picking one loads it straight into the editor to step through it. Your progress (completed lessons) is remembered. Lesson 8 uses several files: opening it asks for a folder to save them (the .include needs it).",
   "ayuda.syscalls.titulo": "Syscalls (RARS convention)",
   "ayuda.syscalls.texto": "Load the service number into a7, the arguments into a0, and run «ecall»:",
   "ayuda.syscalls.servicio": "Service",

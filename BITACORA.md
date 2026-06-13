@@ -2655,3 +2655,50 @@ viejo): si se prefiere la vista de detalle, avisar.
 Compuerta F3: Ejemplos y Lecciones con la cara del mock sobre la lógica
 existente · progreso real · ids/registros/Rust intactos · i18n anti-drift ·
 tsc/build limpios.
+
+## 2026-06-13 — RP20-F4: docs rediseño de modales (cierre RP-20 y del rediseño)
+
+[Seguro] Docs de cara al usuario (flujos que cambiaron): README actualiza el
+flujo de Lecciones (de «navegador con objetivos + siguiente/anterior» a
+«modal-lista con barra de progreso; al elegir, se abre directo»), Ejemplos
+(«menú»→«botón») y suma una línea de los 3 modales (Ayuda 2-col con scroll-spy
++ Acerca de; Escape y foco). Ayuda integrada: `ayuda.lecciones` (es/en)
+reescrita para reflejar el nuevo flujo (era inexacta tras F3; corrección de
+exactitud, no un rediseño de contenido). ROADMAP-PRO y Cap. VI: NO tocados.
+
+[Seguro] CIERRE RP-20 — criterios de aceptación:
+- 3 modales (Ejemplos/Lecciones/Ayuda) con la cara del mock, sobre la lógica
+  existente ✓ F1/F3
+- Ayuda en 2 columnas con índice agrupado + scroll-spy; contenido i18n
+  existente reorganizado (no reescrito) ✓ F1
+- Acerca de completo y fiel (wordmark adaptable, autor, IA, créditos con
+  licencias + IBM Plex, GPLv2) ✓ F2
+- Progreso de lecciones real (RP-15), no duplicado ✓ F3
+- 5 temas AA (el modal reusa pares ya cubiertos), ids/registros/Rust intactos,
+  bundle ≤30 ✓ todas
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0 ambos
+· UI 62 con node:test, +6 scroll-spy), tsc estricto limpio, ci-local.sh
+completo verde, tauri build ok, bundle EmuRV.app 22 MB ≤ 30 (RNF-04).
+
+[Seguro] CIERRE DEL REDISEÑO VISUAL (RP-17B → RP-18 → RP-19 → RP-20):
+la app quedó como el mock aprobado (propuestas-ui.html) — 5 temas, layout
+flex con divulgación progresiva, estética Cálido (IBM Plex, violeta,
+paneles-tarjeta, wordmark, microinteracciones) y los 3 modales rediseñados
+con Ayuda 2-col + Acerca de. Las únicas desviaciones del mock, todas
+registradas: contraste AA (verificado, sin ajustes en RP-20), ids del JS,
+orden de registros, y la simplificación de Lecciones (lista de un click sin
+la 2ª columna de detalle de RP-15 — marcada para revisión visual del autor).
+Único pendiente del roadmap: tema-de-usuario (futuro, fuera de alcance).
+
+[Seguro] ADAPTACIONES mock→app de RP-20 (mismo diseño, tecnología real):
+overlay por modal con `position:fixed` (el mock conmuta uno con data-modal,
+absolute en su demo); caret de consola nativo; el «en curso» y la barra de
+progreso de Lecciones se calculan del progreso real; el version «v0.1» del
+About es literal (nota de mantenerlo).
+
+[PENDIENTE HUMANO] Verificación visual FINAL de los 3 modales en los 5 temas
+contra el mock: Ayuda (2-col, índice con activa, scroll-spy, tablas/chips/
+notas, Acerca de con wordmark adaptable), Ejemplos (lista carga al click),
+Lecciones (barra de progreso real, check/número, abre al click). Escape
+cierra y el foco vuelve al disparador. CONFIRMAR la simplificación de
+Lecciones (sin la 2ª columna de objetivos del navegador viejo).
