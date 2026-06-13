@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #14161a; font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+
+  /* ===== chrome del mockup (meta, no es parte de EmuRV) ===== */
+  .mock-chrome {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 9px 16px; background: #0e0f12; border-bottom: 1px solid #2a2d33;
+    color: #c5ccd6; font-size: 12.5px; position: sticky; top: 0; z-index: 200;
+  }
+  .mock-chrome .grupo { display: flex; align-items: center; gap: 6px; }
+  .mock-chrome .lbl { color: #7e8794; text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; font-weight: 600; margin-right: 2px; }
+  .mock-btn {
+    background: #1c1f25; color: #c5ccd6; border: 1px solid #353a42; border-radius: 6px;
+    padding: 5px 11px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .mock-btn:hover { border-color: #5b6470; }
+  .mock-btn.on { background: #2f6fb3; border-color: #2f6fb3; color: #fff; font-weight: 600; }
+  .mock-sep { width: 1px; height: 20px; background: #2a2d33; }
+  .mock-note { color: #7e8794; font-size: 11.5px; }
+
+  /* ===== shell EmuRV (tokens reales) ===== */
+  .emurv { position: relative; height: calc(100vh - 43px); color: var(--texto); overflow: hidden; }
+
+  /* tokens — :root «Educativo» (default) */
+  .emurv {
+    --fondo:#1e2227; --fondo-panel:#23282f; --fondo-claro:#2b323b; --borde:#3a424d;
+    --texto:#d7dde5; --texto-suave:#8b97a5; --texto-sobre-acento:#10151b;
+    --acento:#4ea1ff; --ok:#6fcf6f; --error:#ff7a7a; --cambio:#ffd166;
+    --resaltado-linea:rgba(78,161,255,.18); --resaltado-cambio:rgba(255,209,102,.16);
+    --fila-par:rgba(255,255,255,.025); --overlay-fondo:rgba(0,0,0,.55);
+    --fondo-pantalla:#000; --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+    /* tokens NUEVOS propuestos (radio/espaciado parametrizable) */
+    --radio:6px;
+  }
+  /* sintaxis del editor (no temable; equivalente CodeMirror) */
+  .emurv { --sx-com:var(--texto-suave); --sx-dir:#7fcf8f; --sx-lbl:#6fb3ff; --sx-ins:#c98cff; --sx-str:#9ec97f; --sx-num:#e0a36b; }
+
+  /* NUEVO — Pergamino (claro, papel cálido) */
+  .emurv[data-tema="pergamino"] {
+    --fondo:#f4ecd8; --fondo-panel:#efe6cf; --fondo-claro:#e6dbc0; --borde:#cbbd98;
+    --texto:#352c1f; --texto-suave:#5f5544; --texto-sobre-acento:#ffffff;
+    --acento:#1f5c9e; --ok:#2e7d32; --error:#b3261e; --cambio:#8a5d00;
+    --resaltado-linea:rgba(31,92,158,.14); --resaltado-cambio:rgba(138,93,0,.14);
+    --fila-par:rgba(0,0,0,.035); --overlay-fondo:rgba(40,33,20,.4);
+    --sx-com:#8a7f63; --sx-dir:#2e7d32; --sx-lbl:#1f5c9e; --sx-ins:#8a3ca6; --sx-str:#3f7a2e; --sx-num:#9a5b00;
+  }
+
+  /* NUEVO — Retro Kawaii ✦ (vaporwave pastel; acento candy-pink ajustado a AA) */
+  .emurv[data-tema="kawaii"] {
+    --fondo:#efe7fb; --fondo-panel:#faf5ff; --fondo-claro:#ece3fa; --borde:#d3bfee;
+    --texto:#3f2d63; --texto-suave:#6f5c8e; --texto-sobre-acento:#ffffff;
+    --acento:#c0327d; --ok:#1f9e6e; --error:#d83a5e; --cambio:#b97400;
+    --resaltado-linea:rgba(192,50,125,.16); --resaltado-cambio:rgba(185,116,0,.16);
+    --fila-par:rgba(123,91,174,.05); --overlay-fondo:rgba(63,45,99,.4);
+    --fondo-pantalla:#1c1430;
+    --sx-com:#9683ba; --sx-dir:#1f8a5a; --sx-lbl:#b8327f; --sx-ins:#6a35c0; --sx-str:#2f8a4a; --sx-num:#c2691f;
+  }
+
+  /* NUEVO — Disquete 90s ✦ (escritorio beige, barras de título de color) */
+  .emurv[data-tema="disquete"] {
+    --fondo:#cdc3a8; --fondo-panel:#e9e2cf; --fondo-claro:#f4efdf; --borde:#8f8164;
+    --texto:#2b2719; --texto-suave:#6a6047; --texto-sobre-acento:#fff4e8;
+    --acento:#b14a14; --ok:#3c7a3f; --error:#b23022; --cambio:#9a6b00;
+    --resaltado-linea:rgba(177,74,20,.16); --resaltado-cambio:rgba(154,107,0,.16);
+    --fila-par:rgba(80,70,40,.05); --overlay-fondo:rgba(43,39,25,.45);
+    --fondo-pantalla:#15120a;
+    --sx-com:#8a7d5e; --sx-dir:#3c7a3f; --sx-lbl:#b14a14; --sx-ins:#6d3fb0; --sx-str:#2f7a3a; --sx-num:#9a5b00;
+  }
+
+  /* ===== #app grid (real) ===== */
+  .emurv #app {
+    height: 100%; display: grid;
+    grid-template-columns: minmax(420px,1.4fr) minmax(340px,1fr);
+    grid-template-rows: auto 1fr 230px auto;
+    grid-template-areas: "toolbar toolbar" "editor lateral" "consola lateral" "estado estado";
+    background: var(--fondo);
+  }
+
+  /* toolbar */
+  .emurv #toolbar {
+    grid-area: toolbar; display:flex; align-items:center; gap:8px; padding:8px 12px;
+    background: var(--fondo-panel); border-bottom:1px solid var(--borde); flex-wrap: wrap; row-gap: 8px;
+  }
+  .emurv #toolbar button, .emurv #toolbar .sel {
+    background: var(--fondo-claro); color: var(--texto); border:1px solid var(--borde);
+    border-radius: var(--radio); padding:6px 12px; font-size:13px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .emurv #toolbar button .ico { width:14px; height:14px; flex:none; }
+  .emurv #toolbar button:hover { border-color: var(--acento); }
+  .emurv #toolbar button.principal { background: var(--acento); color: var(--texto-sobre-acento); font-weight:600; }
+  .emurv #toolbar .separador { width:1px; align-self:stretch; background:var(--borde); margin:0 4px; }
+  .emurv #toolbar .espacio { flex:1; }
+  .emurv #toolbar .deemph { opacity:.78; }
+
+  /* editor */
+  .emurv #editor { grid-area: editor; overflow:hidden; border-right:1px solid var(--borde); background:var(--fondo); }
+  .emurv .cm { height:100%; overflow:auto; font-family: var(--mono); font-size:14px; line-height:1.5; padding:6px 0; }
+  .emurv .cm .ln { display:grid; grid-template-columns: 44px 1fr; }
+  .emurv .cm .ln.act { background: var(--resaltado-linea); box-shadow: inset 3px 0 0 var(--acento); }
+  .emurv .cm .num { color: var(--texto-suave); opacity:.6; text-align:right; padding-right:14px; user-select:none; }
+  .emurv .cm .code { white-space:pre; }
+  .emurv .c-com{color:var(--sx-com)} .emurv .c-dir{color:var(--sx-dir)} .emurv .c-lbl{color:var(--sx-lbl)}
+  .emurv .c-ins{color:var(--sx-ins)} .emurv .c-str{color:var(--sx-str)} .emurv .c-num{color:var(--sx-num)}
+
+  /* lateral */
+  .emurv #lateral { grid-area: lateral; overflow:hidden; }
+  .emurv .panel { display:flex; flex-direction:column; background: var(--fondo-panel); border-bottom:1px solid var(--borde); overflow:hidden; }
+  .emurv .panel[hidden] { display:none; }
+  .emurv .panel h2 {
+    margin:0; padding:6px 12px; font-size:12px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.06em; color: var(--texto-suave); border-bottom:1px solid var(--borde);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .emurv .panel-cuerpo { flex:1; overflow:auto; }
+
+  /* registros */
+  .emurv .registros-tabla { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .emurv .registros-tabla th { position:sticky; top:0; background:var(--fondo-panel); text-align:left; padding:4px 10px; color:var(--texto-suave); font-weight:600; border-bottom:1px solid var(--borde); }
+  .emurv .registros-tabla td { padding:2px 10px; font-family:var(--mono); white-space:nowrap; }
+  .emurv .registros-tabla tr:nth-child(even){ background:var(--fila-par); }
+  .emurv .registros-tabla td:first-child{ color:var(--texto-suave); }
+  .emurv .registros-xn{ opacity:.5; font-size:11px; }
+  .emurv .registros-pc td{ color:var(--acento); font-weight:600; }
+  .emurv .registros-tabla tr.cambiado td{ background:var(--resaltado-cambio); }
+  .emurv .registros-tabla tr.cambiado td:first-child{ color:var(--cambio); }
+  .emurv .registros-csrs { border-top:1px solid var(--borde); }
+  .emurv .registros-csrs summary { padding:6px 10px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--texto-suave); cursor:pointer; }
+
+  /* memoria */
+  .emurv .memoria-controles { display:flex; gap:6px; padding:8px 10px; border-bottom:1px solid var(--borde); flex-wrap:wrap; }
+  .emurv .memoria-controles input { width:110px; background:var(--fondo-claro); border:1px solid var(--borde); border-radius:5px; color:var(--texto); padding:4px 8px; font-size:12.5px; font-family:var(--mono); }
+  .emurv .memoria-controles button { background:var(--fondo-claro); color:var(--texto); border:1px solid var(--borde); border-radius:5px; padding:4px 10px; font-size:12px; cursor:pointer; }
+  .emurv .memoria-dump { margin:0; padding:8px 10px; font-size:11.5px; line-height:1.5; font-family:var(--mono); color:var(--texto); }
+  .emurv .memoria-dump .dir { color:var(--texto-suave); }
+
+  /* depuración */
+  .emurv .depuracion-seccion { padding:6px 10px; }
+  .emurv .depuracion-seccion h3 { margin:2px 0 4px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--texto-suave); }
+  .emurv .depuracion-vacio { color:var(--texto-suave); font-size:12px; }
+
+  /* consola */
+  .emurv #panel-consola { grid-area: consola; }
+  .emurv #consola { display:flex; flex-direction:column; font-family:var(--mono); font-size:13px; height:100%; position:relative; }
+  .emurv .consola-limpiar { position:absolute; top:4px; right:8px; z-index:1; padding:2px 8px; font-size:11px; color:var(--texto); background:transparent; border:1px solid var(--borde); border-radius:4px; cursor:pointer; opacity:.7; }
+  .emurv .consola-salida { flex:1; overflow:auto; padding:8px 12px; white-space:pre-wrap; color:var(--texto); }
+  .emurv .consola-eco { color: var(--acento); }  /* eco de la entrada del usuario, distinto de la salida */
+  .emurv .consola-error { color: var(--error); }  /* errores de ejecución */
+  .emurv .consola-sys { color: var(--texto-suave); font-style: italic; }  /* mensajes del sistema */
+  .emurv .consola-entrada { display:flex; align-items:center; gap:8px; padding:6px 12px; border-top:1px solid var(--borde); opacity:.5; color:var(--texto-suave); }
+
+  /* estado */
+  .emurv #estado { grid-area:estado; padding:6px 12px; font-size:12.5px; color:var(--texto-suave); background:var(--fondo-panel); border-top:1px solid var(--borde); min-height:28px; display:flex; align-items:center; gap:12px; }
+  .emurv .estado-pill { display:inline-flex; align-items:center; gap:7px; font-weight:600; font-size:12px; color:var(--ok); }
+  .emurv .estado-dot { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .emurv .estado-msg { color:var(--texto-suave); }
+
+  /* video / pantalla */
+  .emurv #video-canvas { display:block; width:100%; aspect-ratio:4/3; background:var(--fondo-pantalla); border:1px solid var(--borde); border-radius:4px; }
+  .emurv #video-desacoplar { font-size:13px; line-height:1; padding:2px 7px; cursor:pointer; background:var(--fondo-claro); color:var(--texto); border:1px solid var(--borde); border-radius:5px; }
+
+  /* ============================================================
+     LAYOUT ACTUAL  (reproduce el bug: #lateral con 2 pistas)
+     ============================================================ */
+  .emurv[data-layout="actual"] #lateral {
+    display:grid; grid-template-rows: 1.2fr 1fr;
+  }
+
+  /* ============================================================
+     LAYOUT PROPUESTO  (flex column: registros prioritario,
+     pantalla acotada, depuración a contenido)
+     ============================================================ */
+  .emurv[data-layout="propuesto"] #lateral { display:flex; flex-direction:column; }
+  .emurv[data-layout="propuesto"] #panel-video     { flex:0 0 auto; }
+  .emurv[data-layout="propuesto"] #panel-registros { flex:2.2 1 0; min-height:160px; }
+  .emurv[data-layout="propuesto"] #panel-memoria   { flex:1.5 1 0; min-height:120px; }
+  .emurv[data-layout="propuesto"] #panel-depuracion{ flex:0 1 auto; max-height:200px; }
+  /* pantalla acotada: no domina la columna */
+  .emurv[data-layout="propuesto"] #video-canvas { width:auto; max-height:170px; margin:8px auto; }
+  /* columnas de registros compactas: menos hueco horizontal */
+  .emurv[data-layout="propuesto"] .registros-tabla { table-layout:fixed; }
+  .emurv[data-layout="propuesto"] .registros-tabla col.c-reg{ width:30%; }
+  .emurv[data-layout="propuesto"] .registros-tabla col.c-hex{ width:38%; }
+  .emurv[data-layout="propuesto"] .registros-tabla col.c-dec{ width:32%; }
+
+  /* ---- FIX toolbar responsive (bug: ventana angosta tapa Idioma/Ayuda/Tema) ----
+     Actual = flex-wrap:nowrap + overflow:hidden  → clip de los controles derechos.
+     Propuesto = flex-wrap:wrap                   → bajan a una 2da fila, siempre usables. */
+  .emurv[data-layout="propuesto"] #toolbar { flex-wrap: wrap; overflow: visible; row-gap: 8px; }
+
+  /* ---- demo de ancho de ventana ---- */
+  .emurv[data-ancho="angosto"] { width: 760px; margin: 0 auto; box-shadow: 0 0 0 1px #2a2d33; }
+
+  /* ---- progressive disclosure: paneles plegables ---- */
+  .emurv .panel-titulo-clickeable { cursor: pointer; user-select: none; }
+  .emurv .panel[data-colapsado="true"] .panel-cuerpo { display: none; }
+  .emurv .panel[data-colapsado="true"] { flex: 0 0 auto !important; }
+  .emurv .panel h2 .chev { color: var(--texto-suave); font-size: 10px; margin-right: 2px; }
+  .emurv .panel h2 .secundario { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .65; font-size: 11px; }
+  .emurv [data-oculto="true"] { display: none; }
+
+  /* ---- separadores sutiles entre grupos ABI (el ORDEN x0..x31 se mantiene) ---- */
+  .emurv .registros-tabla tr.grupo td { border-top: 1px solid var(--borde); }
+  .emurv .registros-tabla td:first-child { cursor: help; }
+
+  /* ---- watchpoints: sub-sección plegada + mini-explicación ---- */
+  .emurv .wp-toggle { background: none; border: none; color: var(--texto-suave); cursor: pointer; padding: 2px 0 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-family: inherit; }
+  .emurv .wp-toggle:hover { color: var(--texto); }
+  .emurv .wp-ayuda { margin: 4px 0 6px; padding: 7px 9px; font-size: 11.5px; line-height: 1.45; color: var(--texto-suave); background: color-mix(in srgb, var(--acento) 10%, transparent); border-radius: 6px; }
+
+  /* ============================================================
+     ESTÉTICA «CÁLIDO» ✦ — lenguaje visual aplicado a TODOS los temas.
+     No recolorea paletas: aporta redondez + aire + tipografía amable
+     + suavidad. Tokens nuevos: --radio, --radio-panel, --fuente-ui,
+     --sombra-panel. Implica el layout Propuesto.
+     ============================================================ */
+  .emurv[data-estetica="calido"] {
+    --radio: 9px; --radio-panel: 14px;
+    --fuente-ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --sombra-panel: 0 1px 2px rgba(0,0,0,.16), 0 6px 18px rgba(0,0,0,.10);
+  }
+  /* acento violeta para el tema base Educativo (elección del usuario) */
+  .emurv[data-estetica="calido"][data-tema="educativo"] {
+    --acento:#9b8cff; --texto-sobre-acento:#16122b;
+    --resaltado-linea:rgba(155,140,255,.20);
+    --sx-lbl:#a99bff; --sx-ins:#c4b6ff;
+  }
+  /* tipografía de interfaz amable (el código y los datos siguen en mono) */
+  .emurv[data-estetica="calido"] #toolbar,
+  .emurv[data-estetica="calido"] .panel h2,
+  .emurv[data-estetica="calido"] .panel h3,
+  .emurv[data-estetica="calido"] .registros-tabla th,
+  .emurv[data-estetica="calido"] .depuracion-vacio,
+  .emurv[data-estetica="calido"] .wp-ayuda,
+  .emurv[data-estetica="calido"] .consola-entrada,
+  .emurv[data-estetica="calido"] #estado { font-family: var(--fuente-ui); }
+
+  /* lienzo aireado: separación entre zonas + esquinas redondeadas */
+  .emurv[data-estetica="calido"] #app { gap:10px; padding:10px; background:var(--fondo); }
+  .emurv[data-estetica="calido"] #editor,
+  .emurv[data-estetica="calido"] #toolbar,
+  .emurv[data-estetica="calido"] #estado { border:1px solid var(--borde); border-radius:var(--radio-panel); }
+  .emurv[data-estetica="calido"] #editor { border-right:1px solid var(--borde); }
+  .emurv[data-estetica="calido"] #toolbar { background:var(--fondo-panel); }
+
+  /* paneles como tarjetas suaves */
+  .emurv[data-estetica="calido"] #lateral { gap:10px; }
+  .emurv[data-estetica="calido"] .panel { border:1px solid var(--borde); border-radius:var(--radio-panel); box-shadow:var(--sombra-panel); }
+  .emurv[data-estetica="calido"] .panel h2 { background:color-mix(in srgb, var(--acento) 9%, var(--fondo-panel)); padding:9px 13px; letter-spacing:.04em; }
+
+  /* densidad aireada interior */
+  .emurv[data-estetica="calido"] .registros-tabla td { padding:4px 12px; }
+  .emurv[data-estetica="calido"] .registros-tabla th { padding:7px 12px; background:color-mix(in srgb, var(--acento) 9%, var(--fondo-panel)); }
+  .emurv[data-estetica="calido"] .cm { line-height:1.65; padding:10px 0; }
+  .emurv[data-estetica="calido"] #toolbar button,
+  .emurv[data-estetica="calido"] #toolbar .sel { padding:7px 13px; }
+  .emurv[data-estetica="calido"] .consola-salida { padding:10px 14px; }
+
+  /* jerarquía de toolbar: primario realzado, secundarios «fantasma» */
+  .emurv[data-estetica="calido"] #toolbar button.principal { box-shadow:0 1px 3px color-mix(in srgb, var(--acento) 45%, transparent); }
+  .emurv[data-estetica="calido"] #toolbar button.deemph { background:transparent; border-color:transparent; }
+  .emurv[data-estetica="calido"] #toolbar button.deemph:hover { background:var(--fondo-claro); border-color:var(--borde); }
+
+  .emurv[data-estetica="calido"] .consola-eco { font-weight:600; }
+
+  /* marcador de cambio más claro: barra lateral en color --cambio (además del fondo) */
+  .emurv .registros-tabla tr.cambiado td:first-child { box-shadow: inset 3px 0 0 var(--cambio); }
+  /* margen de breakpoints en el editor: punto rojo en la línea marcada */
+  .emurv .cm .ln .num { position:relative; }
+  .emurv .cm .ln.bp .num::after { content:"●"; color:var(--error); position:absolute; left:7px; top:50%; transform:translateY(-50%); font-size:10px; }
+  .emurv .cm .ln.bp { background: color-mix(in srgb, var(--error) 8%, transparent); }
+
+  /* ---- decoraciones por tema (sobre cualquier estética) ---- */
+  /* Disquete 90s: cada panel con barra de título de color (look ventana noventera) */
+  .emurv[data-tema="disquete"] #lateral .panel h2,
+  .emurv[data-tema="disquete"] #panel-consola > h2 {
+    background: var(--acento); color: var(--texto-sobre-acento);
+    border-bottom: 2px solid color-mix(in srgb, #000 30%, var(--acento));
+  }
+  .emurv[data-tema="disquete"] #lateral .panel h2 .chev,
+  .emurv[data-tema="disquete"] #lateral .panel h2 .secundario { color: var(--texto-sobre-acento); opacity:.85; }
+  /* Retro Kawaii: header con tinte rosa un poco más marcado */
+  .emurv[data-tema="kawaii"][data-estetica="calido"] .panel h2 { background: color-mix(in srgb, var(--acento) 13%, var(--fondo-panel)); }
+
+  /* ============================================================
+     REFINADO — reducción de ruido visual (pasada de pulido)
+     ============================================================ */
+  /* 1. Cabeceras de columna: son etiquetas, no títulos → sin mayúsculas a gritos */
+  .emurv .registros-tabla th { text-transform:none; font-weight:500; font-size:11.5px; letter-spacing:0; }
+  /* 2. Número crudo xN: dato secundario → más tenue y pequeño */
+  .emurv .registros-xn { opacity:.38; font-size:10.5px; letter-spacing:.02em; }
+  /* 3. Volcado de memoria: bytes en cero atenuados para que el dato real resalte */
+  .emurv .memoria-dump .cero { color: var(--texto-suave); opacity:.45; }
+  /* 6. Toolbar: controles de ejecución como UN bloque segmentado, no 4 cajas sueltas */
+  .emurv .grupo-ejec { display:inline-flex; align-items:stretch; flex:none; border:1px solid var(--borde); border-radius:var(--radio); overflow:hidden; }
+  .emurv .grupo-ejec button { border:0 !important; border-radius:0 !important; border-right:1px solid var(--borde) !important; }
+  .emurv .grupo-ejec button:last-child { border-right:0 !important; }
+  .emurv .grupo-ejec button:hover { background: var(--fondo-panel); }
+
+  /* refinados que dependen de la estética Cálido (la tarjeta ya separa) */
+  /* 4. sin cebra: tarjeta + hover bastan → menos líneas compitiendo */
+  .emurv[data-estetica="calido"] .registros-tabla tr:nth-child(even){ background:transparent; }
+  .emurv[data-estetica="calido"] .registros-tabla tbody tr:hover td { background: color-mix(in srgb, var(--acento) 7%, transparent); }
+  /* 5. separadores de grupo más suaves (insinúan, no cortan) */
+  .emurv[data-estetica="calido"] .registros-tabla tr.grupo td { border-top:1px solid color-mix(in srgb, var(--borde) 50%, transparent); }
+
+  /* ============================================================
+     ITERACI\u00d3N \u2014 \u00edconos, foco, microinteracciones, modales
+     ============================================================ */
+  /* \u00edconos unificados: trazo 1.8 redondeado; relleno solo donde es convenci\u00f3n (play) */
+  .emurv .ico { stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .emurv .ico:not(.ico-fill) { fill:none; stroke:currentColor; }
+  .emurv .ico-fill { fill:currentColor; stroke:none; }
+
+  /* transiciones baratas (solo color/sombra: sin reflow, sin filtros) */
+  .emurv button, .emurv .sel, .emurv input, .emurv .modal-item, .emurv summary {
+    transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
+  }
+  /* foco de teclado coherente por tema */
+  .emurv button:focus-visible, .emurv .sel:focus-visible, .emurv input:focus-visible,
+  .emurv summary:focus-visible, .emurv .modal-item:focus-visible {
+    outline:2px solid var(--acento); outline-offset:2px; border-radius:6px;
+  }
+  .emurv input:focus-visible { border-color: var(--acento); }
+
+  /* editor: l\u00ednea activa m\u00e1s clara + pista de breakpoint al pasar el mouse */
+  .emurv .cm .ln.act .num { color:var(--acento); opacity:1; font-weight:600; }
+  .emurv .cm .ln:not(.bp):hover .num::after { content:"\25cf"; color:var(--error); opacity:.3; position:absolute; left:7px; top:50%; transform:translateY(-50%); font-size:10px; }
+
+  /* registros: destello \u00fanico (one-shot) cuando un valor cambi\u00f3 \u2014 no es bucle */
+  @keyframes emurv-cambio-flash { from { background: color-mix(in srgb, var(--cambio) 50%, transparent); } }
+  .emurv .registros-tabla tr.cambiado td { animation: emurv-cambio-flash .7s ease-out; }
+
+  /* consola: prompt activo con caret parpadeante (un solo elemento) */
+  .emurv .consola-entrada { opacity:1; color:var(--texto); }
+  .emurv .ce-prompt { color:var(--acento); font-weight:700; }
+  .emurv .ce-hint { color:var(--texto-suave); }
+  .emurv .ce-caret { display:inline-block; width:7px; height:1.05em; background:var(--acento); vertical-align:text-bottom; animation: emurv-caret 1.1s steps(1) infinite; }
+  @keyframes emurv-caret { 50% { opacity:0; } }
+
+  /* ---- modales (Ejemplos / Lecciones / Ayuda) con lenguaje C\u00e1lido ---- */
+  .emurv .emurv-modal { position:absolute; inset:0; z-index:150; display:none; align-items:center; justify-content:center; padding:36px; }
+  .emurv .emurv-modal[data-modal="ejemplos"], .emurv .emurv-modal[data-modal="lecciones"], .emurv .emurv-modal[data-modal="ayuda"] { display:flex; }
+  .emurv .modal-backdrop { position:absolute; inset:0; background:var(--overlay-fondo); animation: emurv-fade .14s ease-out; }
+  @keyframes emurv-fade { from { opacity:0; } }
+  .emurv .modal-card { position:relative; z-index:1; width:min(560px,100%); max-height:86%; display:none; flex-direction:column;
+    background:var(--fondo-panel); border:1px solid var(--borde); border-radius:var(--radio-panel,12px);
+    box-shadow:0 20px 64px rgba(0,0,0,.45); overflow:hidden; animation: emurv-pop .16s ease-out; }
+  @keyframes emurv-pop { from { transform: translateY(8px) scale(.98); opacity:0; } }
+  .emurv[data-estetica="calido"] .modal-card { font-family: var(--fuente-ui); }
+  .emurv .emurv-modal[data-modal="ejemplos"] .modal-cuerpo-ejemplos,
+  .emurv .emurv-modal[data-modal="lecciones"] .modal-cuerpo-lecciones,
+  .emurv .emurv-modal[data-modal="ayuda"] .modal-cuerpo-ayuda { display:flex; }
+  .emurv .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--borde); flex:none; }
+  .emurv .modal-head h2 { margin:0; font-size:15px; font-weight:600; color:var(--texto); text-transform:none; letter-spacing:0; }
+  .emurv .modal-head .mh-sub { color:var(--texto-suave); font-size:12px; font-weight:400; margin-left:8px; }
+  .emurv .modal-x { background:transparent; border:0; color:var(--texto-suave); cursor:pointer; padding:5px; border-radius:7px; display:inline-flex; }
+  .emurv .modal-x:hover { background:var(--fondo-claro); color:var(--texto); }
+  .emurv .modal-x .ico { width:18px; height:18px; }
+  .emurv .modal-scroll { overflow:auto; padding:8px; }
+  .emurv .modal-item { display:flex; gap:12px; align-items:flex-start; padding:11px 12px; border-radius:9px; cursor:pointer; }
+  .emurv .modal-item:hover { background: color-mix(in srgb, var(--acento) 9%, transparent); }
+  .emurv .mi-titulo { font-weight:600; color:var(--texto); font-size:13.5px; }
+  .emurv .mi-codigo { font-family:var(--mono); }
+  .emurv .mi-desc { color:var(--texto-suave); font-size:12.5px; margin-top:2px; line-height:1.45; }
+  .emurv .modal-num { flex:none; width:24px; height:24px; border-radius:50%; background:color-mix(in srgb,var(--acento) 16%, transparent); color:var(--acento); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .emurv .modal-check { color:var(--ok); flex:none; margin-top:1px; }
+  .emurv .modal-pend { color:var(--texto-suave); opacity:.5; flex:none; margin-top:1px; }
+  .emurv .modal-progreso { padding:10px 18px 0; }
+  .emurv .modal-progreso .barra { height:6px; border-radius:99px; background:var(--fondo-claro); overflow:hidden; }
+  .emurv .modal-progreso .barra > i { display:block; height:100%; width:50%; background:var(--acento); border-radius:99px; }
+  .emurv .modal-progreso .etq { font-size:11.5px; color:var(--texto-suave); margin:6px 0 2px; }
+  .emurv .ayuda-sec { padding:4px 16px 10px; }
+  .emurv .ayuda-sec h3 { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--texto-suave); margin:12px 0 4px; }
+  .emurv .ayuda-row { display:flex; justify-content:space-between; gap:16px; align-items:baseline; padding:6px 0; font-size:13px; color:var(--texto); border-bottom:1px solid color-mix(in srgb,var(--borde) 45%, transparent); }
+  .emurv .ayuda-row span:last-child { color:var(--texto-suave); text-align:right; white-space:nowrap; }
+  .emurv .ayuda-row kbd { font-family:var(--mono); background:var(--fondo-claro); border:1px solid var(--borde); border-bottom-width:2px; border-radius:5px; padding:1px 7px; font-size:12px; color:var(--texto); }
+
+  /* ============================================================
+     AYUDA \u2014 modal de referencia (dos columnas: \u00edndice + cuerpo)
+     ============================================================ */
+  .emurv .modal-card.modal-cuerpo-ayuda { width:min(920px,100%); max-height:88%; }
+  .emurv .ay-body { display:grid; grid-template-columns:200px 1fr; flex:1; min-height:0; }
+  .emurv .ay-nav { overflow:auto; padding:12px 10px; border-right:1px solid var(--borde); background:color-mix(in srgb, var(--fondo) 45%, var(--fondo-panel)); }
+  .emurv .ay-nav button { display:block; width:100%; text-align:left; padding:7px 11px; border-radius:8px; font-size:12.5px; line-height:1.3; color:var(--texto-suave); background:none; border:0; cursor:pointer; font-family:inherit; }
+  .emurv .ay-nav button:hover { background:color-mix(in srgb, var(--acento) 10%, transparent); color:var(--texto); }
+  .emurv .ay-nav button.activo { background:color-mix(in srgb, var(--acento) 15%, transparent); color:var(--acento); font-weight:600; }
+  .emurv .ay-nav .ay-nav-tit { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--texto-suave); opacity:.7; padding:12px 11px 4px; }
+  .emurv .ay-cont { overflow:auto; padding:6px 26px 28px; scroll-behavior:smooth; }
+  .emurv .ay-cont h3 { font-size:14.5px; font-weight:600; color:var(--texto); margin:24px 0 10px; padding-bottom:7px; border-bottom:1px solid var(--borde); display:flex; align-items:center; gap:9px; }
+  .emurv .ay-cont h3::before { content:""; width:4px; height:15px; border-radius:2px; background:var(--acento); flex:none; }
+  .emurv .ay-cont h3:first-child { margin-top:10px; }
+  .emurv .ay-cont p { font-size:13px; line-height:1.62; color:var(--texto); margin:9px 0; max-width:64ch; }
+  .emurv .ay-cont p.compacto { margin:6px 0; }
+  .emurv .ay-btn { font-family:var(--fuente-ui, inherit); font-size:11.5px; font-weight:600; background:var(--fondo-claro); border:1px solid var(--borde); border-radius:6px; padding:0 7px; color:var(--texto); white-space:nowrap; }
+  .emurv .ay-tabla { width:100%; border-collapse:collapse; font-size:12.5px; margin:8px 0 12px; max-width:64ch; }
+  .emurv .ay-tabla th { text-align:left; font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--texto-suave); padding:6px 10px; border-bottom:1.5px solid var(--borde); }
+  .emurv .ay-tabla td { padding:6px 10px; color:var(--texto); border-bottom:1px solid color-mix(in srgb, var(--borde) 40%, transparent); vertical-align:top; line-height:1.45; }
+  .emurv .ay-tabla tr:hover td { background:color-mix(in srgb, var(--acento) 6%, transparent); }
+  .emurv .ay-tabla .col-num { width:42px; text-align:center; }
+  .emurv .ay-num { display:inline-flex; align-items:center; justify-content:center; min-width:24px; height:22px; padding:0 6px; border-radius:6px; font-family:var(--mono); font-size:12px; font-weight:600; background:color-mix(in srgb, var(--acento) 14%, transparent); color:var(--acento); }
+  .emurv .ay-serv { font-weight:600; }
+  .emurv .ay-arg { font-family:var(--mono); color:var(--texto-suave); font-size:11.5px; }
+  .emurv .ay-addr { font-family:var(--mono); color:var(--acento); font-weight:600; white-space:nowrap; }
+  .emurv .ayuda-ejemplo { font-family:var(--mono); font-size:12.5px; line-height:1.55; background:var(--fondo); border:1px solid var(--borde); border-radius:9px; padding:11px 14px; margin:10px 0; overflow:auto; color:var(--texto); max-width:64ch; }
+  .emurv .ayuda-ejemplo .c-com{color:var(--sx-com)} .emurv .ayuda-ejemplo .c-ins{color:var(--sx-ins)} .emurv .ayuda-ejemplo .c-num{color:var(--sx-num)}
+  .emurv .ay-nota { background:color-mix(in srgb, var(--acento) 8%, transparent); border-left:3px solid var(--acento); border-radius:0 8px 8px 0; padding:9px 13px; margin:10px 0; font-size:12.5px; line-height:1.55; color:var(--texto); max-width:64ch; }
+  .emurv .ay-nota .et { font-weight:600; color:var(--acento); text-transform:uppercase; font-size:10.5px; letter-spacing:.06em; margin-right:6px; }
+  .emurv .ay-chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; max-width:64ch; }
+  .emurv .ay-chip { font-family:var(--mono); font-size:12px; background:var(--fondo-claro); border:1px solid var(--borde); border-radius:6px; padding:3px 9px; color:var(--texto); }
+
+  /* wordmark de marca en la toolbar (bi-tono por tokens, se adapta al tema) */
+  .emurv .logo-emurv { height:21px; width:auto; flex:none; display:block; }
+  .emurv .logo-emu { fill: var(--acento); }
+  .emurv .logo-rv { fill: var(--texto); }
+
+  /* ---- Acerca de (misma familia que el resto del modal de Ayuda) ---- */
+  .emurv .ay-about-id { display:flex; align-items:center; gap:15px; margin:8px 0 2px; }
+  .emurv .ay-about-id .logo-emurv { height:30px; }
+  .emurv .ay-about-id .tagline { font-size:12.5px; color:var(--texto-suave); line-height:1.45; max-width:48ch; }
+  .emurv .ay-ver { display:inline-block; font-family:var(--mono); font-size:11px; background:color-mix(in srgb,var(--acento) 15%,transparent); color:var(--acento); border-radius:6px; padding:1px 7px; }
+  .emurv .ay-autor { background:var(--fondo-claro); border:1px solid var(--borde); border-radius:10px; padding:12px 15px; margin:14px 0; max-width:64ch; }
+  .emurv .ay-autor .nombre { font-size:15px; font-weight:600; color:var(--texto); }
+  .emurv .ay-autor .rol { font-size:12.5px; color:var(--texto-suave); margin-top:3px; }
+  .emurv .ay-cred-grupo { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--texto); margin:18px 0 6px; display:flex; align-items:center; gap:8px; }
+  .emurv .ay-cred-grupo::before { content:""; width:7px; height:7px; border-radius:2px; background:var(--acento); flex:none; }
+  .emurv .ay-cred { list-style:none; margin:0; padding:0; max-width:64ch; }
+  .emurv .ay-cred li { display:flex; justify-content:space-between; align-items:baseline; gap:14px; padding:6px 2px; border-bottom:1px solid color-mix(in srgb,var(--borde) 40%,transparent); font-size:12.5px; line-height:1.45; }
+  .emurv .ay-cred .nom { color:var(--texto); }
+  .emurv .ay-cred .nom b { font-weight:600; }
+  .emurv .ay-cred .desc { color:var(--texto-suave); }
+  .emurv .ay-lic { font-family:var(--mono); font-size:10.5px; color:var(--texto-suave); background:var(--fondo); border:1px solid var(--borde); border-radius:5px; padding:1px 6px; white-space:nowrap; flex:none; }
+</style>
+</helmet>
+
+<div class="mock-chrome">
+  <div class="grupo">
+    <span class="lbl">Tema</span>
+    <button class="mock-btn" style-active="" onClick="{{ tEdu }}">Educativo</button>
+    <button class="mock-btn" onClick="{{ tPerg }}">Pergamino</button>
+    <button class="mock-btn" onClick="{{ tKawaii }}">Retro Kawaii ✦</button>
+    <button class="mock-btn" onClick="{{ tDisquete }}">Disquete 90s ✦</button>
+  </div>
+  <div class="mock-sep"></div>
+  <div class="grupo">
+    <span class="lbl">Estética</span>
+    <button class="mock-btn" onClick="{{ eBase }}">Base</button>
+    <button class="mock-btn" onClick="{{ eCalido }}">Cálido ✦</button>
+  </div>
+  <div class="mock-sep"></div>
+  <div class="grupo">
+    <span class="lbl">Layout</span>
+    <button class="mock-btn" onClick="{{ lActual }}">Actual</button>
+    <button class="mock-btn" onClick="{{ lProp }}">Propuesto</button>
+  </div>
+  <div class="mock-sep"></div>
+  <div class="grupo">
+    <span class="lbl">Ventana</span>
+    <button class="mock-btn" onClick="{{ wMax }}">Maximizada</button>
+    <button class="mock-btn" onClick="{{ wNar }}">Angosta</button>
+  </div>
+  <div class="mock-sep"></div>
+  <div class="grupo">
+    <span class="lbl">Modal</span>
+    <button class="mock-btn" onClick="{{ cerrarModal }}">Ninguno</button>
+    <button class="mock-btn" onClick="{{ abrirEjemplos }}">Ejemplos</button>
+    <button class="mock-btn" onClick="{{ abrirLecciones }}">Lecciones</button>
+    <button class="mock-btn" onClick="{{ abrirAyuda }}">Ayuda</button>
+  </div>
+  <div class="mock-sep"></div>
+  <span class="mock-note">{{ nota }}</span>
+</div>
+
+<div class="emurv" data-tema="{{ tema }}" data-layout="{{ layout }}" data-ancho="{{ ancho }}" data-estetica="{{ estetica }}">
+  <div id="app">
+
+    <header id="toolbar">
+      <svg class="logo-emurv" viewBox="0 0 337.1 114.0" role="img" aria-label="EmuRV"><g transform="matrix(0.10541 0 0 -0.10541 7.7757 94.9459)"><path class="logo-emu" d="M97.0 0V730H522.0V641H195.0V424H487.0V338H195.0V89H522.0V0Z M657.0 0V550H741.0V475H744.0Q748.0 513 772.5 536.5Q797.0 560 835.0 560Q872.0 560 897.0 538.0Q922.0 516 933.0 479Q939.0 517 964.0 538.5Q989.0 560 1027.0 560Q1079.0 560 1111.0 520.5Q1143.0 481 1143.0 418V0H1053.0V417Q1053.0 448 1037.5 466.5Q1022.0 485 996.0 485Q970.0 485 955.0 467.0Q940.0 449 940.0 417V0H860.0V417Q860.0 448 845.0 466.5Q830.0 485 804.0 485Q778.0 485 762.5 467.0Q747.0 449 747.0 417V0Z M1499.0 -10Q1402.0 -10 1344.0 47.0Q1286.0 104 1286.0 202V550H1385.0V202Q1385.0 144 1415.5 110.5Q1446.0 77 1499.0 77Q1553.0 77 1584.0 110.5Q1615.0 144 1615.0 202V550H1714.0V202Q1714.0 104 1655.5 47.0Q1597.0 -10 1499.0 -10Z"></path><path class="logo-rv" d="M1889.0 0V730H2115.0Q2182.0 730 2232.0 703.5Q2282.0 677 2310.0 629.5Q2338.0 582 2338.0 518Q2338.0 444 2300.5 391.0Q2263.0 338 2201.0 316L2348.0 0H2239.0L2100.0 305H1987.0V0ZM1987.0 393H2115.0Q2171.0 393 2203.5 427.0Q2236.0 461 2236.0 517Q2236.0 574 2203.0 608.0Q2170.0 642 2115.0 642H1987.0Z M2633.0 0 2446.0 730H2548.0L2669.0 238Q2681.0 191 2689.5 147.5Q2698.0 104 2702.0 81Q2705.0 104 2714.5 148.0Q2724.0 192 2735.0 239L2852.0 730H2954.0L2766.0 0Z"></path></g></svg>
+      <span class="separador"></span>
+      <button class="principal"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>Ensamblar</button>
+      <span class="separador"></span>
+      <div class="grupo-ejec">
+      <button><svg class="ico ico-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9z"></path></svg>Ejecutar</button>
+      <button><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"></path></svg>Paso</button>
+      <button><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg>Detener</button>
+      <button><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path></svg>Reiniciar</button>
+      </div>
+      <span class="separador"></span>
+      <span class="sel" onClick="{{ abrirEjemplos }}">Ejemplos ⌄</span>
+      <span class="espacio"></span>
+      <button class="deemph" onClick="{{ abrirLecciones }}"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path></svg>Lecciones</button>
+      <button class="deemph" onClick="{{ toggleVideo }}"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="13" rx="1"></rect><path d="M9 21h6M12 17v4"></path></svg>Pantalla</button>
+      <button class="deemph"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"></path></svg>Abrir</button>
+      <button class="deemph"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v15H5z"></path><path d="M8 3v5h7M8 14h8v7H8z"></path></svg>Guardar</button>
+      <button class="deemph"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"></path></svg>Exportar ELF</button>
+      <button class="deemph" onClick="{{ abrirAyuda }}"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.2a2.5 2.5 0 1 1 3.4 2.3c-.7.4-1 .9-1 1.6M12 17h.01"></path></svg>Ayuda</button>
+      <span class="sel">ES ⌄</span>
+      <span class="sel">{{ temaLabel }} ⌄</span>
+    </header>
+
+    <main id="editor">
+      <div class="cm">
+        <div class="ln"><span class="num">1</span><span class="code"><span class="c-com"># ===================================================</span></span></div>
+        <div class="ln"><span class="num">2</span><span class="code"><span class="c-com"># Ejemplo 1 — Hola mundo</span></span></div>
+        <div class="ln"><span class="num">3</span><span class="code"><span class="c-com"># Imprime un saludo en la consola y termina.</span></span></div>
+        <div class="ln"><span class="num">4</span><span class="code"><span class="c-com"># Syscalls: 4 (imprimir cadena), 10 (terminar)</span></span></div>
+        <div class="ln"><span class="num">5</span><span class="code"><span class="c-com"># ===================================================</span></span></div>
+        <div class="ln"><span class="num">6</span><span class="code"> </span></div>
+        <div class="ln"><span class="num">7</span><span class="code">        <span class="c-dir">.data</span></span></div>
+        <div class="ln"><span class="num">8</span><span class="code"><span class="c-lbl">saludo:</span> <span class="c-dir">.asciiz</span> <span class="c-str">"¡Hola, mundo!\n"</span>   <span class="c-com"># cadena terminada en NUL</span></span></div>
+        <div class="ln"><span class="num">9</span><span class="code"> </span></div>
+        <div class="ln"><span class="num">10</span><span class="code">        <span class="c-dir">.text</span></span></div>
+        <div class="ln"><span class="num">11</span><span class="code"><span class="c-lbl">main:</span></span></div>
+        <div class="ln act"><span class="num">12</span><span class="code">        <span class="c-ins">la</span>  a0, saludo     <span class="c-com"># a0 ← dirección de la cadena</span></span></div>
+        <div class="ln"><span class="num">13</span><span class="code">        <span class="c-ins">li</span>  a7, <span class="c-num">4</span>         <span class="c-com"># servicio 4: imprimir cadena</span></span></div>
+        <div class="ln"><span class="num">14</span><span class="code">        <span class="c-ins">ecall</span>             <span class="c-com"># llamada al sistema</span></span></div>
+        <div class="ln"><span class="num">15</span><span class="code"> </span></div>
+        <div class="ln bp"><span class="num">16</span><span class="code">        <span class="c-ins">li</span>  a7, <span class="c-num">10</span>        <span class="c-com"># servicio 10: terminar el programa</span></span></div>
+        <div class="ln"><span class="num">17</span><span class="code">        <span class="c-ins">ecall</span></span></div>
+        <div class="ln"><span class="num">18</span><span class="code"> </span></div>
+      </div>
+    </main>
+
+    <aside id="lateral">
+      <section id="panel-video" class="panel" data-oculto="{{ videoOculto }}">
+        <h2><span>Pantalla (320×240)</span><button id="video-desacoplar">⧉</button></h2>
+        <div class="panel-cuerpo">
+          <canvas id="video-canvas" width="320" height="240"></canvas>
+        </div>
+      </section>
+
+      <section id="panel-registros" class="panel">
+        <h2>Registros</h2>
+        <div class="panel-cuerpo">
+          <table class="registros-tabla">
+            
+            <thead><tr><th>Reg</th><th>Hexadecimal</th><th>Decimal</th></tr></thead>
+            <tbody>
+              <tr class="registros-pc"><td title="Contador de programa">pc</td><td>0x00400000</td><td>4194304</td></tr>
+              <tr><td title="Siempre 0 (cableado a cero)">zero <span class="registros-xn">x0</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr class="grupo"><td title="Dirección de retorno">ra <span class="registros-xn">x1</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Puntero de pila">sp <span class="registros-xn">x2</span></td><td>0x7ffffff0</td><td>2147483632</td></tr>
+              <tr><td title="Puntero global">gp <span class="registros-xn">x3</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Puntero de hilo">tp <span class="registros-xn">x4</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr class="grupo"><td title="Temporal (no se preserva entre llamadas)">t0 <span class="registros-xn">x5</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Temporal">t1 <span class="registros-xn">x6</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Temporal">t2 <span class="registros-xn">x7</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr class="grupo"><td title="Guardado (se preserva entre llamadas)">s0 <span class="registros-xn">x8</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s1 <span class="registros-xn">x9</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr class="grupo cambiado"><td title="Argumento / valor de retorno">a0 <span class="registros-xn">x10</span></td><td>0x10010000</td><td>268500992</td></tr>
+              <tr><td title="Argumento">a1 <span class="registros-xn">x11</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Argumento">a2 <span class="registros-xn">x12</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Argumento">a3 <span class="registros-xn">x13</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Argumento">a4 <span class="registros-xn">x14</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Argumento">a5 <span class="registros-xn">x15</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Argumento">a6 <span class="registros-xn">x16</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr class="cambiado"><td title="Argumento / nº de syscall en ecall">a7 <span class="registros-xn">x17</span></td><td>0x00000004</td><td>4</td></tr>
+              <tr class="grupo"><td title="Guardado">s2 <span class="registros-xn">x18</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s3 <span class="registros-xn">x19</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s4 <span class="registros-xn">x20</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s5 <span class="registros-xn">x21</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s6 <span class="registros-xn">x22</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s7 <span class="registros-xn">x23</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s8 <span class="registros-xn">x24</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s9 <span class="registros-xn">x25</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s10 <span class="registros-xn">x26</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Guardado">s11 <span class="registros-xn">x27</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr class="grupo"><td title="Temporal">t3 <span class="registros-xn">x28</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Temporal">t4 <span class="registros-xn">x29</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Temporal">t5 <span class="registros-xn">x30</span></td><td>0x00000000</td><td>0</td></tr>
+              <tr><td title="Temporal">t6 <span class="registros-xn">x31</span></td><td>0x00000000</td><td>0</td></tr>
+            </tbody>
+          </table>
+          <details class="registros-csrs"><summary>▸ CSRs (avanzado)</summary></details>
+          <details class="registros-csrs registros-flotante"><summary>▸ Registros F (flotante)</summary>
+            <table class="registros-tabla">
+              <thead><tr><th>Reg</th><th>Hexadecimal</th><th>Valor</th></tr></thead>
+              <tbody>
+                <tr><td title="Temporal flotante">ft0 <span class="registros-xn">f0</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft1 <span class="registros-xn">f1</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft2 <span class="registros-xn">f2</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft3 <span class="registros-xn">f3</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft4 <span class="registros-xn">f4</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft5 <span class="registros-xn">f5</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft6 <span class="registros-xn">f6</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft7 <span class="registros-xn">f7</span></td><td>—</td><td>—</td></tr>
+                <tr class="grupo"><td title="Guardado flotante">fs0 <span class="registros-xn">f8</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs1 <span class="registros-xn">f9</span></td><td>—</td><td>—</td></tr>
+                <tr class="grupo"><td title="Argumento / valor de retorno flotante">fa0 <span class="registros-xn">f10</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa1 <span class="registros-xn">f11</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa2 <span class="registros-xn">f12</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa3 <span class="registros-xn">f13</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa4 <span class="registros-xn">f14</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa5 <span class="registros-xn">f15</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa6 <span class="registros-xn">f16</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Argumento flotante">fa7 <span class="registros-xn">f17</span></td><td>—</td><td>—</td></tr>
+                <tr class="grupo"><td title="Guardado flotante">fs2 <span class="registros-xn">f18</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs3 <span class="registros-xn">f19</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs4 <span class="registros-xn">f20</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs5 <span class="registros-xn">f21</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs6 <span class="registros-xn">f22</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs7 <span class="registros-xn">f23</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs8 <span class="registros-xn">f24</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs9 <span class="registros-xn">f25</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs10 <span class="registros-xn">f26</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Guardado flotante">fs11 <span class="registros-xn">f27</span></td><td>—</td><td>—</td></tr>
+                <tr class="grupo"><td title="Temporal flotante">ft8 <span class="registros-xn">f28</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft9 <span class="registros-xn">f29</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft10 <span class="registros-xn">f30</span></td><td>—</td><td>—</td></tr>
+                <tr><td title="Temporal flotante">ft11 <span class="registros-xn">f31</span></td><td>—</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </details>
+        </div>
+      </section>
+
+      <section id="panel-memoria" class="panel" data-colapsado="{{ memCol }}">
+        <h2 class="panel-titulo-clickeable" onClick="{{ toggleMem }}"><span><span class="chev">{{ memChev }}</span>Memoria</span></h2>
+        <div class="panel-cuerpo">
+          <div class="memoria-controles">
+            <input value="0x10010000">
+            <button>Ir</button><button>.text</button><button>.data</button><button>pila (sp)</button>
+          </div>
+          <pre class="memoria-dump"><span class="dir">0x10010000</span>  c2 a1 48 6f 6c 61 2c 20  6d 75 6e 64 6f 21 0a <span class="cero">00</span>   ··Hola, mundo!·<span class="cero">·</span>
+<span class="dir">0x10010010</span>  <span class="cero">00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00   ················</span>
+<span class="dir">0x10010020</span>  <span class="cero">00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00   ················</span>
+<span class="dir">0x10010030</span>  <span class="cero">00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00   ················</span>
+<span class="dir">0x10010040</span>  <span class="cero">00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00   ················</span></pre>
+        </div>
+      </section>
+
+      <section id="panel-depuracion" class="panel" data-colapsado="{{ depCol }}">
+        <h2 class="panel-titulo-clickeable" onClick="{{ toggleDep }}"><span><span class="chev">{{ depChev }}</span>Depuración</span><span class="secundario">avanzado</span></h2>
+        <div class="panel-cuerpo">
+          <div class="depuracion-seccion">
+            <h3>Breakpoints</h3>
+            <div class="depuracion-vacio">Sin breakpoints: click en el margen del editor para agregar uno.</div>
+          </div>
+          <div class="depuracion-seccion">
+            <button class="wp-toggle" onClick="{{ toggleWp }}"><span class="chev">{{ wpChev }}</span>Watchpoints</button>
+            <div data-oculto="{{ wpOculto }}">
+              <div class="wp-ayuda">¿Qué es esto? Un watchpoint frena el programa cuando una dirección de memoria se lee o se escribe — sirve para cazar quién toca un dato. (Avanzado: dejalo para más adelante.)</div>
+              <div class="depuracion-vacio">Sin watchpoints: agregá una dirección de datos para vigilar.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <section id="panel-consola" class="panel">
+      <h2>Consola</h2>
+      <div class="panel-cuerpo">
+        <div id="consola">
+          <button class="consola-limpiar">Limpiar</button>
+          <div class="consola-salida"><span class="consola-sys">▸ Programa iniciado</span>
+¡Hola, mundo!
+Ingresá un número: <span class="consola-eco">42</span>
+El doble es: 84
+<span class="consola-error">✗ Error: dirección de memoria fuera de rango (0x00000000)</span>
+<span class="consola-sys">▸ Programa terminado (código 0)</span></div>
+          <div class="consola-entrada"><span class="ce-prompt">›</span><span class="ce-caret"></span><span class="ce-hint">&nbsp;esperando una línea de entrada…</span></div>
+        </div>
+      </div>
+    </section>
+
+    <footer id="estado"><span class="estado-pill"><span class="estado-dot"></span>Listo</span><span class="estado-msg">Programa ensamblado: 24 bytes de código.</span></footer>
+  </div>
+
+  <div class="emurv-modal" data-modal="{{ modal }}">
+    <div class="modal-backdrop" onClick="{{ cerrarModal }}"></div>
+
+    <section class="modal-card modal-cuerpo-ejemplos">
+      <header class="modal-head"><h2>Ejemplos<span class="mh-sub">elegí uno para cargarlo</span></h2><button class="modal-x" onClick="{{ cerrarModal }}"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></header>
+      <div class="modal-scroll">
+        <div class="modal-item"><div><div class="mi-titulo">Hola mundo</div><div class="mi-desc">Imprime un saludo en la consola y termina. Ideal para empezar.</div></div></div>
+        <div class="modal-item"><div><div class="mi-titulo">Suma de dos números</div><div class="mi-desc">Lee dos enteros desde la consola y muestra el resultado.</div></div></div>
+        <div class="modal-item"><div><div class="mi-titulo">Secuencia de Fibonacci</div><div class="mi-desc">Calcula los primeros términos con un bucle y registros temporales.</div></div></div>
+        <div class="modal-item"><div><div class="mi-titulo">Eco de teclado</div><div class="mi-desc">Repite en la consola lo que vayas escribiendo.</div></div></div>
+        <div class="modal-item"><div><div class="mi-titulo">Factorial (recursivo)</div><div class="mi-desc">Introduce funciones, la pila y la dirección de retorno (ra).</div></div></div>
+        <div class="modal-item"><div><div class="mi-titulo">Promedio con punto flotante</div><div class="mi-desc">Usa los registros f y operaciones de coma flotante.</div></div></div>
+      </div>
+    </section>
+
+    <section class="modal-card modal-cuerpo-lecciones">
+      <header class="modal-head"><h2>Lecciones<span class="mh-sub">3 de 6 completadas</span></h2><button class="modal-x" onClick="{{ cerrarModal }}"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></header>
+      <div class="modal-progreso"><div class="etq">Tu progreso</div><div class="barra"><i></i></div></div>
+      <div class="modal-scroll">
+        <div class="modal-item"><svg class="ico modal-check" viewBox="0 0 24 24" width="20" height="20"><path d="M20 6 9 17l-5-5"></path></svg><div><div class="mi-titulo">Tu primer programa</div><div class="mi-desc">Escribí, ensamblá y ejecutá «Hola mundo».</div></div></div>
+        <div class="modal-item"><svg class="ico modal-check" viewBox="0 0 24 24" width="20" height="20"><path d="M20 6 9 17l-5-5"></path></svg><div><div class="mi-titulo">Registros y valores</div><div class="mi-desc">Qué guarda cada registro y cómo leerlos paso a paso.</div></div></div>
+        <div class="modal-item"><svg class="ico modal-check" viewBox="0 0 24 24" width="20" height="20"><path d="M20 6 9 17l-5-5"></path></svg><div><div class="mi-titulo">Memoria y direcciones</div><div class="mi-desc">Cómo se guardan los datos y qué es una dirección.</div></div></div>
+        <div class="modal-item"><span class="modal-num">4</span><div><div class="mi-titulo">Saltos y decisiones <span class="mh-sub">· en curso</span></div><div class="mi-desc">Comparaciones y bifurcaciones (if / while).</div></div></div>
+        <div class="modal-item"><span class="modal-num">5</span><div><div class="mi-titulo">Funciones y la pila</div><div class="mi-desc">Llamadas, ra y la convención de registros.</div></div></div>
+        <div class="modal-item"><span class="modal-num">6</span><div><div class="mi-titulo">Punto flotante</div><div class="mi-desc">Operar con números con decimales y registros f.</div></div></div>
+      </div>
+    </section>
+
+    <section class="modal-card modal-cuerpo-ayuda">
+      <header class="modal-head"><h2>Ayuda de EmuRV<span class="mh-sub">referencia</span></h2><button class="modal-x" onClick="{{ cerrarModal }}"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></header>
+      <div class="ay-body">
+        <nav class="ay-nav">
+          <div class="ay-nav-tit">Empezar</div>
+          <button class="activo" data-sec="ay-ciclo" onClick="{{ ayIr }}">Ciclo de trabajo</button>
+          <button data-sec="ay-ejemplos" onClick="{{ ayIr }}">Ejemplos</button>
+          <div class="ay-nav-tit">Referencia</div>
+          <button data-sec="ay-syscalls" onClick="{{ ayIr }}">Syscalls</button>
+          <button data-sec="ay-memoria" onClick="{{ ayIr }}">Mapa de memoria</button>
+          <button data-sec="ay-teclado" onClick="{{ ayIr }}">Teclado (MMIO)</button>
+          <button data-sec="ay-directivas" onClick="{{ ayIr }}">Directivas</button>
+          <div class="ay-nav-tit">Herramientas</div>
+          <button data-sec="ay-editor" onClick="{{ ayIr }}">Editor</button>
+          <button data-sec="ay-depuracion" onClick="{{ ayIr }}">Breakpoints y depuración</button>
+          <button data-sec="ay-idioma" onClick="{{ ayIr }}">Idioma y temas</button>
+          <div class="ay-nav-tit">Proyecto</div>
+          <button data-sec="ay-about" onClick="{{ ayIr }}">Acerca de</button>
+        </nav>
+
+        <div class="ay-cont">
+          <section id="ay-ciclo">
+            <h3>Ciclo de trabajo</h3>
+            <p>Escribí tu programa, presioná <span class="ay-btn">Ensamblar</span> y después <span class="ay-btn">Ejecutar</span> (corre hasta el final) o <span class="ay-btn">Paso</span> (una instrucción por vez). <span class="ay-btn">Reiniciar</span> vuelve la máquina al estado inicial sin re-ensamblar. Los paneles de la derecha muestran los registros (los que cambiaron quedan resaltados) y la memoria.</p>
+            <p>¿Arrancás de cero? Apretá <span class="ay-btn">Lecciones</span>: un curso de 10 lecciones ordenadas. Al elegir una ves sus objetivos y qué paneles mirar; <span class="ay-btn">Abrir lección</span> carga el código al editor para recorrerlo con <span class="ay-btn">Paso</span>. El navegador marca tu progreso y te lleva a la siguiente.</p>
+            <p class="compacto"><span class="ay-btn">Abrir</span> también acepta ejecutables ELF32 RISC-V: el editor muestra el listado desensamblado (solo lectura) y Ejecutar/Paso/breakpoints funcionan sobre él.</p>
+            <div class="ay-nota"><span class="et">gcc</span>Para compilar: <code style="font-family:var(--mono);font-size:12px">-march=rv32im -mabi=ilp32 -Ttext=0x00400000 -Tdata=0x10010000 -nostdlib</code></div>
+          </section>
+
+          <section id="ay-ejemplos">
+            <h3>Ejemplos</h3>
+            <p>El menú <span class="ay-btn">Ejemplos</span> carga programas comentados: hola mundo, suma interactiva, contador, fibonacci, pila/funciones (factorial recursivo), franjas de color y Tetris gráfico, eco de teclado y Tetris en tiempo real (teclado MMIO), manejador de excepciones (CSRs/traps) y coma flotante (promedio de notas con F/D).</p>
+          </section>
+
+          <section id="ay-syscalls">
+            <h3>Syscalls (convención RARS)</h3>
+            <p class="compacto">Cargá el número de servicio en <b>a7</b>, los argumentos en <b>a0</b>, y ejecutá <b>ecall</b>:</p>
+            <table class="ay-tabla">
+              <thead><tr><th class="col-num">a7</th><th>Servicio</th><th>Argumentos</th></tr></thead>
+              <tbody>
+                <tr><td class="col-num"><span class="ay-num">1</span></td><td class="ay-serv">Imprimir entero</td><td class="ay-arg">a0 = valor</td></tr>
+                <tr><td class="col-num"><span class="ay-num">2</span></td><td class="ay-serv">Imprimir float (single)</td><td class="ay-arg">fa0 = valor (f32)</td></tr>
+                <tr><td class="col-num"><span class="ay-num">3</span></td><td class="ay-serv">Imprimir double</td><td class="ay-arg">fa0 = valor (f64)</td></tr>
+                <tr><td class="col-num"><span class="ay-num">4</span></td><td class="ay-serv">Imprimir cadena</td><td class="ay-arg">a0 = dirección (NUL)</td></tr>
+                <tr><td class="col-num"><span class="ay-num">5</span></td><td class="ay-serv">Leer entero</td><td class="ay-arg">→ a0 = valor leído</td></tr>
+                <tr><td class="col-num"><span class="ay-num">6</span></td><td class="ay-serv">Leer float (single)</td><td class="ay-arg">→ fa0 (f32)</td></tr>
+                <tr><td class="col-num"><span class="ay-num">7</span></td><td class="ay-serv">Leer double</td><td class="ay-arg">→ fa0 (f64)</td></tr>
+                <tr><td class="col-num"><span class="ay-num">8</span></td><td class="ay-serv">Leer cadena <span style="font-weight:400;color:var(--texto-suave)">(hasta a1−1 chars + 0; trunca sin error)</span></td><td class="ay-arg">a0 = buffer, a1 = tamaño</td></tr>
+                <tr><td class="col-num"><span class="ay-num">9</span></td><td class="ay-serv">Reservar heap <span style="font-weight:400;color:var(--texto-suave)">(sbrk desde 0x10040000, sin free)</span></td><td class="ay-arg">a0 = bytes → a0 = dir</td></tr>
+                <tr><td class="col-num"><span class="ay-num">10</span></td><td class="ay-serv">Terminar el programa</td><td class="ay-arg">—</td></tr>
+                <tr><td class="col-num"><span class="ay-num">11</span></td><td class="ay-serv">Imprimir carácter</td><td class="ay-arg">a0 = código de carácter</td></tr>
+                <tr><td class="col-num"><span class="ay-num">30</span></td><td class="ay-serv">Tiempo del sistema (ms, época Unix)</td><td class="ay-arg">→ a0 bajos, a1 altos</td></tr>
+                <tr><td class="col-num"><span class="ay-num">32</span></td><td class="ay-serv">Dormir a0 milisegundos</td><td class="ay-arg">a0 = milisegundos</td></tr>
+                <tr><td class="col-num"><span class="ay-num">60</span></td><td class="ay-serv">Limpiar la consola <span style="font-weight:400;color:var(--texto-suave)">(extensión EmuRV)</span></td><td class="ay-arg">—</td></tr>
+                <tr><td class="col-num"><span class="ay-num">93</span></td><td class="ay-serv">Terminar con código de salida <span style="font-weight:400;color:var(--texto-suave)">(0..125)</span></td><td class="ay-arg">a0 = código</td></tr>
+              </tbody>
+            </table>
+            <pre class="ayuda-ejemplo">    <span class="c-ins">li</span>   a7, <span class="c-num">4</span>        <span class="c-com"># servicio: imprimir cadena</span>
+    <span class="c-ins">la</span>   a0, mensaje  <span class="c-com"># argumento</span>
+    <span class="c-ins">ecall</span>             <span class="c-com"># llamada al sistema</span></pre>
+            <div class="ay-nota"><span class="et">ebreak</span>Pausa el programa por software (como un breakpoint en el código): inspeccionás registros y memoria y reanudás con Ejecutar o Paso.</div>
+            <div class="ay-nota"><span class="et">Avanzado</span>Con <code style="font-family:var(--mono)">csrw mtvec, reg</code> el programa instala su manejador de excepciones; ecall desconocidos, instrucciones ilegales y accesos inválidos saltan ahí (mcause dice qué pasó) y <code style="font-family:var(--mono)">mret</code> vuelve.</div>
+            <p class="compacto"><b>Coma flotante (RV32F/D):</b> registros f0–f31 con nombres ABI (ft, fs, fa); aritmética .s/.d, conversiones, comparaciones y fma. Se ven en el panel «Registros F».</p>
+            <p class="compacto"><b>Extensiones:</b> A (atómicas — mono-hart, sc siempre tiene éxito: para aprender el patrón) y C (comprimidas de 2 bytes: c.addi, c.li, c.mv, c.lw…).</p>
+          </section>
+
+          <section id="ay-memoria">
+            <h3>Mapa de memoria</h3>
+            <table class="ay-tabla">
+              <thead><tr><th>Dirección</th><th>Qué</th></tr></thead>
+              <tbody>
+                <tr><td><span class="ay-addr">0x00400000</span></td><td>Código (.text) — acá empieza la ejecución</td></tr>
+                <tr><td><span class="ay-addr">0x10010000</span></td><td>Datos (.data)</td></tr>
+                <tr><td><span class="ay-addr">0x7FFFFFF0</span></td><td>Tope de la pila (sp inicial; crece hacia abajo)</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="ay-teclado">
+            <h3>Teclado y tiempo</h3>
+            <p>El teclado es un dispositivo mapeado en memoria (MMIO), como en RARS/MARS: el programa lo consulta por encuesta (polling) leyendo dos palabras. Para tipear: clic en la pantalla del panel (queda capturando hasta que hagas clic afuera).</p>
+            <table class="ay-tabla">
+              <thead><tr><th>Dirección</th><th>Registro</th></tr></thead>
+              <tbody>
+                <tr><td><span class="ay-addr">0xFFFF0000</span></td><td>RECEIVER_CONTROL — bit 0 en 1 si hay tecla pendiente</td></tr>
+                <tr><td><span class="ay-addr">0xFFFF0004</span></td><td>RECEIVER_DATA — código de la tecla; leerlo la consume</td></tr>
+              </tbody>
+            </table>
+            <table class="ay-tabla">
+              <thead><tr><th class="col-num">Cód.</th><th>Tecla</th></tr></thead>
+              <tbody>
+                <tr><td class="ay-arg">32–126</td><td>Caracteres imprimibles ASCII</td></tr>
+                <tr><td class="ay-arg">10</td><td>Enter</td></tr>
+                <tr><td class="ay-arg">27</td><td>Escape</td></tr>
+                <tr><td class="ay-arg">8</td><td>Backspace</td></tr>
+                <tr><td class="ay-arg">0x80–0x83</td><td>Flechas: ← 0x80, → 0x81, ↑ 0x82, ↓ 0x83</td></tr>
+              </tbody>
+            </table>
+            <pre class="ayuda-ejemplo">espera:
+    <span class="c-ins">li</span>   t0, <span class="c-num">0xFFFF0000</span>   <span class="c-com"># RECEIVER_CONTROL</span>
+    <span class="c-ins">lw</span>   t1, <span class="c-num">0</span>(t0)        <span class="c-com"># bit 0 = hay tecla</span>
+    <span class="c-ins">beqz</span> t1, espera       <span class="c-com"># nada todavía</span>
+    <span class="c-ins">lw</span>   a0, <span class="c-num">4</span>(t0)        <span class="c-com"># leer consume la tecla</span></pre>
+          </section>
+
+          <section id="ay-directivas">
+            <h3>Directivas soportadas</h3>
+            <div class="ay-chips">
+              <span class="ay-chip">.text</span><span class="ay-chip">.data</span><span class="ay-chip">.word</span><span class="ay-chip">.half</span><span class="ay-chip">.byte</span><span class="ay-chip">.ascii</span><span class="ay-chip">.asciiz</span><span class="ay-chip">.string</span><span class="ay-chip">.space</span><span class="ay-chip">.align</span><span class="ay-chip">.globl</span><span class="ay-chip">.include</span><span class="ay-chip">.eqv</span><span class="ay-chip">.equ</span><span class="ay-chip">.macro</span><span class="ay-chip">.end_macro</span>
+            </div>
+            <p class="compacto"><code style="font-family:var(--mono);font-size:12px">.include "archivo.s"</code> inserta otro archivo (debe estar guardado en disco); <code style="font-family:var(--mono);font-size:12px">.eqv NOMBRE valor</code> define constantes; <code style="font-family:var(--mono);font-size:12px">.macro…/.end_macro</code> define macros; <code style="font-family:var(--mono);font-size:12px">%hi(x)/%lo(x)</code> parten una dirección para lui+addi.</p>
+          </section>
+
+          <section id="ay-editor">
+            <h3>Editor</h3>
+            <p>Te ayuda mientras escribís: autocompletado de mnemónicos, registros y etiquetas (al tipear o con Ctrl-Espacio); al pasar el mouse sobre una instrucción ves su sintaxis y qué hace; Cmd/Ctrl-click sobre una etiqueta salta a su definición, y al posar el cursor sobre una etiqueta se resaltan todos sus usos. Los errores se ven al <span class="ay-btn">Ensamblar</span>.</p>
+          </section>
+
+          <section id="ay-depuracion">
+            <h3>Breakpoints y depuración</h3>
+            <p>Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. <span class="ay-btn">Ejecutar</span> se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria.</p>
+            <p class="compacto">En el panel <span class="ay-btn">Depuración</span> podés sumarle una condición a cada breakpoint (ej.: <code style="font-family:var(--mono)">t0 == 5</code>) y vigilar zonas de datos con watchpoints. Con la máquina pausada, doble clic sobre un registro o una palabra de memoria los edita en vivo.</p>
+          </section>
+
+          <section id="ay-idioma">
+            <h3>Idioma y temas</h3>
+            <p>EmuRV está en español o inglés: usá el selector ES/EN de la barra (tu elección se recuerda). La traducción cubre la interfaz; los mensajes del ensamblador y las lecciones quedan en español — son el material didáctico.</p>
+            <p class="compacto">Con el selector de tema elegís el aspecto (Educativo y los experimentales). El cambio se ve al instante y se recuerda; todos mantienen buen contraste para leer el código con comodidad.</p>
+          </section>
+
+          <section id="ay-about">
+            <h3>Acerca de</h3>
+            <div class="ay-about-id">
+              <svg class="logo-emurv" viewBox="0 0 337.1 114.0" role="img" aria-label="EmuRV"><g transform="matrix(0.10541 0 0 -0.10541 7.7757 94.9459)"><path class="logo-emu" d="M97.0 0V730H522.0V641H195.0V424H487.0V338H195.0V89H522.0V0Z M657.0 0V550H741.0V475H744.0Q748.0 513 772.5 536.5Q797.0 560 835.0 560Q872.0 560 897.0 538.0Q922.0 516 933.0 479Q939.0 517 964.0 538.5Q989.0 560 1027.0 560Q1079.0 560 1111.0 520.5Q1143.0 481 1143.0 418V0H1053.0V417Q1053.0 448 1037.5 466.5Q1022.0 485 996.0 485Q970.0 485 955.0 467.0Q940.0 449 940.0 417V0H860.0V417Q860.0 448 845.0 466.5Q830.0 485 804.0 485Q778.0 485 762.5 467.0Q747.0 449 747.0 417V0Z M1499.0 -10Q1402.0 -10 1344.0 47.0Q1286.0 104 1286.0 202V550H1385.0V202Q1385.0 144 1415.5 110.5Q1446.0 77 1499.0 77Q1553.0 77 1584.0 110.5Q1615.0 144 1615.0 202V550H1714.0V202Q1714.0 104 1655.5 47.0Q1597.0 -10 1499.0 -10Z"></path><path class="logo-rv" d="M1889.0 0V730H2115.0Q2182.0 730 2232.0 703.5Q2282.0 677 2310.0 629.5Q2338.0 582 2338.0 518Q2338.0 444 2300.5 391.0Q2263.0 338 2201.0 316L2348.0 0H2239.0L2100.0 305H1987.0V0ZM1987.0 393H2115.0Q2171.0 393 2203.5 427.0Q2236.0 461 2236.0 517Q2236.0 574 2203.0 608.0Q2170.0 642 2115.0 642H1987.0Z M2633.0 0 2446.0 730H2548.0L2669.0 238Q2681.0 191 2689.5 147.5Q2698.0 104 2702.0 81Q2705.0 104 2714.5 148.0Q2724.0 192 2735.0 239L2852.0 730H2954.0L2766.0 0Z"></path></g></svg>
+              <div class="tagline">Entorno educativo para programar en ensamblador RISC-V (RV32IMAFDC), en español. <span class="ay-ver">v0.1</span></div>
+            </div>
+
+            <div class="ay-autor">
+              <div class="nombre">Enrique Emmanuel Ríos Chyrnia</div>
+              <div class="rol">Estudiante de Ingeniería Informática · Paraguay</div>
+            </div>
+
+            <div class="ay-nota"><span class="et">IA</span>EmuRV fue desarrollado con asistencia de modelos Claude (Anthropic) sobre un contrato de especificación/arquitectura/plan, con verificación por pruebas automatizadas.</div>
+
+            <div class="ay-cred-grupo">Núcleo y app de escritorio (Rust)</div>
+            <ul class="ay-cred">
+              <li><span class="nom"><b>Rust</b> <span class="desc">— lenguaje del núcleo</span></span></li>
+              <li><span class="nom"><b>Tauri 2</b> <span class="desc">— app de escritorio nativa liviana</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+              <li><span class="nom"><b>Unicorn Engine 2.1.5</b> <span class="desc">— motor de emulación de CPU</span></span><span class="ay-lic">GPLv2</span></li>
+              <li><span class="nom"><b>Capstone 0.14</b> <span class="desc">— desensamblador</span></span><span class="ay-lic">BSD-3-Clause</span></li>
+              <li><span class="nom"><b>object 0.39</b> <span class="desc">— ejecutables ELF</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+              <li><span class="nom"><b>udbserver</b> <span class="desc">— servidor GDB remoto (usa gdbstub)</span></span><span class="ay-lic">MIT</span></li>
+              <li><span class="nom"><b>serde · serde_json · thiserror</b> <span class="desc">— utilidades</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+            </ul>
+            <div class="ay-nota"><span class="et">Licencia</span>La GPLv2 de Unicorn Engine condiciona la licencia del proyecto (decisión pendiente en el Cap. VI de la memoria).</div>
+
+            <div class="ay-cred-grupo">Interfaz (TypeScript)</div>
+            <ul class="ay-cred">
+              <li><span class="nom"><b>TypeScript 5.6</b> <span class="desc">— lenguaje</span></span><span class="ay-lic">Apache-2.0</span></li>
+              <li><span class="nom"><b>Vite 6</b> <span class="desc">— empaquetado</span></span><span class="ay-lic">MIT</span></li>
+              <li><span class="nom"><b>CodeMirror 6</b> <span class="desc">— editor de código</span></span><span class="ay-lic">MIT</span></li>
+              <li><span class="nom"><b>@tauri-apps/api</b> <span class="desc">— puente con el backend (+ plugins dialog/opener)</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+            </ul>
+
+            <div class="ay-cred-grupo">Tipografía e iconos</div>
+            <ul class="ay-cred">
+              <li><span class="nom"><b>JetBrains Mono</b> <span class="desc">— fuente monoespaciada</span></span><span class="ay-lic">OFL 1.1</span></li>
+              <li><span class="nom"><b>Lucide</b> <span class="desc">— iconos SVG de la barra</span></span><span class="ay-lic">ISC</span></li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { tema: "educativo", layout: "actual", ancho: "max", estetica: "base", memCol: false, depCol: false, wpOculto: true, videoOculto: false, modal: "" };
+  renderVals() {
+    const s = this.state;
+    const labels = { educativo:"Educativo", pergamino:"Pergamino", kawaii:"Retro Kawaii", disquete:"Disquete 90s" };
+    const nota = s.estetica === "calido"
+      ? "Estética CÁLIDO ✦ — esquinas redondeadas, aire, paneles-tarjeta, fuente IBM Plex Sans y acento violeta (Educativo). Pantalla oculta hasta usarse: botón «Pantalla». Aplica a cualquier tema."
+      : (s.layout === "actual"
+          ? "Layout ACTUAL — #lateral con 2 pistas: Pantalla y Memoria ahogan a Registros. Probá «Ventana › Angosta» para ver el bug de la toolbar."
+          : "Layout PROPUESTO — Registros prioritario, Pantalla acotada, Depuración plegada y toolbar con flex-wrap. Probá «Ventana › Angosta».");
+    return {
+      tema: s.tema,
+      layout: s.layout,
+      ancho: s.ancho,
+      estetica: s.estetica,
+      modal: s.modal,
+      temaLabel: labels[s.tema] || "Educativo",
+      nota,
+      memCol: s.memCol ? "true" : "false",
+      depCol: s.depCol ? "true" : "false",
+      wpOculto: s.wpOculto ? "true" : "false",
+      videoOculto: s.videoOculto ? "true" : "false",
+      memChev: s.memCol ? "▸ " : "▾ ",
+      depChev: s.depCol ? "▸ " : "▾ ",
+      wpChev:  s.wpOculto ? "▸ " : "▾ ",
+      tEdu:  () => this.setState({ tema: "educativo" }),
+      tPerg: () => this.setState({ tema: "pergamino" }),
+      tKawaii: () => this.setState({ tema: "kawaii" }),
+      tDisquete: () => this.setState({ tema: "disquete" }),
+      // al pasar a Propuesto se aplican los defaults de progressive disclosure
+      lActual: () => this.setState({ layout: "actual", depCol: false, memCol: false }),
+      lProp:   () => this.setState({ layout: "propuesto", depCol: true, memCol: false, wpOculto: true }),
+      wMax: () => this.setState({ ancho: "max" }),
+      wNar: () => this.setState({ ancho: "angosto" }),
+      // Cálido implica el layout Propuesto + Pantalla oculta hasta usarse
+      eBase:   () => this.setState({ estetica: "base", videoOculto: false }),
+      eCalido: () => this.setState({ estetica: "calido", layout: "propuesto", depCol: true, wpOculto: true, videoOculto: true }),
+      toggleVideo: () => this.setState({ videoOculto: !s.videoOculto }),
+      abrirEjemplos:  () => this.setState({ modal: "ejemplos" }),
+      abrirLecciones: () => this.setState({ modal: "lecciones" }),
+      abrirAyuda:     () => this.setState({ modal: "ayuda" }),
+      cerrarModal:    () => this.setState({ modal: "" }),
+      ayIr: (e) => {
+        const btn = e.currentTarget;
+        const id = btn.dataset.sec;
+        const cont = btn.closest(".ay-body").querySelector(".ay-cont");
+        const dest = cont.querySelector("#" + id);
+        if (cont && dest) cont.scrollTo({ top: dest.offsetTop - cont.offsetTop - 6, behavior: "smooth" });
+        btn.parentElement.querySelectorAll("button").forEach(b => b.classList.remove("activo"));
+        btn.classList.add("activo");
+      },
+      toggleMem: () => this.setState({ memCol: !s.memCol }),
+      toggleDep: () => this.setState({ depCol: !s.depCol }),
+      toggleWp:  () => this.setState({ wpOculto: !s.wpOculto }),
+    };
+  }
+}
+</script>
+</body>
+</html>
