@@ -47,6 +47,10 @@ html, body {
   cursor: pointer;
 }
 
+/* botón con icono SVG + texto (RP17-F2) */
+#toolbar button { display: inline-flex; align-items: center; gap: 6px; }
+#toolbar button .ico { width: 15px; height: 15px; flex: none; }
+
 #toolbar button:hover:not(:disabled) { border-color: var(--acento); }
 #toolbar button:disabled { opacity: 0.45; cursor: default; }
 #toolbar button.principal { background: var(--acento); color: var(--texto-sobre-acento); font-weight: 600; }

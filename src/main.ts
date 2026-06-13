@@ -22,6 +22,7 @@ import {
   toggleBreakpointAtLine,
 } from "./editor";
 import { getLang, setLang, t } from "./i18n";
+import { icono } from "./iconos";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
@@ -140,7 +141,13 @@ class App {
     const boton = (id: string, clave: string, clase = "") => {
       const b = document.createElement("button");
       b.id = id;
-      b.textContent = t(clave);
+      const texto = t(clave);
+      // Icono SVG inline (RP17-F2) + texto. El icono es decorativo
+      // (aria-hidden); el texto da la etiqueta. aria-label explícito por las
+      // dudas de lectores de pantalla.
+      const svg = icono(id);
+      b.innerHTML = svg ? `${svg}<span>${texto}</span>` : texto;
+      b.setAttribute("aria-label", texto);
       if (clase) b.className = clase;
       bar.appendChild(b);
       this.botones[id] = b;

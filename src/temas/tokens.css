@@ -5,6 +5,17 @@
    estas variables — cero CSS duplicado (ver styles.css, que solo usa
    var(--…)). */
 
+/* Fuente monoespaciada self-hosted (RP17-F2): JetBrains Mono, licencia
+   SIL Open Font License 1.1 (src/assets/fonts/OFL.txt). Self-hosted para
+   no depender de red ni de fuentes del sistema; fallback al mono del SO. */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-tema="educativo"] {
   /* superficies */
@@ -35,6 +46,7 @@
   --sombra-modal: 0 18px 60px rgba(0, 0, 0, 0.5);
   --fondo-pantalla: #000; /* lienzo del framebuffer */
 
-  /* tipografía monoespaciada (la fuente self-hosted llega en F2) */
-  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  /* tipografía monoespaciada: JetBrains Mono self-hosted (RP17-F2) con
+     fallback al mono del sistema si la fuente no cargara. */
+  --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 }
