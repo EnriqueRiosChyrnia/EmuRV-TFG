@@ -1548,3 +1548,38 @@ Ambos desenlaces eran cierre válido; entró el A+C completo.
 
 Suites verdes (36 src-tauri, 50 CLI), clippy 0 ambos, tsc limpio,
 ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30.
+
+## 2026-06-13 — RP14-F1: tokens ISA al día (RV32IMAFDC) y fuente única anti-drift
+
+[Seguro] DEUDA SALDADA: las listas MNEMONICS/REGISTERS del editor estaban
+en RV32IM viejo — NO reconocían F/D (RP-12), A ni C (RP-13). El resaltado
+ahora cubre el repertorio completo.
+
+[Seguro] Fuente única `src/editor/isa.ts`: MNEMONICS (reales),
+PSEUDOS, REGISTERS_X, REGISTERS_F + helpers `esMnemonico` (tolera sufijos
+.aq/.rl/.aqrl de las atómicas) y `esRegistro`. `riscv.ts` ya NO tiene
+listas propias: consume isa.ts (una sola fuente en el frontend). NO incluye
+fmv.x.d/fmv.d.x (el assembler las rechaza: no existen en RV32) ni modos de
+redondeo (son operandos).
+
+[Seguro — decisión de diseño anti-drift, registrada] Elegí la opción B del
+plan: `assembler::known_mnemonics()` (Rust) es la lista CANÓNICA;
+tests/rp14_anti_drift.rs (1) ensambla cada entrada canónica sola y exige
+que NO dé «instrucción desconocida» (prueba que known_mnemonics no tiene
+fantasmas vs check_shape), y (2) lee isa.ts (include_str!) y exige
+MNEMONICS ∪ PSEUDOS == known_mnemonics() (ni falta ni sobra). Si el
+ensamblador gana/pierde una instrucción y isa.ts no se actualiza, el test
+falla. Tercer test explícito: isa.ts incluye fadd.s/fmul.d/amoadd.w/lr.w/
+c.addi/c.lw (la deuda, por si alguien recorta sin querer). Por qué B y no
+el cross-assemble TS↔Rust: parsear TS desde Rust es frágil; con
+include_str! + comparación de conjuntos el binding es directo y barato.
+
+[Probable] Verificación manual del resaltado (vía tsx sobre isa.ts):
+esMnemonico devuelve true para fadd.s/fmul.d/amoadd.w/amoadd.w.aqrl/lr.w/
+c.addi/c.lw/add/li y false para basura; esRegistro true para ft0/fa0/f5/
+t0/x10/zero y false para q9. En la app el resaltado de esas instrucciones
+queda pendiente de ojo humano (clave: abrir ejemplos/13-flotantes.asm y
+14-atomicas.asm y ver fadd.s/amoadd.w/c.li coloreadas como instrucción).
+
+Compuerta F1: anti-drift verde (3 tests) · resaltado verificado por helper
+· tsc limpio · suite Rust intacta (37 binarios) · clippy 0 ambos.

@@ -98,6 +98,54 @@ impl Program {
     }
 }
 
+/// Lista CANÓNICA de mnemónicos que el ensamblador acepta (RP14): reales
+/// (RV32I+M+Zicsr+F+D+A+C) y pseudo-instrucciones. Es la fuente de verdad
+/// del anti-drift con el editor (`src/editor/isa.ts` debe igualarla — ver
+/// tests/rp14_anti_drift.rs). DEBE mantenerse en sincronía con
+/// `check_shape`/`parse_amo`/`es_comprimida`: el test
+/// `cada_mnemonico_conocido_se_acepta` verifica que cada entrada de acá es
+/// reconocida por el ensamblador (no «instrucción desconocida»).
+///
+/// NO incluye `fmv.x.d`/`fmv.d.x` (el ensamblador las rechaza: no existen
+/// en RV32) ni los modos de redondeo (rne/rtz/…: son operandos, no
+/// instrucciones). Las atómicas van en forma base; los sufijos
+/// .aq/.rl/.aqrl los maneja el editor.
+pub fn known_mnemonics() -> Vec<&'static str> {
+    let mut v = vec![
+        // RV32I
+        "lui", "auipc", "jal", "jalr", "beq", "bne", "blt", "bge", "bltu", "bgeu", "lb", "lh",
+        "lw", "lbu", "lhu", "sb", "sh", "sw", "addi", "slti", "sltiu", "xori", "ori", "andi",
+        "slli", "srli", "srai", "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or",
+        "and", "fence", "ecall", "ebreak",
+        // RV32M
+        "mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu",
+        // Zicsr (RP8)
+        "csrrw", "csrrs", "csrrc", "csrrwi", "csrrsi", "csrrci", "mret",
+        // RV32F (RP12)
+        "flw", "fsw", "fadd.s", "fsub.s", "fmul.s", "fdiv.s", "fsqrt.s", "fmin.s", "fmax.s",
+        "fmadd.s", "fmsub.s", "fnmadd.s", "fnmsub.s", "fcvt.w.s", "fcvt.wu.s", "fcvt.s.w",
+        "fcvt.s.wu", "fmv.x.w", "fmv.w.x", "feq.s", "flt.s", "fle.s", "fsgnj.s", "fsgnjn.s",
+        "fsgnjx.s", "fclass.s",
+        // RV32D (RP12)
+        "fld", "fsd", "fadd.d", "fsub.d", "fmul.d", "fdiv.d", "fsqrt.d", "fmin.d", "fmax.d",
+        "fmadd.d", "fmsub.d", "fnmadd.d", "fnmsub.d", "fcvt.w.d", "fcvt.wu.d", "fcvt.d.w",
+        "fcvt.d.wu", "fcvt.s.d", "fcvt.d.s", "feq.d", "flt.d", "fle.d", "fsgnj.d", "fsgnjn.d",
+        "fsgnjx.d", "fclass.d",
+        // RV32A (RP13) — forma base
+        "lr.w", "sc.w", "amoswap.w", "amoadd.w", "amoand.w", "amoor.w", "amoxor.w", "amomin.w",
+        "amomax.w", "amominu.w", "amomaxu.w",
+        // RV32C (RP13)
+        "c.nop", "c.addi", "c.li", "c.mv", "c.jr", "c.j", "c.lw", "c.sw", "c.beqz", "c.bnez",
+        // pseudo-instrucciones
+        "nop", "li", "la", "lla", "mv", "not", "neg", "seqz", "snez", "sltz", "sgtz", "beqz",
+        "bnez", "blez", "bgez", "bltz", "bgtz", "bgt", "ble", "bgtu", "bleu", "j", "jr", "ret",
+        "call", "tail", "csrr", "csrw", "csrs", "csrc", "fmv.s", "fmv.d", "fabs.s", "fabs.d",
+        "fneg.s", "fneg.d",
+    ];
+    v.sort_unstable();
+    v
+}
+
 // ---------------------------------------------------------------------------
 // Lexer
 // ---------------------------------------------------------------------------
