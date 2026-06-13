@@ -2426,3 +2426,47 @@ caret de consola en acento, ● tenue al pasar por el margen) y NO molesten.
 Compuerta F2: microinteracciones one-shot/no molestas · focus-visible
 coherente por tema · grupo-ejec con var(--radio) · tsc/build limpios ·
 suite intacta.
+
+## 2026-06-13 — RP19-F3: refinados de ruido visual y wordmark
+
+[Seguro] Refinados de ruido (valores del mock, aplicados siempre):
+- Cabeceras de tabla (th): de 600/posible-mayúscula a `font-weight:500;
+  font-size:11.5px; text-transform:none; letter-spacing:0` — son etiquetas,
+  no títulos a gritos.
+- Número crudo xN: `opacity:.38; font-size:10.5px` (era .5/11px) — dato
+  secundario, más tenue.
+- Volcado de memoria: bytes en cero atenuados (`.cero { color:var(--texto-suave);
+  opacity:.45 }`). Para marcarlos, memoria.ts pasó de un `textContent` por
+  palabra a un span por byte (clase `.cero` en los 00). La edición inline
+  sigue intacta: lee `dataset.addr/valor` y `textContent` (que concatena los
+  spans → mismo "00 1a 2f 00"); el dblclick es delegado con
+  `closest('.memoria-palabra')`, así que el target sub-span resuelve al padre.
+- Sin cebra: `tr:nth-child(even){ background:transparent }` + hover
+  `tbody tr:hover td { background: color-mix(var(--acento) 7%, transparent) }`
+  — la tarjeta y el hover ya separan, menos líneas compitiendo.
+- Separadores de grupo más suaves: `color-mix(var(--borde) 50%, transparent)`
+  (insinúan, no cortan). El ORDEN x0..x31 sigue intacto.
+
+[Seguro] Wordmark de marca en la toolbar (al inicio, antes del primer
+separador). El SVG del diseño (`docs/diseno-ui/assets/emurv-wordmark.svg`)
+traía dos verdes fijos; se adaptó programáticamente (sed) a
+`src/assets/emurv-wordmark.svg` con clases en vez de fills: el path «Emu» →
+`.logo-emu`, el path «RV» → `.logo-rv`, y `class="logo-emurv"` en el <svg>
+(sin width/height, el alto lo fija el CSS). Se importa con `?raw` y se
+inyecta inline (necesario para que el CSS pinte los paths). CSS:
+`.logo-emu { fill:var(--acento) }`, `.logo-rv { fill:var(--texto) }` → el
+wordmark RECOLOREA con el tema (violeta en Educativo, ámbar en Retro, etc.).
+El bundle no emite un asset SVG aparte (queda inline). RP-20 reusará el mismo
+SVG en el «Acerca de».
+
+[Seguro] tsc estricto (el import `?raw` está tipado por vite/client) y vite
+build limpios. UI 56. Contraste AA de los 5 temas sigue verde (los refinados
+son opacidad/transparencia/tipografía, no tocan los pares del test). Sin
+tocar Rust ni ids del JS.
+
+[PENDIENTE HUMANO] Verificación visual: ruido reducido como el mock (th sin
+gritos, xN tenue, ceros de memoria apagados, sin cebra) y el wordmark con su
+bi-tono adaptándose al cambiar de tema.
+
+Compuerta F3: wordmark se adapta al tema (bi-tono por tokens) · ruido
+reducido como el mock · contraste AA intacto · tsc/build limpios.

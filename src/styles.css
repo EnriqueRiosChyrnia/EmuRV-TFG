@@ -89,6 +89,13 @@ html, body {
 #toolbar .separador { width: 1px; align-self: stretch; background: var(--borde); margin: 0 4px; }
 #toolbar .espacio { flex: 1; }
 
+/* Wordmark de marca en la toolbar (RP19-F3): SVG bi-tono que se adapta al
+   tema — «Emu» en el acento, «RV» en el color de texto. */
+.toolbar-marca { display: inline-flex; align-items: center; padding: 0 2px; }
+.logo-emurv { height: 21px; width: auto; flex: none; display: block; }
+.logo-emu { fill: var(--acento); }
+.logo-rv { fill: var(--texto); }
+
 /* Jerarquía visual: solo Ensamblar (.principal) lleva acento; los
    secundarios (Lecciones, Pantalla, Abrir, Guardar, Exportar, Ayuda) son
    «fantasma» (fondo/borde transparentes) y se revelan al hover. RP19 — el
@@ -380,10 +387,10 @@ input:focus-visible { border-color: var(--acento); }
 .registros-col-fhex { width: 30%; }
 .registros-col-fval { width: 42%; }
 
-/* Separador sutil entre bloques ABI. El ORDEN x0..x31 NO cambia (convención
+/* Separador entre bloques ABI. El ORDEN x0..x31 NO cambia (convención
    RISC-V, RARS/gdb): solo una línea en la primera fila de cada grupo
-   (ra, t0, s0, a0, s2, t3). */
-.registros-tabla tr.grupo td { border-top: 1px solid var(--borde); }
+   (ra, t0, s0, a0, s2, t3). RP19-F3: más suave (insinúa, no corta). */
+.registros-tabla tr.grupo td { border-top: 1px solid color-mix(in srgb, var(--borde) 50%, transparent); }
 
 .registros-tabla th {
   position: sticky;
@@ -394,7 +401,12 @@ input:focus-visible { border-color: var(--acento); }
   text-align: left;
   padding: 7px 12px;
   color: var(--texto-suave);
-  font-weight: 600;
+  /* RP19-F3 (refinado): son etiquetas, no títulos a gritos → peso normal,
+     sin mayúsculas, un punto más chicas. */
+  font-weight: 500;
+  font-size: 11.5px;
+  text-transform: none;
+  letter-spacing: 0;
   border-bottom: 1px solid var(--borde);
   font-family: var(--fuente-ui);
 }
@@ -406,9 +418,13 @@ input:focus-visible { border-color: var(--acento); }
   white-space: nowrap;
 }
 
-.registros-tabla tr:nth-child(even) { background: var(--fila-par); }
+/* RP19-F3 (refinado): sin cebra — la tarjeta + el hover ya separan; menos
+   líneas compitiendo. El hover resalta la fila con un tinte tenue de acento. */
+.registros-tabla tr:nth-child(even) { background: transparent; }
+.registros-tabla tbody tr:hover td { background: color-mix(in srgb, var(--acento) 7%, transparent); }
 .registros-tabla td:first-child { color: var(--texto-suave); }
-.registros-xn { opacity: 0.5; font-size: 11px; }
+/* número crudo xN: dato secundario → más tenue y pequeño (RP19-F3). */
+.registros-xn { opacity: 0.38; font-size: 10.5px; letter-spacing: 0.02em; }
 
 .registros-pc td { color: var(--acento); font-weight: 600; }
 
@@ -481,6 +497,10 @@ input:focus-visible { border-color: var(--acento); }
   font-size: 11.5px;
   line-height: 1.5;
 }
+
+/* Bytes en cero atenuados (RP19-F3, «ruido visual»): el dato real resalta
+   sobre el relleno de ceros. Los marca memoria.ts con un span .cero. */
+.memoria-dump .cero { color: var(--texto-suave); opacity: 0.45; }
 
 .memoria-aviso {
   padding: 8px 10px;

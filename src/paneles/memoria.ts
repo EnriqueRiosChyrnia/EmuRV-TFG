@@ -123,10 +123,17 @@ export class Memoria {
         palabra.dataset.valor = String(
           (fila[off] | (fila[off + 1] << 8) | (fila[off + 2] << 16) | (fila[off + 3] << 24)) >>> 0,
         );
-        palabra.textContent = fila
-          .slice(off, off + 4)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(" ");
+        // Bytes en cero atenuados (RP19-F3, «ruido visual»): un span por
+        // byte, clase .cero en los 00 → el dato real resalta. El textContent
+        // resultante sigue siendo "00 1a 2f 00" (la edición lee dataset +
+        // textContent, así que no se rompe; ver editarPalabra).
+        fila.slice(off, off + 4).forEach((b, i) => {
+          const bs = document.createElement("span");
+          bs.textContent = b.toString(16).padStart(2, "0");
+          if (b === 0) bs.className = "cero";
+          palabra.appendChild(bs);
+          if (i < 3) palabra.append(" ");
+        });
         this.dump.appendChild(palabra);
         // separación de palabras: doble espacio en la mitad de la fila
         if (w < 3) this.dump.append(w === 1 ? "  " : " ");
