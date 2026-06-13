@@ -107,6 +107,10 @@ class App {
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
+    // RP18-F3: Memoria plegable (abierta por defecto; el alumno la cierra si
+    // necesita espacio). Depuración ya se autogestiona (arranca .colapsado
+    // en index.html y se expande sola al primer breakpoint, ver abajo).
+    this.hacerPanelPlegable("panel-memoria");
     this.depuracion = new Depuracion(document.getElementById("depuracion")!, {
       // Condición editada: re-mandar el juego completo (el rechazo del
       // backend vuelve al div de error del panel vía enviarBreakpoints).
@@ -139,7 +143,7 @@ class App {
 
   private construirToolbar(): void {
     const bar = document.getElementById("toolbar")!;
-    const boton = (id: string, clave: string, clase = "") => {
+    const boton = (id: string, clave: string, clase = "", parent: HTMLElement = bar) => {
       const b = document.createElement("button");
       b.id = id;
       const texto = t(clave);
@@ -150,16 +154,21 @@ class App {
       b.innerHTML = svg ? `${svg}<span>${texto}</span>` : texto;
       b.setAttribute("aria-label", texto);
       if (clase) b.className = clase;
-      bar.appendChild(b);
+      parent.appendChild(b);
       this.botones[id] = b;
       return b;
     };
     boton("ensamblar", "toolbar.ensamblar", "principal").onclick = () => void this.ensamblar();
     bar.appendChild(this.sep());
-    boton("ejecutar", "toolbar.ejecutar").onclick = () => void this.ejecutar();
-    boton("paso", "toolbar.paso").onclick = () => void api.step();
-    boton("detener", "toolbar.detener").onclick = () => void api.stop();
-    boton("reiniciar", "toolbar.reiniciar").onclick = () => void this.reiniciar();
+    // Grupo de ejecución segmentado (RP18-F3): los 4 botones de ejecución
+    // como UN bloque, no 4 cajas sueltas.
+    const grupoEjec = document.createElement("div");
+    grupoEjec.className = "grupo-ejec";
+    boton("ejecutar", "toolbar.ejecutar", "", grupoEjec).onclick = () => void this.ejecutar();
+    boton("paso", "toolbar.paso", "", grupoEjec).onclick = () => void api.step();
+    boton("detener", "toolbar.detener", "", grupoEjec).onclick = () => void api.stop();
+    boton("reiniciar", "toolbar.reiniciar", "", grupoEjec).onclick = () => void this.reiniciar();
+    bar.appendChild(grupoEjec);
     bar.appendChild(this.sep());
 
     const sel = document.createElement("select");
@@ -190,12 +199,13 @@ class App {
     const espacio = document.createElement("span");
     espacio.className = "espacio";
     bar.appendChild(espacio);
-    boton("lecciones", "toolbar.lecciones").onclick = () => this.lecciones.abrir();
-    boton("video", "toolbar.video").onclick = () => this.video.alternar();
-    boton("abrir", "toolbar.abrir").onclick = () => void this.abrirArchivo();
-    boton("guardar", "toolbar.guardar").onclick = () => void this.guardarArchivo();
-    boton("exportar", "toolbar.exportar").onclick = () => void this.exportarElf();
-    boton("ayuda", "toolbar.ayuda").onclick = () => this.ayuda.abrir();
+    // Secundarios atenuados (RP18-F3): no compiten con Ensamblar (.principal).
+    boton("lecciones", "toolbar.lecciones", "deemph").onclick = () => this.lecciones.abrir();
+    boton("video", "toolbar.video", "deemph").onclick = () => this.video.alternar();
+    boton("abrir", "toolbar.abrir", "deemph").onclick = () => void this.abrirArchivo();
+    boton("guardar", "toolbar.guardar", "deemph").onclick = () => void this.guardarArchivo();
+    boton("exportar", "toolbar.exportar", "deemph").onclick = () => void this.exportarElf();
+    boton("ayuda", "toolbar.ayuda", "deemph").onclick = () => this.ayuda.abrir();
 
     // Selector de idioma (RP16): es/en. Cambiar persiste y recarga la
     // ventana (la UI se construye al cargar; recargar evita estado a medio
@@ -244,6 +254,17 @@ class App {
     const s = document.createElement("span");
     s.className = "separador";
     return s;
+  }
+
+  /** Hace plegable el título de un panel: click en el <h2> alterna
+   *  `.colapsado` (CSS oculta el cuerpo y, en el lateral flex, encoge el
+   *  panel). Arranca como esté en index.html. (RP18-F3) */
+  private hacerPanelPlegable(panelId: string): void {
+    const panel = document.getElementById(panelId);
+    const titulo = panel?.querySelector<HTMLElement>("h2");
+    if (!panel || !titulo) return;
+    titulo.classList.add("panel-titulo-clickeable");
+    titulo.addEventListener("click", () => panel.classList.toggle("colapsado"));
   }
 
   private traducirTitulos(): void {
@@ -432,6 +453,11 @@ class App {
   private alCambiarBreakpoints(): void {
     this.sincronizarPanelDepuracion();
     this.enviarBreakpoints();
+    // RP18-F3: progressive disclosure — la Depuración arranca plegada; en
+    // cuanto el alumno pone un breakpoint, se revela (ahí empieza a importar).
+    if (getBreakpointLines(this.editor).length > 0) {
+      document.getElementById("panel-depuracion")?.classList.remove("colapsado");
+    }
   }
 
   /** Refleja los puntos del margen en el panel de Depuración (RP7-F4):
