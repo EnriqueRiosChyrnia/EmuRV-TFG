@@ -14,6 +14,19 @@ html, body {
   font-size: 14px;
 }
 
+/* Tipografía de interfaz Cálido (RP19): IBM Plex Sans (--fuente-ui) en el
+   chrome de la UI. El CÓDIGO y los DATOS de máquina siguen en --mono; la
+   lista de objetivos es la del mock (toolbar, cabeceras, th, estado…).
+   .panel h2 y .registros-tabla th la fijan en sus propias reglas. */
+#toolbar,
+.depuracion-seccion h3,
+.depuracion-vacio,
+.wp-ayuda,
+.consola-entrada,
+#estado {
+  font-family: var(--fuente-ui);
+}
+
 #app {
   height: 100vh;
   display: grid;
@@ -24,6 +37,11 @@ html, body {
     "editor   lateral"
     "consola  lateral"
     "estado   estado";
+  /* Estética Cálido (RP19): lienzo aireado — separación entre zonas y aire
+     alrededor. Cada zona se vuelve una tarjeta con borde + radio. */
+  gap: 10px;
+  padding: 10px;
+  background: var(--fondo);
 }
 
 /* ---------- barra de herramientas ---------- */
@@ -39,15 +57,18 @@ html, body {
   row-gap: 8px;
   padding: 8px 12px;
   background: var(--fondo-panel);
-  border-bottom: 1px solid var(--borde);
+  /* Cálido (RP19): la toolbar es una tarjeta como el resto de las zonas. */
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-panel);
 }
 
 #toolbar button, #toolbar select {
   background: var(--fondo-claro);
   color: var(--texto);
   border: 1px solid var(--borde);
-  border-radius: 6px;
-  padding: 6px 14px;
+  /* Cálido (RP19): radios tokenizados + un poco más de aire interior. */
+  border-radius: var(--radio);
+  padding: 7px 13px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -58,16 +79,25 @@ html, body {
 
 #toolbar button:hover:not(:disabled) { border-color: var(--acento); }
 #toolbar button:disabled { opacity: 0.45; cursor: default; }
-#toolbar button.principal { background: var(--acento); color: var(--texto-sobre-acento); font-weight: 600; }
+/* Cálido (RP19): primario realzado con una sombra suave del acento. */
+#toolbar button.principal {
+  background: var(--acento);
+  color: var(--texto-sobre-acento);
+  font-weight: 600;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--acento) 45%, transparent);
+}
 #toolbar .separador { width: 1px; align-self: stretch; background: var(--borde); margin: 0 4px; }
 #toolbar .espacio { flex: 1; }
 
-/* RP18-F3 — jerarquía visual: solo Ensamblar (.principal) lleva acento; los
-   secundarios (Lecciones, Pantalla, Abrir, Guardar, Exportar, Ayuda) se
-   atenúan para que no compitan. El pulido cálido (fondo transparente) es
-   RP-19; acá solo la opacidad. */
-#toolbar button.deemph { opacity: 0.78; }
-#toolbar button.deemph:hover:not(:disabled) { opacity: 1; }
+/* Jerarquía visual: solo Ensamblar (.principal) lleva acento; los
+   secundarios (Lecciones, Pantalla, Abrir, Guardar, Exportar, Ayuda) son
+   «fantasma» (fondo/borde transparentes) y se revelan al hover. RP19 — el
+   pulido cálido que RP18 había dejado pendiente. */
+#toolbar button.deemph { background: transparent; border-color: transparent; }
+#toolbar button.deemph:hover:not(:disabled) {
+  background: var(--fondo-claro);
+  border-color: var(--borde);
+}
 
 /* RP18-F3 — grupo de ejecución segmentado: Ejecutar/Paso/Detener/Reiniciar
    como UN bloque con bordes compartidos, no 4 cajas sueltas. Solo
@@ -89,15 +119,22 @@ html, body {
 .grupo-ejec button:hover:not(:disabled) { background: var(--fondo-panel); }
 
 /* ---------- editor ---------- */
+/* Cálido (RP19): el editor es una tarjeta más (borde + radio). overflow
+   hidden recorta CodeMirror a las esquinas redondeadas. */
 #editor {
   grid-area: editor;
   overflow: hidden;
-  border-right: 1px solid var(--borde);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-panel);
 }
 
 #editor .cm-editor { height: 100%; font-size: 14px; }
 #editor .cm-editor .cm-scroller { font-family: var(--mono); }
 #editor .cm-editor.cm-focused { outline: none; }
+/* Aire del código (RP19): el mock pide `.cm { line-height:1.65; padding:10px 0 }`;
+   en CodeMirror eso se traduce al contenido y a las líneas. */
+#editor .cm-content { padding: 10px 0; }
+#editor .cm-line { line-height: 1.65; }
 
 /* margen de breakpoints (RF-04) */
 .cm-breakpoint-gutter {
@@ -139,6 +176,8 @@ html, body {
   grid-area: lateral;
   display: flex;
   flex-direction: column;
+  /* Cálido (RP19): aire entre las tarjetas del lateral. */
+  gap: 10px;
   overflow: hidden;
 }
 
@@ -155,23 +194,30 @@ html, body {
   min-height: 0 !important;
 }
 
+/* Cálido (RP19): cada panel es una tarjeta suave (borde + radio + sombra).
+   overflow hidden recorta el header tintado a las esquinas redondeadas. */
 .panel {
   display: flex;
   flex-direction: column;
   background: var(--fondo-panel);
-  border-bottom: 1px solid var(--borde);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-panel);
+  box-shadow: var(--sombra-panel);
   overflow: hidden;
 }
 
 .panel h2 {
   margin: 0;
-  padding: 6px 12px;
+  /* Cálido (RP19): cabecera con un tinte sutil del acento + más aire. */
+  padding: 9px 13px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--texto-suave);
+  background: color-mix(in srgb, var(--acento) 9%, var(--fondo-panel));
   border-bottom: 1px solid var(--borde);
+  font-family: var(--fuente-ui);
 }
 
 .panel-cuerpo { flex: 1; overflow: auto; }
@@ -190,6 +236,23 @@ html, body {
   letter-spacing: 0;
   font-size: 10px;
   opacity: 0.6;
+}
+
+/* Decoraciones por tema (RP19, del mock) — sobre la estética Cálido.
+   Disquete 90s: barra de título de color en cada panel (look ventana
+   noventera). Retro Kawaii: tinte rosa un poco más marcado en la cabecera. */
+[data-tema="disquete"] #lateral .panel h2,
+[data-tema="disquete"] #panel-consola > h2 {
+  background: var(--acento);
+  color: var(--texto-sobre-acento);
+  border-bottom: 2px solid color-mix(in srgb, #000 30%, var(--acento));
+}
+[data-tema="disquete"] #lateral .panel h2 .panel-nota {
+  color: var(--texto-sobre-acento);
+  opacity: 0.85;
+}
+[data-tema="kawaii"] .panel h2 {
+  background: color-mix(in srgb, var(--acento) 13%, var(--fondo-panel));
 }
 
 /* ---------- consola ---------- */
@@ -226,12 +289,13 @@ html, body {
 .consola-salida {
   flex: 1;
   overflow: auto;
-  padding: 8px 12px;
+  /* Cálido (RP19): un poco más de aire en la salida de consola. */
+  padding: 10px 14px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.consola-eco { color: var(--acento); }
+.consola-eco { color: var(--acento); font-weight: 600; }
 .consola-error { color: var(--error); }
 
 .consola-entrada {
@@ -285,16 +349,20 @@ html, body {
 .registros-tabla th {
   position: sticky;
   top: 0;
-  background: var(--fondo-panel);
+  /* Cálido (RP19): cabecera de tabla con el mismo tinte que el header del
+     panel + más aire. */
+  background: color-mix(in srgb, var(--acento) 9%, var(--fondo-panel));
   text-align: left;
-  padding: 4px 10px;
+  padding: 7px 12px;
   color: var(--texto-suave);
   font-weight: 600;
   border-bottom: 1px solid var(--borde);
+  font-family: var(--fuente-ui);
 }
 
 .registros-tabla td {
-  padding: 2px 10px;
+  /* Cálido (RP19): densidad aireada. */
+  padding: 4px 12px;
   font-family: var(--mono);
   white-space: nowrap;
 }
@@ -307,7 +375,12 @@ html, body {
 
 /* resaltado de registros modificados en el último paso (RF-05) */
 .registros-tabla tr.cambiado td { background: var(--resaltado-cambio); }
-.registros-tabla tr.cambiado td:first-child { color: var(--cambio); }
+/* Cálido (RP19): además del fondo, una barra lateral en --cambio (señal más
+   clara de «este registro cambió»). */
+.registros-tabla tr.cambiado td:first-child {
+  color: var(--cambio);
+  box-shadow: inset 3px 0 0 var(--cambio);
+}
 
 /* CSRs (avanzado, RP8-F4): sección plegable al pie, cerrada por defecto */
 .registros-csrs { border-top: 1px solid var(--borde); }
@@ -578,13 +651,17 @@ html, body {
 }
 
 /* ---------- barra de estado ---------- */
+/* Cálido (RP19): la barra de estado es otra tarjeta del lienzo. */
 #estado {
   grid-area: estado;
+  display: flex;
+  align-items: center;
   padding: 6px 12px;
   font-size: 12.5px;
   color: var(--texto-suave);
   background: var(--fondo-panel);
-  border-top: 1px solid var(--borde);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-panel);
   min-height: 28px;
 }
 

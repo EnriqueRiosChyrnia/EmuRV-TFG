@@ -2315,3 +2315,62 @@ verde, tauri build ok, bundle EmuRV.app 22 MB ≤ 30 (RNF-04).
 toolbar que envuelve sin cortar; lateral con Registros prioritario y sin
 hueco al plegar; pantalla acotada; Depuración que se revela al breakpoint;
 jerarquía (solo Ensamblar resalta). Recomendado en los 5 temas de RP-17B.
+
+## 2026-06-13 — RP19-F1: estética Cálido (tokens, IBM Plex, paneles-tarjeta)
+
+[Seguro — decisión del autor] «Cálido» es el ÚNICO look de la app (no hay
+toggle de estética). Por eso todo lo que en el mock (propuestas-ui.html)
+está bajo `[data-estetica="calido"]` se aplica SIEMPRE: se trasladó a
+`:root` (tokens) y a selectores SIN el prefijo de estética (styles.css).
+Fidelidad: valores, espaciados y tinte copiados del mock al pie de la letra.
+
+[Seguro] Tokens nuevos en :root (valores exactos del mock): `--radio:9px`,
+`--radio-panel:14px`, `--fuente-ui:"IBM Plex Sans", system-ui…`,
+`--sombra-panel:0 1px 2px rgba(0,0,0,.16), 0 6px 18px rgba(0,0,0,.10)`.
+Viven en :root → todos los temas los heredan.
+
+[Seguro — LEGIBILIDAD, riesgo marcado del plan] Acento VIOLETA del Educativo
+(reemplaza el azul #4ea1ff): `--acento:#9b8cff; --texto-sobre-acento:#16122b;
+--resaltado-linea:rgba(155,140,255,.20); --sx-lbl:#a99bff; --sx-ins:#c4b6ff`.
+Verificado AA con el algoritmo de contraste.test ANTES de aplicar:
+acento/fondo 5.78, acento/fondo-panel 5.36, sx-lbl 6.72, sx-ins 8.74,
+texto-sobre-acento sobre acento 6.57 — todos ≥4.5, NO hubo que ajustar. Los
+otros 4 temas no cambian su acento. contraste.test sigue verde para los 5.
+
+[Seguro] IBM Plex Sans self-hosted (MISMO patrón que JetBrains Mono de
+RP-17A): `@font-face` en tokens.css, Regular 400 + SemiBold 600, subconjunto
+latino (fontsource), `src/assets/fonts/IBMPlexSans-{Regular,SemiBold}.woff2`
+(~47 KB total). Licencia SIL OFL 1.1 (© 2017 IBM Corp.) en
+`IBMPlexSans-OFL.txt`. Es la `--fuente-ui`: la usa el CHROME de la UI
+(toolbar, cabeceras de panel/tabla, estado, depuracion-vacio, wp-ayuda,
+consola-entrada — lista del mock); el CÓDIGO y los DATOS siguen en --mono.
+
+[Seguro] Lenguaje visual Cálido (todo del mock, aplicado siempre): #app con
+`gap:10px; padding:10px` (lienzo aireado); #editor/#toolbar/#estado y .panel
+como TARJETAS (borde + `border-radius:var(--radio-panel)`; .panel además con
+`box-shadow:var(--sombra-panel)`); #lateral `gap:10px`; cabeceras de panel y
+de tabla con tinte `color-mix(var(--acento) 9%, var(--fondo-panel))`;
+densidad aireada (registros td 4×12, th 7×12, botones toolbar 7×13,
+consola-salida 10×14, código con line-height 1.65 + padding 10px 0);
+jerarquía de toolbar (principal con sombra de acento; .deemph «fantasma»
+fondo/borde transparentes que el hover revela). Decoraciones por tema del
+mock (Disquete: barra de título en color; Kawaii: tinte rosa más marcado).
+
+[Seguro — adaptación mock→CodeMirror] El mock dibuja un editor falso
+(`.cm .ln`); el real es CodeMirror. `.cm { line-height; padding }` se tradujo
+a `#editor .cm-content { padding }` + `#editor .cm-line { line-height }`.
+(El hover de breakpoint y la línea activa se adaptan en F2.) El `.secundario`
+del mock es el `.panel-nota` real; no hay `.chev`.
+
+[Seguro] Tests UI 56 (sin cambios; el contraste de los 5 temas sigue verde,
+incluido el violeta). tsc estricto y vite build limpios. Bundle re-medido
+con la fuente nueva: EmuRV.app 22 MB ≤ 30 (IBM Plex suma ~47 KB,
+despreciable). Sin tocar Rust ni ids del JS.
+
+[PENDIENTE HUMANO] Verificación visual contra el mock: tarjetas con aire,
+IBM Plex en la UI, violeta del Educativo, headers tintados, densidad — en
+los 5 temas.
+
+Compuerta F1: se ve como el mock (visual) · contraste AA 5 temas verde
+(violeta incluido) · IBM Plex self-hosted (OFL) · bundle 22 MB ≤30 ·
+tsc/build limpios · Rust/ids intactos.
