@@ -632,89 +632,191 @@ input:focus-visible { border-color: var(--acento); }
 
 .edicion-inline:focus { outline: none; }
 
-/* ---------- ayuda (overlay modal) ---------- */
-#ayuda-overlay {
+/* ---------- modales (RP20, cara del mock; «Cálido» aplicado siempre) ---------- */
+/* Shell común: overlay fijo + backdrop + card animada. Adaptación: position
+   fixed (el mock usa absolute dentro de su demo) y un overlay por modal
+   (el mock conmuta uno con data-modal). */
+.emurv-modal {
   position: fixed;
   inset: 0;
-  background: var(--overlay-fondo);
+  z-index: 150;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  padding: 36px;
 }
-
-/* el display:flex de arriba pisaría al atributo hidden sin esta regla */
-#ayuda-overlay[hidden] { display: none; }
-
-.ayuda-caja {
-  width: min(680px, 88vw);
-  max-height: 84vh;
+.emurv-modal[hidden] { display: none; }
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-fondo);
+  animation: emurv-fade 0.14s ease-out;
+}
+@keyframes emurv-fade { from { opacity: 0; } }
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  max-height: 86%;
   display: flex;
   flex-direction: column;
   background: var(--fondo-panel);
   border: 1px solid var(--borde);
-  border-radius: 10px;
-  box-shadow: var(--sombra-modal);
+  border-radius: var(--radio-panel);
+  box-shadow: 0 20px 64px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: emurv-pop 0.16s ease-out;
+  font-family: var(--fuente-ui);
 }
+@keyframes emurv-pop { from { transform: translateY(8px) scale(0.98); opacity: 0; } }
+.modal-card:focus { outline: none; }
 
-.ayuda-caja header {
+.modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 18px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--borde);
+  flex: none;
 }
-
-.ayuda-caja h2 { margin: 0; font-size: 16px; }
-
-.ayuda-cerrar {
-  background: none;
-  border: none;
+.modal-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--texto);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.modal-head .mh-sub { color: var(--texto-suave); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.modal-x {
+  background: transparent;
+  border: 0;
   color: var(--texto-suave);
-  font-size: 16px;
   cursor: pointer;
+  padding: 5px;
+  border-radius: 7px;
+  display: inline-flex;
 }
+.modal-x:hover { background: var(--fondo-claro); color: var(--texto); }
+.modal-x .ico { width: 18px; height: 18px; }
 
-.ayuda-cerrar:hover { color: var(--texto); }
-
-.ayuda-cuerpo {
-  overflow: auto;
-  padding: 6px 18px 18px;
-  font-size: 13.5px;
-  line-height: 1.55;
-}
-
-.ayuda-cuerpo h3 {
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--acento);
-  margin: 18px 0 6px;
-}
-
-.ayuda-cuerpo table {
-  border-collapse: collapse;
+.modal-scroll { overflow: auto; padding: 8px; }
+.modal-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
   width: 100%;
-  font-size: 13px;
-}
-
-.ayuda-cuerpo th, .ayuda-cuerpo td {
   text-align: left;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--borde);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 11px 12px;
+  border-radius: 9px;
+  color: var(--texto);
+  font-family: inherit;
 }
+.modal-item:hover { background: color-mix(in srgb, var(--acento) 9%, transparent); }
+.mi-titulo { font-weight: 600; color: var(--texto); font-size: 13.5px; }
+.mi-codigo { font-family: var(--mono); }
+.mi-desc { color: var(--texto-suave); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
+.modal-num {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--acento) 16%, transparent);
+  color: var(--acento);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.modal-check { color: var(--ok); flex: none; margin-top: 1px; }
+.modal-pend { color: var(--texto-suave); opacity: 0.5; flex: none; margin-top: 1px; }
+.modal-progreso { padding: 10px 18px 0; }
+.modal-progreso .barra { height: 6px; border-radius: 99px; background: var(--fondo-claro); overflow: hidden; }
+.modal-progreso .barra > i { display: block; height: 100%; background: var(--acento); border-radius: 99px; }
+.modal-progreso .etq { font-size: 11.5px; color: var(--texto-suave); margin: 6px 0 2px; }
 
-.ayuda-cuerpo th { color: var(--texto-suave); }
-
-.ayuda-ejemplo {
-  background: var(--fondo);
-  border: 1px solid var(--borde);
-  border-radius: 6px;
-  padding: 10px 12px;
-  font-family: var(--mono);
+/* ---------- Ayuda: modal de referencia de 2 columnas ---------- */
+.modal-card.modal-cuerpo-ayuda { width: min(920px, 100%); max-height: 88%; }
+.ay-body { display: grid; grid-template-columns: 200px 1fr; flex: 1; min-height: 0; }
+.ay-nav {
+  overflow: auto;
+  padding: 12px 10px;
+  border-right: 1px solid var(--borde);
+  background: color-mix(in srgb, var(--fondo) 45%, var(--fondo-panel));
+}
+.ay-nav button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 11px;
+  border-radius: 8px;
   font-size: 12.5px;
-  margin: 10px 0 0;
+  line-height: 1.3;
+  color: var(--texto-suave);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
+.ay-nav button:hover { background: color-mix(in srgb, var(--acento) 10%, transparent); color: var(--texto); }
+.ay-nav button.activo { background: color-mix(in srgb, var(--acento) 15%, transparent); color: var(--acento); font-weight: 600; }
+.ay-nav .ay-nav-tit { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-suave); opacity: 0.7; padding: 12px 11px 4px; }
+.ay-cont { overflow: auto; padding: 6px 26px 28px; scroll-behavior: smooth; }
+.ay-cont h3 {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--texto);
+  margin: 24px 0 10px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--borde);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.ay-cont h3::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--acento); flex: none; }
+.ay-cont h3:first-child { margin-top: 10px; }
+.ay-cont p { font-size: 13px; line-height: 1.62; color: var(--texto); margin: 9px 0; max-width: 64ch; }
+.ay-cont p.compacto { margin: 6px 0; }
+.ay-btn { font-family: var(--fuente-ui); font-size: 11.5px; font-weight: 600; background: var(--fondo-claro); border: 1px solid var(--borde); border-radius: 6px; padding: 0 7px; color: var(--texto); white-space: nowrap; }
+.ay-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0 12px; max-width: 64ch; }
+.ay-tabla th { text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-suave); padding: 6px 10px; border-bottom: 1.5px solid var(--borde); }
+.ay-tabla td { padding: 6px 10px; color: var(--texto); border-bottom: 1px solid color-mix(in srgb, var(--borde) 40%, transparent); vertical-align: top; line-height: 1.45; }
+.ay-tabla tr:hover td { background: color-mix(in srgb, var(--acento) 6%, transparent); }
+.ay-tabla .col-num { width: 42px; text-align: center; }
+.ay-num { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: 6px; font-family: var(--mono); font-size: 12px; font-weight: 600; background: color-mix(in srgb, var(--acento) 14%, transparent); color: var(--acento); }
+.ay-serv { font-weight: 600; }
+.ay-arg { font-family: var(--mono); color: var(--texto-suave); font-size: 11.5px; }
+.ay-addr { font-family: var(--mono); color: var(--acento); font-weight: 600; white-space: nowrap; }
+.ayuda-ejemplo { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; background: var(--fondo); border: 1px solid var(--borde); border-radius: 9px; padding: 11px 14px; margin: 10px 0; overflow: auto; color: var(--texto); max-width: 64ch; }
+.ayuda-ejemplo .c-com { color: var(--sx-com); }
+.ayuda-ejemplo .c-ins { color: var(--sx-ins); }
+.ayuda-ejemplo .c-num { color: var(--sx-num); }
+.ay-nota { background: color-mix(in srgb, var(--acento) 8%, transparent); border-left: 3px solid var(--acento); border-radius: 0 8px 8px 0; padding: 9px 13px; margin: 10px 0; font-size: 12.5px; line-height: 1.55; color: var(--texto); max-width: 64ch; }
+.ay-nota .et { font-weight: 600; color: var(--acento); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; margin-right: 6px; }
+.ay-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; max-width: 64ch; }
+.ay-chip { font-family: var(--mono); font-size: 12px; background: var(--fondo-claro); border: 1px solid var(--borde); border-radius: 6px; padding: 3px 9px; color: var(--texto); }
+
+/* ---------- Acerca de (dentro de la Ayuda, RP20-F2) ---------- */
+.ay-about-id { display: flex; align-items: center; gap: 15px; margin: 8px 0 2px; }
+.ay-about-id .logo-emurv { height: 30px; }
+.ay-about-id .tagline { font-size: 12.5px; color: var(--texto-suave); line-height: 1.45; max-width: 48ch; }
+.ay-ver { display: inline-block; font-family: var(--mono); font-size: 11px; background: color-mix(in srgb, var(--acento) 15%, transparent); color: var(--acento); border-radius: 6px; padding: 1px 7px; }
+.ay-autor { background: var(--fondo-claro); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 15px; margin: 14px 0; max-width: 64ch; }
+.ay-autor .nombre { font-size: 15px; font-weight: 600; color: var(--texto); }
+.ay-autor .rol { font-size: 12.5px; color: var(--texto-suave); margin-top: 3px; }
+.ay-cred-grupo { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto); margin: 18px 0 6px; display: flex; align-items: center; gap: 8px; }
+.ay-cred-grupo::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--acento); flex: none; }
+.ay-cred { list-style: none; margin: 0; padding: 0; max-width: 64ch; }
+.ay-cred li { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 6px 2px; border-bottom: 1px solid color-mix(in srgb, var(--borde) 40%, transparent); font-size: 12.5px; line-height: 1.45; }
+.ay-cred .nom { color: var(--texto); }
+.ay-cred .nom b { font-weight: 600; }
+.ay-cred .desc { color: var(--texto-suave); }
+.ay-lic { font-family: var(--mono); font-size: 10.5px; color: var(--texto-suave); background: var(--fondo); border: 1px solid var(--borde); border-radius: 5px; padding: 1px 6px; white-space: nowrap; flex: none; }
 
 /* ---------- barra de estado ---------- */
 /* Cálido (RP19): la barra de estado es otra tarjeta del lienzo. */
