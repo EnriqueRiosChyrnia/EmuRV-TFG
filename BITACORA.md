@@ -1446,3 +1446,32 @@ el invariante se preserva porque la compresión no es automática. Se
 implementa en F3.
 
 Compuerta F1: spike A verde + veredicto C=VIABLE con evidencia ✓.
+
+## 2026-06-13 — RP13-F2: extensión A (atómicas) verificada contra GNU
+
+[Seguro] Ensamblador: repertorio RV32A completo — lr.w, sc.w, amoswap.w,
+amoadd.w, amoand.w, amoor.w, amoxor.w, amomin.w, amomax.w, amominu.w,
+amomaxu.w. Sufijos de ordenamiento `.aq`/`.rl`/`.aqrl` opcionales (sin
+sufijo = ambos en 0). Helper `parse_amo` (funct5 + aq/rl + es_lr/es_sc),
+encoder `enc_amo` (opcode AMO 0x2F, funct3=010). La dirección es «(rs1)»
+PURA: un desplazamiento (`4(t2)`) se rechaza con error didáctico (la espec
+no lo permite). lr.w toma rd+(rs1); el resto rd,rs2,(rs1).
+
+[Seguro — oráculo] Repertorio A (16 formas, con y sin sufijos) ensamblado
+por nosotros == `riscv64-elf-as -march=rv32ima` palabra a palabra
+(tests/rp13_atomicas.rs). Verde a la primera.
+
+[Seguro] Ejecución (Unicorn nativo, spike F1): amoadd.w actualiza la
+memoria y devuelve el VIEJO en rd (100+10=110, rd=100); lr.w+sc.w
+store-conditional EXITOSO mono-hart (sc→0, memoria=42); amomaxu trata -1
+como el mayor sin signo (0xFFFFFFFF gana). Disasm A por capstone
+(amoadd.w/lr.w/sc.w legibles).
+
+[Seguro — semántica mono-hart, documentada] EmuRV es de un solo hart: una
+reserva lr nunca es invalidada por otro procesador, así que sc SIEMPRE
+tiene éxito en uso normal. lr/sc y amo* son secuencialmente consistentes
+triviales — NO se promete concurrencia real (no hay multi-hart). Es el
+modelo correcto para enseñar el patrón lr/sc, no para paralelismo.
+
+Compuerta F2: encodings == GNU ✓ · suite completa (35 binarios src-tauri,
+CLI 48) ✓ · clippy 0 ambos ✓. C entra en F3 (veredicto F1 = VIABLE).
