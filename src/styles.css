@@ -32,6 +32,11 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* RP18-F1 — BUG responsive: sin flex-wrap, en ventana angosta los
+     controles de la derecha (idioma, tema, ayuda) se cortaban. Con wrap
+     bajan a una 2ª fila y siguen usables a cualquier ancho. */
+  flex-wrap: wrap;
+  row-gap: 8px;
   padding: 8px 12px;
   background: var(--fondo-panel);
   border-bottom: 1px solid var(--borde);
