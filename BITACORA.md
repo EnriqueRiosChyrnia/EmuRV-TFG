@@ -1245,3 +1245,41 @@ párrafo «ayuda.binario» (flags incluidos).
 [PENDIENTE HUMANO] (heredado de F3) modo binario visual en la app; y la
 verificación del dueño: round-trip a mano (asm→import→run), listado de
 disasm contra el ensamblador, y el peso del bundle.
+
+## 2026-06-12 — RP12-F1: spike FP (mstatus.FS y registros)
+
+[Seguro — todo medido por tests/spike_fp.rs, Unicorn 2.1.5 crudo]
+Respuestas del spike, en orden del plan:
+
+1. **fadd.s en estado crudo: ILLEGAL.** mstatus arranca en 0x0 → FS
+   (bits 14:13) = Off → emu_start da Err(EXCEPTION) en la primera
+   instrucción FP. La trampa anunciada es real.
+2. **El arreglo: FS=Initial desde el host.** `mstatus |= 1<<13` ANTES de
+   arrancar y fadd.s ejecuta (1.5+0.25 → bits exactos de 1.75f32).
+   mstatus queda 0x80006000 tras la corrida: el motor mismo lo promovió
+   a FS=Dirty (11) + SD (bit 31) al ensuciar registros — autocoherente.
+   DECISIÓN: load() inicializa mstatus = MIE | FS_INITIAL (1<<3 | 1<<13),
+   comentado con la cita de la espec privilegiada (mstatus.FS, §3.1.6).
+3. **IDs del binding: el dato de la coordinadora estaba ERRADO** (decía
+   F0=57..88, FCSR=141). Extraídos del bindings.rs GENERADO (OUT_DIR):
+   **F0=158..F31=189, FCSR=43**; MSTATUS=116 sí coincidía (RP-8 lo usa).
+   Round-trip host↔guest verificado: host escribe F0/F1 (ids 158/159),
+   guest suma, host lee F2 (160) = 3.0f32 exacto.
+4. **NaN-boxing: flw SÍ boxea** (f0 = 0xFFFFFFFF_3FC00000 tras flw de
+   1.5f32) **pero el RESULTADO de operaciones .s NO** (fadd.s deja los
+   32 altos en CERO — apartamiento de la espec D, medido y fijado por
+   test como centinela). Regla derivada para el panel F y la UI:
+   alto==0xFFFFFFFF O (alto==0 y bajo≠0) → interpretar como f32(bajos);
+   si no → f64. (Un f64 real con alto==0 es un denormal < 1e-308: no
+   aparece en uso didáctico.)
+5. **fadd.d funciona** (1.5+0.25 = bits exactos de 1.75f64).
+6. **FCSR accesible** por id host 43 y por csrr 0x003 del guest;
+   fmv.x.w mueve los bits f→x correctos.
+
+Tropiezo del spike (documentado para el ensamblador): `addi t0, t0,
+0x800` NO da +2048 — el inmediato de 12 bits es con signo (0x800 =
+-2048); el primer intento leyó 0x3FF800 no mapeada. Nuestro encoder ya
+lo maneja (RP-0), pero el spike lo re-descubrió a mano.
+
+Compuerta F1: 6/6 preguntas respondidas [Seguro], decisión de
+inicialización tomada, spike verde, clippy 0.
