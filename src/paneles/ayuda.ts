@@ -6,6 +6,8 @@
 import { t } from "../i18n";
 import { Modal } from "./modal";
 import { seccionActiva, type SeccionPos } from "./scroll-spy";
+// Wordmark bi-tono (RP19) reusado en el «Acerca de» (se adapta al tema).
+import wordmark from "../assets/emurv-wordmark.svg?raw";
 
 const ICONO_CERRAR = `<svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>`;
 
@@ -212,6 +214,44 @@ export class Ayuda {
 
       <section id="ay-about">
         <h3>${t("ayuda.about.titulo")}</h3>
+        <div class="ay-about-id">
+          ${wordmark}
+          <div class="tagline">Entorno educativo para programar en ensamblador RISC-V (RV32IMAFDC), en español. <span class="ay-ver">v0.1</span></div>
+        </div>
+
+        <div class="ay-autor">
+          <div class="nombre">Enrique Emmanuel Ríos Chyrnia</div>
+          <div class="rol">Estudiante de Ingeniería Informática · Paraguay</div>
+        </div>
+
+        <div class="ay-nota"><span class="et">IA</span>EmuRV fue desarrollado con asistencia de modelos Claude (Anthropic) sobre un contrato de especificación/arquitectura/plan, con verificación por pruebas automatizadas.</div>
+
+        <div class="ay-cred-grupo">Núcleo y app de escritorio (Rust)</div>
+        <ul class="ay-cred">
+          <li><span class="nom"><b>Rust</b> <span class="desc">— lenguaje del núcleo</span></span></li>
+          <li><span class="nom"><b>Tauri 2</b> <span class="desc">— app de escritorio nativa liviana</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+          <li><span class="nom"><b>Unicorn Engine 2.1.5</b> <span class="desc">— motor de emulación de CPU</span></span><span class="ay-lic">GPLv2</span></li>
+          <li><span class="nom"><b>Capstone 0.14</b> <span class="desc">— desensamblador</span></span><span class="ay-lic">BSD-3-Clause</span></li>
+          <li><span class="nom"><b>object 0.39</b> <span class="desc">— ejecutables ELF</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+          <li><span class="nom"><b>udbserver</b> <span class="desc">— servidor GDB remoto (usa gdbstub)</span></span><span class="ay-lic">MIT</span></li>
+          <li><span class="nom"><b>serde · serde_json · thiserror</b> <span class="desc">— utilidades</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+        </ul>
+        <div class="ay-nota"><span class="et">Licencia</span>La GPLv2 de Unicorn Engine condiciona la licencia del proyecto (decisión pendiente en el Cap. VI de la memoria).</div>
+
+        <div class="ay-cred-grupo">Interfaz (TypeScript)</div>
+        <ul class="ay-cred">
+          <li><span class="nom"><b>TypeScript 5.6</b> <span class="desc">— lenguaje</span></span><span class="ay-lic">Apache-2.0</span></li>
+          <li><span class="nom"><b>Vite 6</b> <span class="desc">— empaquetado</span></span><span class="ay-lic">MIT</span></li>
+          <li><span class="nom"><b>CodeMirror 6</b> <span class="desc">— editor de código</span></span><span class="ay-lic">MIT</span></li>
+          <li><span class="nom"><b>@tauri-apps/api</b> <span class="desc">— puente con el backend (+ plugins dialog/opener)</span></span><span class="ay-lic">MIT/Apache-2.0</span></li>
+        </ul>
+
+        <div class="ay-cred-grupo">Tipografía e iconos</div>
+        <ul class="ay-cred">
+          <li><span class="nom"><b>IBM Plex Sans</b> <span class="desc">— tipografía de interfaz</span></span><span class="ay-lic">OFL 1.1</span></li>
+          <li><span class="nom"><b>JetBrains Mono</b> <span class="desc">— fuente monoespaciada</span></span><span class="ay-lic">OFL 1.1</span></li>
+          <li><span class="nom"><b>Lucide</b> <span class="desc">— iconos SVG de la barra</span></span><span class="ay-lic">ISC</span></li>
+        </ul>
       </section>`;
   }
 

@@ -2562,3 +2562,43 @@ al botón Ayuda.
 Compuerta F1: ayuda 2-col como el mock · scroll-spy (pura + testeada) ·
 Escape/foco · i18n anti-drift · contraste AA 5 temas (pares ya cubiertos) ·
 tsc/build limpios · Rust/ids intactos.
+
+## 2026-06-13 — RP20-F2: sección Acerca de
+
+[Seguro] `#ay-about` con el contenido EXACTO del mock (líneas 842-881):
+`.ay-about-id` (wordmark grande + tagline + `.ay-ver` v0.1), `.ay-autor`
+(«Enrique Emmanuel Ríos Chyrnia · Estudiante de Ingeniería Informática ·
+Paraguay» — sin edad ni universidad, decisión del autor), `.ay-nota` IA,
+tres grupos de créditos (`.ay-cred-grupo` + `.ay-cred`) con sus licencias en
+`.ay-lic`, y `.ay-nota` de licencia GPLv2 (Unicorn condiciona el proyecto,
+Cap. VI). El wordmark es el SVG bi-tono de RP-19 (import `?raw`) → se adapta
+al tema (logo-emu = acento, logo-rv = texto).
+
+[Seguro — verificación de créditos] Las versiones del mock se cotejaron
+contra los manifiestos reales: TypeScript ~5.6.2 → 5.6, Vite ^6 → 6, Capstone
+0.14, object 0.39.1 → 0.39, @tauri-apps/api ^2, Tauri 2, CodeMirror 6, app
+0.1.0 → v0.1. Todas correctas.
+
+[Seguro — corrección de honestidad vs el mock] El mock (anterior a RP-19) NO
+listaba IBM Plex Sans. Como RP-19 la agregó (fuente de UI, bundleada, OFL
+1.1), se SUMÓ al grupo «Tipografía e iconos» del Acerca de. Es la única
+adición al contenido del mock; el resto va idéntico.
+
+[Seguro] Versión: hardcodeada «v0.1» (igual que el mock; el manifiesto dice
+0.1.0). NOTA DE MANTENIMIENTO: si sube la versión del proyecto, actualizar el
+literal en ayuda.ts (`.ay-ver` y la tagline) — no se leyó del manifiesto para
+no agregar un import de JSON por un dato que casi no cambia.
+
+[Seguro — decisión idioma] El Acerca de va en español también en modo inglés
+(como las lecciones y los mensajes del ensamblador: material del proyecto).
+Son nombres propios + etiquetas de licencia + prosa breve; el plan pide
+«contenido EXACTO del mock» (español). El TÍTULO de la sección sí es i18n
+(ayuda.about.titulo, es/en).
+
+[Seguro] tsc estricto y vite build limpios. UI 62. Sin tocar Rust ni ids.
+
+[PENDIENTE HUMANO] Verificación visual del Acerca de en los 5 temas: wordmark
+con su bi-tono adaptándose, autor/IA/créditos legibles, licencias correctas.
+
+Compuerta F2: about completo y fiel (wordmark adaptable, autor, IA, créditos
+con licencias verificadas + IBM Plex, GPLv2) · tsc/build limpios.
