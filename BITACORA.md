@@ -1616,3 +1616,41 @@ deduplica. 8/8 verde.
 
 Compuerta F2: tests del provider verdes · tsc limpio · bundle re-medido
 22 MB ≤ 30 ✓.
+
+## 2026-06-13 — RP14-F3: hover de ayuda y navegación de etiquetas
+
+[Seguro] `src/editor/ayuda-isa.ts`: diccionario sintaxis+descripción en
+español para CADA mnemónico del repertorio (RV32IMAFDC+Zicsr+pseudos). El
+material CONDENSA Ayuda integrada + lecciones + docs/ENSAMBLADOR.md — sin
+inventar semántica (citado en la cabecera). `ayudaDe` tolera sufijos
+.aq/.rl/.aqrl (resuelve a la base). `hoverTooltip` de CM6 muestra el
+tooltip al pasar sobre un mnemónico; mnemónico SIN entrada o palabra que
+no es mnemónico → SIN tooltip (nunca vacío). `descripcionInstr` alimenta
+el `info` del autocompletado (F2 quedó enchufado).
+
+[Seguro — cobertura 100%, anti-drift del hover] Test
+ayuda-isa.test.ts: cada entrada de MNEMONICS∪PSEUDOS tiene ayuda (falla si
+falta una) y el diccionario no inventa claves fuera del ISA. Si se agrega
+una instrucción a isa.ts sin su ayuda, el test rojo.
+
+[Seguro] `src/editor/etiquetas.ts` (funciones PURAS, sin backend):
+definicionDeEtiqueta (offset de `nombre:`), usosDeEtiqueta (todos los
+rangos), palabraEn (identificador en una posición). En index.ts:
+- Ir-a-definición: Cmd/Ctrl-click sobre el uso de una etiqueta mueve el
+  cursor a su definición; sin definición no rompe (deja pasar el click).
+- Resaltar usos: con el cursor sobre una etiqueta con definición, decora
+  todas sus apariciones (Decoration.mark, sin tocar el texto); no se
+  activa sobre mnemónicos/registros.
+
+[Seguro] Tests: 18 UI verdes (8 autocompletado + 5 hover + 5 etiquetas).
+Verificación manual por tsx: hover de fadd.s/c.addi devuelve sintaxis+desc,
+amoadd.w.aqrl resuelve a amoadd.w, basura→undefined; def/usos de «bucle»
+correctos.
+
+[PENDIENTE HUMANO] En la app: pasar el mouse sobre fadd.s/amoadd.w/c.addi
+y ver el tooltip; Cmd/Ctrl-click sobre una etiqueta salta a su definición;
+cursor sobre una etiqueta resalta sus usos; Ctrl-Espacio abre el
+autocompletado.
+
+Compuerta F3: tests verdes · cobertura hover 100% de mnemónicos · tsc
+limpio.

@@ -532,3 +532,26 @@ html, body {
 }
 
 .memoria-disasm { opacity: 0.65; font-style: italic; }
+
+/* ---------- editor profesional (RP14): hover + usos ---------- */
+.cm-ayuda-tooltip {
+  max-width: 360px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  background: var(--fondo-claro);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+}
+
+.cm-ayuda-sintaxis {
+  font-family: var(--mono);
+  color: var(--acento);
+  margin-bottom: 4px;
+}
+
+/* todas las apariciones de la etiqueta bajo el cursor */
+.cm-uso-etiqueta {
+  background: color-mix(in srgb, var(--acento) 22%, transparent);
+  border-radius: 3px;
+}
