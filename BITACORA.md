@@ -2153,3 +2153,65 @@ angosto): ningún control se tapa; maximizada idéntica.
 
 Compuerta F1: bug resuelto (flex-wrap) · tsc/build limpios · sin ids/JS
 tocados · Rust intacto.
+
+## 2026-06-13 — RP18-F2: lateral flexible, canvas acotado y registros compactos
+
+[Seguro] Raíz del aplastamiento de Registros: `#lateral` era un grid de
+SOLO 2 pistas (`1.2fr 1fr`) para 4 paneles. Ahora `display:flex;
+flex-direction:column` con prioridades por panel (del diseño aprobado):
+video `flex:0 0 auto`, registros `flex:2.2 1 0; min-height:160px`
+(prioritario, es lo que las lecciones piden mirar), memoria
+`flex:1.5 1 0; min-height:120px`, depuración `flex:0 1 auto;
+max-height:200px`. Flex maneja solo `#panel-video[hidden]` (no reserva
+espacio). Se reescribió SOLO `#lateral` (no `grid-template-areas` de `#app`,
+prohibido).
+
+[Seguro — interacción que el plan no detalló, la cacé al revisar] Con
+`#lateral` en flex, un panel plegado con `flex:2.2`/`1.5` + `min-height`
+seguiría reservando su espacio → hueco vacío al colapsar. Regla añadida
+`.panel.colapsado { flex:0 0 auto !important; min-height:0 !important }`
+(el diseño la tiene como `[data-colapsado]`; uso la clase `.colapsado` que
+ya existe, equivalente). `!important` justificado: gana a las reglas por id
+`#panel-registros{flex;min-height}`. Sin esto F3 (plegado) rompería el
+layout.
+
+[Seguro] Canvas acotado: `#video-canvas` pasa de `width:100%` a
+`width:auto; height:auto; max-height:170px; margin:8px auto` (centrado);
+la resolución interna 320×240 (atributos width/height del elemento) NO se
+toca, solo el tamaño de presentación. `aspect-ratio:4/3` mantiene la
+proporción al limitar el alto. La ventana desacoplada `pantalla.html` tiene
+su PROPIO style → no se afecta.
+
+[Seguro] Registros compactos: `.registros-tabla { table-layout:fixed }`
+(global, como el diseño) + `<colgroup>` con anchos (nombre 30 / hex 38 /
+dec 32 %). DESVIACIÓN deliberada del diseño (autorizada por «cero
+regresión»): el diseño solo dio colgroup a la tabla principal, pero las
+tablas de CSRs y F comparten la clase `.registros-tabla`; con `fixed`
+global y sin colgroup, la columna «valor» de la tabla F (flotantes largos,
+`white-space:nowrap`) se cortaría. Solución: colgroup también en CSRs
+(mismos 30/38/32) y en F (28/30/42, «valor» más ancho). No cambia el look
+del mockup, solo evita el clip.
+
+[Seguro — regla DURA, NO reordenar] Separadores de grupo: clase `.grupo`
+en la PRIMERA fila de cada bloque ABI (ra=x1, t0=x5, s0=x8, a0=x10, s2=x18,
+t3=x28) con `tr.grupo td { border-top:1px solid var(--borde) }`. El ORDEN
+x0..x31 (convención RISC-V, RARS/gdb) queda INTACTO — solo una línea sutil.
+Tooltips de rol (`title`) en la celda del nombre de cada registro (9 roles
+i18n agrupados: zero/ra/sp/gp/tp + temporal/guardado/argumento). El orden,
+los grupos y la cobertura de roles se EXTRAJERON a un módulo puro
+`registros-meta.ts` y los fija un test (`registros-meta.test.ts`): si
+alguien reordena, el test rojo.
+
+[Seguro] Tests UI 56 (antes 53: +3 de registros-meta). i18n: 9 claves
+`registros.rol.*` en es Y en (anti-drift verde). tsc estricto y vite build
+limpios. Sin tocar ids del JS ni Rust (F2 es frontend) → suite intacta;
+clippy y bundle se verifican en el cierre F4 (delta de frontend = pocos KB
+sobre los 22 MB, lejísimos de 30).
+
+[PENDIENTE HUMANO] Verificación visual: Registros legible sin hueco y con
+los separadores en su sitio; la pantalla no domina el lateral; al editar un
+valor la tabla no «salta».
+
+Compuerta F2: lateral flex con Registros prioritario · canvas acotado ·
+registros compactos + separadores + tooltips · orden x0..x31 fijado por
+test · i18n anti-drift · tsc/build limpios · Rust/ids intactos.

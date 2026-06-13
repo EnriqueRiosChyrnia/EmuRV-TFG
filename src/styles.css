@@ -104,11 +104,29 @@ html, body {
 .cm-sx-num { color: var(--sx-num); } /* números */
 
 /* ---------- paneles ---------- */
+/* RP18-F2 — el lateral era un grid de SOLO 2 pistas (1.2fr 1fr) para 4
+   paneles → Registros quedaba aplastado. Ahora es flex column con
+   prioridades por panel: Registros manda (flex 2.2), Memoria sigue (1.5),
+   Video y Depuración ocupan lo justo. flex maneja solo el caso de
+   #panel-video[hidden] (no reserva espacio). */
 #lateral {
   grid-area: lateral;
-  display: grid;
-  grid-template-rows: 1.2fr 1fr;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+#panel-video { flex: 0 0 auto; }
+#panel-registros { flex: 2.2 1 0; min-height: 160px; }
+#panel-memoria { flex: 1.5 1 0; min-height: 120px; }
+#panel-depuracion { flex: 0 1 auto; max-height: 200px; }
+
+/* Un panel plegado (.colapsado) no debe reservar espacio flex ni su
+   min-height: encogé al título. !important para ganarle a las reglas por
+   id de arriba (#panel-registros { flex; min-height }). */
+.panel.colapsado {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
 }
 
 .panel {
@@ -203,7 +221,24 @@ html, body {
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
+  /* RP18-F2: ancho de columnas fijo → la tabla no «salta» al editar inline
+     ni al cambiar el largo de un valor; queda compacta y predecible. */
+  table-layout: fixed;
 }
+
+/* Anchos por columna (colgroup en el render). Enteros/CSRs: nombre/hex/dec;
+   la tabla F da más ancho al «valor» flotante (p. ej. «3.14159 (f32)»). */
+.registros-col-nombre { width: 30%; }
+.registros-col-hex { width: 38%; }
+.registros-col-dec { width: 32%; }
+.registros-col-fnombre { width: 28%; }
+.registros-col-fhex { width: 30%; }
+.registros-col-fval { width: 42%; }
+
+/* Separador sutil entre bloques ABI. El ORDEN x0..x31 NO cambia (convención
+   RISC-V, RARS/gdb): solo una línea en la primera fila de cada grupo
+   (ra, t0, s0, a0, s2, t3). */
+.registros-tabla tr.grupo td { border-top: 1px solid var(--borde); }
 
 .registros-tabla th {
   position: sticky;
@@ -486,9 +521,15 @@ html, body {
 #estado.error { color: var(--error); }
 
 /* ---------- pantalla gráfica (framebuffer 320x240) ---------- */
+/* RP18-F2 — la pantalla no debe DOMINAR el lateral: acotada en alto y
+   centrada (la resolución interna 320×240 de los atributos width/height NO
+   se toca). aspect-ratio mantiene la proporción al limitar el alto. */
 #video-canvas {
   display: block;
-  width: 100%;
+  width: auto;
+  height: auto;
+  max-height: 170px;
+  margin: 8px auto;
   aspect-ratio: 4 / 3;
   background: var(--fondo-pantalla);
   border: 1px solid var(--borde);

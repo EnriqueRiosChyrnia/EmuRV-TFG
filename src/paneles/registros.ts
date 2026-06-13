@@ -4,13 +4,12 @@
 // Al pie, una sección plegable muestra los CSRs de máquina (RP8-F4).
 import { api, type MachineState } from "../api";
 import { t } from "../i18n";
+import { ABI, GRUPOS_ABI, claveRol } from "./registros-meta";
 
-const ABI: string[] = [
-  "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1",
-  "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
-  "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11",
-  "t3", "t4", "t5", "t6",
-];
+// Colgroups (RP18-F2): anchos de columna fijos para que la tabla no salte.
+// Enteros/CSRs comparten nombre/hex/dec; la F da más ancho al «valor».
+const COLGRUPO = `<colgroup><col class="registros-col-nombre"><col class="registros-col-hex"><col class="registros-col-dec"></colgroup>`;
+const COLGRUPO_F = `<colgroup><col class="registros-col-fnombre"><col class="registros-col-fhex"><col class="registros-col-fval"></colgroup>`;
 
 /** CSRs que expone get_csrs(), en el orden fijo del backend (RP8). */
 const CSRS: string[] = [
@@ -97,7 +96,7 @@ export class Registros {
     const tabla = document.createElement("table");
     tabla.className = "registros-tabla";
     tabla.title = t("registros.editarHint");
-    tabla.innerHTML = `<thead><tr>
+    tabla.innerHTML = `${COLGRUPO}<thead><tr>
         <th>${t("registros.nombre")}</th>
         <th>${t("registros.hex")}</th>
         <th>${t("registros.dec")}</th>
@@ -115,8 +114,12 @@ export class Registros {
 
     for (let i = 0; i < 32; i++) {
       const tr = document.createElement("tr");
+      // Separador de grupo ABI (RP18-F2): solo cosmético, el orden no cambia.
+      if (GRUPOS_ABI.has(i)) tr.classList.add("grupo");
       tr.innerHTML = `<td>${ABI[i]} <span class="registros-xn">x${i}</span></td>
         <td class="mono"></td><td class="mono"></td>`;
+      // Tooltip con el rol del registro en la celda del nombre (RP18-F2).
+      (tr.children[0] as HTMLElement).title = t(claveRol(ABI[i]));
       cuerpo.appendChild(tr);
       const hexEl = tr.children[1] as HTMLElement;
       const decEl = tr.children[2] as HTMLElement;
@@ -138,6 +141,7 @@ export class Registros {
     const tablaCsr = document.createElement("table");
     tablaCsr.className = "registros-tabla";
     tablaCsr.title = t("registros.editarHint");
+    tablaCsr.innerHTML = COLGRUPO;
     const cuerpoCsr = document.createElement("tbody");
     CSRS.forEach((nombre, i) => {
       const tr = document.createElement("tr");
@@ -166,7 +170,7 @@ export class Registros {
     const tablaF = document.createElement("table");
     tablaF.className = "registros-tabla";
     tablaF.title = t("registros.editarHint");
-    tablaF.innerHTML = `<thead><tr>
+    tablaF.innerHTML = `${COLGRUPO_F}<thead><tr>
         <th>${t("registros.nombre")}</th>
         <th>${t("registros.hex")}</th>
         <th>${t("registros.valor")}</th>
