@@ -1895,3 +1895,34 @@ build limpios; suite Rust intacta (37); UI 35; bundle 22 MB ≤ 30.
 
 Compuerta F1: estética 100% por tokens · refactor invisible (valores
 copiados exactos) · tsc/build limpios · Rust intacto · bundle OK.
+
+## 2026-06-13 — RP17-F2: fuente monoespaciada self-hosted e iconos SVG
+
+[Seguro — licencia registrada] Fuente: **JetBrains Mono Regular**, licencia
+**SIL Open Font License 1.1** (texto en src/assets/fonts/OFL.txt). Self-
+hosted (src/assets/fonts/JetBrainsMono-Regular.woff2, 92 KB) vía @font-face
+en tokens.css; token `--mono` = "JetBrains Mono" con fallback al mono del
+sistema (SF Mono/ui-monospace) si no cargara. Solo Regular: las pocas
+celdas mono en negrita usan síntesis del navegador (aceptable, ahorra peso).
+Editor, registros, memoria y consola ya la usaban vía --mono → la toman
+sola.
+
+[Seguro — licencia registrada] Iconos: **Lucide** (lucide.dev), licencia
+**ISC**. Copiados como path data en src/iconos.ts — CERO dependencia npm.
+SVG inline en los botones de la toolbar (ensamblar=package, ejecutar=play,
+paso=chevron, detener=square, reiniciar=rotate-ccw, lecciones=graduation-
+cap, video=monitor, abrir=folder-open, guardar=save, exportar=download,
+ayuda=circle-help). Decorativos (aria-hidden); el botón conserva su TEXTO
+(etiqueta accesible) y se le añadió aria-label explícito. Un id sin icono
+cae a solo-texto sin romper.
+
+[Seguro] Bundle RE-MEDIDO con la fuente + iconos: 22 MB ≤ 30 (la fuente
+92 KB y los SVG inline no mueven la aguja). vite build incluye la woff2
+hasheada en dist; tsc/UI/Rust verdes.
+
+[PENDIENTE HUMANO] Verificación visual: la tipografía mono cambió a
+JetBrains Mono en editor/registros/memoria/consola; los botones muestran
+icono + texto alineados.
+
+Compuerta F2: licencias registradas (OFL/ISC) · bundle re-medido 22 MB ·
+tsc/build limpios · suite Rust intacta (37) · UI 35.
