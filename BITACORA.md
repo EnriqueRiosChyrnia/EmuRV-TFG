@@ -1514,3 +1514,37 @@ ELF round-trip con C importadas.
 
 Compuerta F3: todo verde, ningún test previo roto, clippy 0 ambos, tsc
 limpio. C ENTRÓ limpia.
+
+## 2026-06-13 — RP13-F4: ejemplo atómicas y docs A/C (cierre RP-13)
+
+[Seguro] Ejemplo `ejemplos/14-atomicas.asm` (12.º del menú): contador
+atómico con amoadd.w (+10, +5) y lr.w/sc.w (=100), con instrucciones C
+intercaladas (c.li/c.addi/c.mv). Imprime 100, determinista por CLI (doble
+corrida idéntica), exit 0. Detalle didáctico: c.li 100 NO cabe (6 bits) →
+la línea usa `li` de 4 bytes, comentado — el alumno ve POR QUÉ no toda
+constante entra en una C.
+
+[Seguro] Docs: ENSAMBLADOR.md §4.1 con subsecciones A y C (repertorios,
+semántica mono-hart, restricciones x8–x15 e inmediato de 6 bits de C, RV64
+fuera); Ayuda integrada con párrafo «ayuda.atomicas»; README con la
+característica A/C y conteo de ejemplos a 12. Tests CLI: ejemplo 14 corre
+(100) y su disasm lista A (amoadd.w) y C (c.li) mezcladas.
+
+[Seguro] CIERRE RP-13 — criterios del ROADMAP:
+- Extensión A completa, encodings == GNU, mono-hart documentada, ejecuta
+  por UI y CLI ✓ F2
+- Extensión C: VIABLE (F1) e IMPLEMENTADA sin romper invariantes ✓ F3 —
+  source_map/breakpoints/resaltado/disasm soportan tamaño variable; cero
+  regresión (36 binarios src-tauri + 50 CLI verdes)
+- RV64 explícitamente fuera (decisión del autor) ✓
+- Cero regresión RP-1..RP-12 ✓
+
+**Veredicto del spike (resumen para el reporte): C VIABLE.** Razón:
+Unicorn ejecuta C nativo sin flag y el pc avanza de a 2; los consumidores
+del supuesto-4-bytes son acotados (encode loop, disasm, source_map fill) y
+el invariante se preserva porque la compresión NO es automática — un
+programa sin c.* produce bytes y direcciones idénticos a los de antes.
+Ambos desenlaces eran cierre válido; entró el A+C completo.
+
+Suites verdes (36 src-tauri, 50 CLI), clippy 0 ambos, tsc limpio,
+ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30.

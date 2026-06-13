@@ -76,6 +76,7 @@
   "estado.watchpoint.accedio": "accedió a",
   "estado.ebreak": "Pausado por ebreak (línea {line})",
   "ayuda.directivas.rp5": "«.include \"archivo.s\"» inserta otro archivo (el programa debe estar guardado en disco); «.eqv NOMBRE valor» define constantes; «.macro nombre (%p)…/.end_macro» define macros; «%hi(x)»/«%lo(x)» parten una dirección para «lui»+«addi». Detalle: docs/ENSAMBLADOR.md §4.4.",
+  "ayuda.atomicas": "Extensiones avanzadas: A (atómicas — amoadd.w, lr.w/sc.w y familia, de 4 bytes; EmuRV es mono-hart, así que sc siempre tiene éxito: sirven para aprender el patrón, no para concurrencia real) y C (comprimidas — c.addi, c.li, c.mv, c.lw… de 2 bytes; el ensamblador no comprime solo, las escribís a mano). El ejemplo «Atómicas y comprimidas» las muestra; detalle en docs/ENSAMBLADOR.md §4.1.",
   "ayuda.flotantes": "Coma flotante (RV32F/D): registros f0–f31 con nombres ABI (ft, fs, fa); aritmética .s (single) y .d (double), conversiones, comparaciones y fma. Los valores se ven en el panel plegable «Registros F (flotante)» (hex de 64 bits + número interpretado). El ejemplo «Coma flotante» lo muestra; detalle en docs/ENSAMBLADOR.md §4.1.",
   "ayuda.traps": "Avanzado: con «csrw mtvec, reg» el programa instala su propio manejador de excepciones — los ecall desconocidos, las instrucciones ilegales y los accesos inválidos saltan ahí (mcause dice qué pasó) y «mret» vuelve. El ejemplo «Manejador de excepciones» lo muestra completo; detalle en docs/TRAPS.md.",
   "ayuda.ebreak": "Además, la instrucción «ebreak» pausa el programa (pausa por software, como un breakpoint puesto desde el código): podés inspeccionar registros y memoria, y reanudar con «Ejecutar» o «Paso» desde la instrucción siguiente.",
@@ -95,6 +96,7 @@
   "ejemplo.tetrisRt": "Tetris en tiempo real",
   "ejemplo.trap": "Manejador de excepciones (CSRs)",
   "ejemplo.flotantes": "Coma flotante (promedio de notas)",
+  "ejemplo.atomicas": "Atómicas y comprimidas (A/C)",
 
   "error.posicion": "línea {line}, col {col}: {msg}",
 

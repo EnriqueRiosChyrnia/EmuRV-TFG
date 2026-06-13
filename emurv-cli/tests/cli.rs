@@ -660,3 +660,32 @@ fn disasm_decodifica_fd() {
         assert!(listado.contains(esperado), "falta {esperado} en:\n{listado}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// RP13 Fase 4 — ejemplo 14 (atómicas + comprimidas) por CLI.
+// ---------------------------------------------------------------------------
+
+/// El ejemplo 14 corre: contador atómico (amoadd + lr/sc) que termina en
+/// 100, con instrucciones C de 2 bytes mezcladas (el motor las ejecuta).
+#[test]
+fn run_ejemplo_atomicas() {
+    let out = run_con_stdin(&["run", "../ejemplos/14-atomicas.asm"], "", limite());
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "100\n");
+}
+
+/// disasm del ejemplo 14: lista A (amoadd.w/lr.w/sc.w) y C (c.li…) con
+/// longitud variable, sin colgarse.
+#[test]
+fn disasm_ejemplo_atomicas_mixto() {
+    let out = run_con_stdin(&["disasm", "../ejemplos/14-atomicas.asm"], "", limite());
+    assert_eq!(out.status.code(), Some(0));
+    let listado = String::from_utf8_lossy(&out.stdout);
+    assert!(listado.contains("amoadd.w"), "{listado}");
+    assert!(listado.contains("c.li"), "{listado}");
+}

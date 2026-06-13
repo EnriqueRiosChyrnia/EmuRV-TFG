@@ -54,6 +54,7 @@ export class Ayuda {
             <p>${t("ayuda.ebreak")}</p>
             <p>${t("ayuda.traps")}</p>
             <p>${t("ayuda.flotantes")}</p>
+            <p>${t("ayuda.atomicas")}</p>
           </section>
           <section>
             <h3>${t("ayuda.memoria.titulo")}</h3>
