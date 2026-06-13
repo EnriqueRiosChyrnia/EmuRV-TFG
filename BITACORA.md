@@ -1700,3 +1700,26 @@ continuaciones. Si una lección rompe la plantilla, el test rojo.
 
 Compuerta F1: test verde (22 UI: 18 previos + 4 lecciones) · tsc limpio ·
 suite Rust intacta (37 binarios) · clippy 0.
+
+## 2026-06-13 — RP15-F2: navegador de lecciones
+
+[Seguro] Panel «Lecciones» SEPARADO del selector «Ejemplos» (son cosas
+distintas: ejemplos = programas sueltos; lecciones = currículo ordenado).
+Botón «Lecciones» en la toolbar abre un overlay modal (patrón de Ayuda):
+lista ordenada (número + título, con tilde de completada en F3), y al
+seleccionar una, encabezado con sus OBJETIVOS y QUÉ PANELES mirar
+(extraídos por el parser de F1) ANTES de cargar el código — el estudiante
+sabe a qué entra. «Abrir lección» carga el .s al editor (buffer sin ruta,
+como un ejemplo) y la marca completada. i18n: rótulos del navegador en
+es.json (lecciones.*/leccion.*); el contenido de las lecciones NO se
+traduce (es material didáctico dentro del .s).
+
+[Seguro] El panel ya trae el esqueleto de progreso y navegación
+siguiente/anterior y el aviso de multi-archivo; el cableado fino (carpeta +
+base_dir, tests de progreso) se cierra en F3.
+
+[Probable] Verificación manual pendiente de ojo humano: abrir 3-4 lecciones
+desde el navegador, ver objetivos/paneles correctos y que «Abrir lección»
+carga el código al editor.
+
+Compuerta F2: tsc limpio · suite Rust intacta (37) · tests UI 22 verdes.
