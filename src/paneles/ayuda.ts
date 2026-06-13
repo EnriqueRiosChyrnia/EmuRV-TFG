@@ -102,6 +102,10 @@ export class Ayuda {
             <p>${t("ayuda.ejemplos.texto")}</p>
           </section>
           <section>
+            <h3>${t("ayuda.editor.titulo")}</h3>
+            <p>${t("ayuda.editor.texto")}</p>
+          </section>
+          <section>
             <h3>${t("ayuda.breakpoints.titulo")}</h3>
             <p>${t("ayuda.breakpoints.texto")}</p>
             <p>${t("ayuda.depuracion.texto")}</p>
