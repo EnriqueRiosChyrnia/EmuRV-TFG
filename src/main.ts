@@ -23,6 +23,9 @@ import {
 } from "./editor";
 import { getLang, setLang, t } from "./i18n";
 import { icono } from "./iconos";
+// Wordmark de marca (RP19-F3): SVG bi-tono inline; sus clases .logo-emu/.logo-rv
+// se pintan con var(--acento)/var(--texto), así se adapta a cada tema.
+import wordmark from "./assets/emurv-wordmark.svg?raw";
 import { inicializarTema, leerTema, setTema, TEMAS, type Tema } from "./temas";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
@@ -143,6 +146,12 @@ class App {
 
   private construirToolbar(): void {
     const bar = document.getElementById("toolbar")!;
+    // Wordmark de marca al inicio, antes del primer separador (RP19-F3).
+    const marca = document.createElement("span");
+    marca.className = "toolbar-marca";
+    marca.innerHTML = wordmark;
+    bar.appendChild(marca);
+    bar.appendChild(this.sep());
     const boton = (id: string, clave: string, clase = "", parent: HTMLElement = bar) => {
       const b = document.createElement("button");
       b.id = id;
