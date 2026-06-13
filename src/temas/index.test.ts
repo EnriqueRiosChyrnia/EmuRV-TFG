@@ -31,12 +31,15 @@ function stubStorage() {
 test("esTema valida", () => {
   assert.ok(esTema("educativo"));
   assert.ok(esTema("retro"));
+  assert.ok(esTema("pergamino"));
+  assert.ok(esTema("kawaii"));
+  assert.ok(esTema("disquete"));
   assert.ok(!esTema("rosa"));
   assert.ok(!esTema(null));
 });
 
-test("hay exactamente 2 temas built-in, educativo primero", () => {
-  assert.deepEqual(TEMAS, ["educativo", "retro"]);
+test("hay 5 temas, educativo primero (orden del selector)", () => {
+  assert.deepEqual(TEMAS, ["educativo", "retro", "pergamino", "kawaii", "disquete"]);
 });
 
 test("aplicarTema: educativo quita el atributo, retro lo pone", () => {
