@@ -65,6 +65,39 @@ explícito como `fadd.s ft0, ft1, ft2, rtz` se rechaza con error didáctico).
 Syscalls de punto flotante (RARS): `2` PrintFloat (`fa0`), `3` PrintDouble,
 `6` ReadFloat (→`fa0`), `7` ReadDouble. Ejemplo completo: `ejemplos/13-flotantes.asm`.
 
+#### Extensión A (atómicas, RP-13, 2026-06-13)
+
+Repertorio RV32A completo, todas de 4 bytes: `lr.w`, `sc.w`, `amoswap.w`,
+`amoadd.w`, `amoand.w`, `amoor.w`, `amoxor.w`, `amomin.w`, `amomax.w`,
+`amominu.w`, `amomaxu.w`. Sufijos de ordenamiento opcionales `.aq`/`.rl`/
+`.aqrl` (sin sufijo = ambos en 0). Forma: `amoadd.w rd, rs2, (rs1)` —la
+dirección va entre paréntesis SIN desplazamiento (la espec no lo permite);
+`lr.w rd, (rs1)`. Encodings verificados contra `riscv64-elf-as -march=rv32ima`.
+
+> **Semántica mono-hart (no es una limitación oculta, es el modelo):** EmuRV
+> emula un solo procesador. Una reserva `lr` nunca la invalida otro hart, así
+> que `sc` SIEMPRE tiene éxito (devuelve 0) en uso normal. lr/sc y amo* son
+> secuencialmente consistentes triviales. Sirven para enseñar el repertorio y
+> el patrón load-reserved/store-conditional, NO para concurrencia real.
+
+#### Extensión C (comprimidas, RP-13, 2026-06-13)
+
+Instrucciones de **2 bytes** del set didáctico: `c.nop`, `c.addi`, `c.li`,
+`c.mv`, `c.jr`, `c.j`, `c.lw`, `c.sw`, `c.beqz`, `c.bnez`. El ensamblador
+**NO comprime automáticamente** 32→16 (eso es optimización de tamaño, no
+didáctica): una C aparece solo si la escribís a mano o se importa un ELF que
+la trae. `c.lw`/`c.sw`/`c.beqz`/`c.bnez` solo alcanzan los registros x8–x15
+(restricción de los formatos comprimidos); `c.li`/`c.addi` toman inmediato de
+6 bits con signo (-32..31). El error didáctico lo explica si te pasás.
+
+Estas instrucciones rompen el supuesto «toda instrucción ocupa 4 bytes»: el
+ensamblador, el `source_map`, los breakpoints, el resaltado de línea y el
+desensamblador soportan **tamaño variable** (una C ocupa 2 bytes, el pc
+avanza de a 2). Un breakpoint sobre una C detiene exacto en su dirección.
+Encodings verificados byte a byte contra `riscv64-elf-as -march=rv32imac`.
+Ejemplo: `ejemplos/14-atomicas.asm` (A y C juntas). **RV64 queda fuera**
+(decisión del autor 2026-06-13: es esencialmente otro emulador).
+
 ### 4.2. Pseudo-instrucciones
 
 Soporta el repertorio habitual de pseudo-instrucciones que el material didáctico en español emplea, expandiéndolas a instrucciones reales:
