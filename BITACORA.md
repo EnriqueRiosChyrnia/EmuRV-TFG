@@ -1723,3 +1723,32 @@ desde el navegador, ver objetivos/paneles correctos y que «Abrir lección»
 carga el código al editor.
 
 Compuerta F2: tsc limpio · suite Rust intacta (37) · tests UI 22 verdes.
+
+## 2026-06-13 — RP15-F3: progreso, navegación y caso multi-archivo
+
+[Seguro] `src/lecciones/progreso.ts`: funciones PURAS (parsear/serializar,
+alternarCompletada inmutable, vecina con bordes) + wrappers de localStorage
+(clave versionada `emurv.lecciones.v1`, tolerantes a modo privado/dato
+corrupto). El navegador marca «completada» al abrir una lección y con un
+botón por lección; indicador ✓ en la lista; botón «Reiniciar progreso».
+Navegación siguiente/anterior por orden de CURRÍCULO (no alfabético),
+deshabilitada en los bordes (01 sin anterior, 10 sin siguiente).
+
+[Seguro] Caso 08 (multi-archivo) resuelto coherente con RP-5: «Abrir
+lección» pide una carpeta, guarda main.s + utiles.s + constantes.s ahí
+(api.guardarArchivo) y abre main.s con `rutaArchivo` = base_dir, de modo
+que el `.include` resuelve al Ensamblar. Si el usuario cancela la carpeta:
+aviso didáctico (sin abrir nada roto) explicando por qué esta lección
+necesita guardarse. Verificado que los 3 archivos ensamblan juntos por CLI
+(mismo contenido embebido): salida correcta, exit 0.
+
+[Seguro] Tests (5 nuevos, 27 UI total): parsearProgreso tolera
+null/basura/no-array; round-trip estable; alternarCompletada inmutable;
+vecina respeta orden y bordes; leer/guardar/reset con stub de localStorage.
+
+[PENDIENTE HUMANO] En la app: marcar lecciones y recargar (persistencia);
+siguiente/anterior; abrir la 08 → elegir carpeta → main.s ensambla con sus
+includes; cancelar la carpeta → aviso.
+
+Compuerta F3: tests verdes (27 UI) · tsc limpio · caso 08 verificado por
+CLI (flujo de carpeta: pendiente humano).
