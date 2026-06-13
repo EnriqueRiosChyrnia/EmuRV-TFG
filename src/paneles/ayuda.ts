@@ -32,8 +32,12 @@ export class Ayuda {
               <thead><tr><th>a7</th><th>${t("ayuda.syscalls.servicio")}</th><th>${t("ayuda.syscalls.args")}</th></tr></thead>
               <tbody>
                 <tr><td>1</td><td>${t("ayuda.syscalls.s1")}</td><td>a0 = valor</td></tr>
+                <tr><td>2</td><td>${t("ayuda.syscalls.s2")}</td><td>fa0 = valor (f32)</td></tr>
+                <tr><td>3</td><td>${t("ayuda.syscalls.s3")}</td><td>fa0 = valor (f64)</td></tr>
                 <tr><td>4</td><td>${t("ayuda.syscalls.s4")}</td><td>a0 = dirección (terminada en NUL)</td></tr>
                 <tr><td>5</td><td>${t("ayuda.syscalls.s5")}</td><td>→ a0 = valor leído</td></tr>
+                <tr><td>6</td><td>${t("ayuda.syscalls.s6")}</td><td>→ fa0 = valor (f32)</td></tr>
+                <tr><td>7</td><td>${t("ayuda.syscalls.s7")}</td><td>→ fa0 = valor (f64)</td></tr>
                 <tr><td>8</td><td>${t("ayuda.syscalls.s8")}</td><td>a0 = buffer, a1 = tamaño</td></tr>
                 <tr><td>9</td><td>${t("ayuda.syscalls.s9")}</td><td>a0 = bytes → a0 = dirección</td></tr>
                 <tr><td>10</td><td>${t("ayuda.syscalls.s10")}</td><td>—</td></tr>
@@ -49,6 +53,7 @@ export class Ayuda {
     ecall             # llamada al sistema</pre>
             <p>${t("ayuda.ebreak")}</p>
             <p>${t("ayuda.traps")}</p>
+            <p>${t("ayuda.flotantes")}</p>
           </section>
           <section>
             <h3>${t("ayuda.memoria.titulo")}</h3>

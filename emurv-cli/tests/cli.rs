@@ -622,3 +622,41 @@ fn disasm_sin_argumentos_sale_3() {
     let out = run_con_stdin(&["disasm"], "", limite());
     assert_eq!(out.status.code(), Some(3));
 }
+
+// ---------------------------------------------------------------------------
+// RP12 Fase 4 — ejemplo 13 (flotantes) por CLI + disasm de F/D.
+// ---------------------------------------------------------------------------
+
+/// El ejemplo 13 por pipe: promedio de 3 notas con bits IEEE exactos
+/// (7.5 + 8.0 + 10.0 = 25.5 / 3 = 8.5, todos representables en f32).
+#[test]
+fn run_ejemplo_flotantes() {
+    let out = run_con_stdin(
+        &["run", "../ejemplos/13-flotantes.asm"],
+        "7.5\n8.0\n10.0\n",
+        limite(),
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).trim_end().ends_with("Promedio: 8.5"),
+        "stdout: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+}
+
+/// disasm decodifica el repertorio F/D (capstone arch_riscv lo cubre): el
+/// listado del ejemplo 13 trae fcvt/fadd/fdiv/fmv reconocibles.
+#[test]
+fn disasm_decodifica_fd() {
+    let out = run_con_stdin(&["disasm", "../ejemplos/13-flotantes.asm"], "", limite());
+    assert_eq!(out.status.code(), Some(0));
+    let listado = String::from_utf8_lossy(&out.stdout);
+    for esperado in ["fcvt.s.w", "fadd.s", "fdiv.s", "fmv.s"] {
+        assert!(listado.contains(esperado), "falta {esperado} en:\n{listado}");
+    }
+}

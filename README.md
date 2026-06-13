@@ -20,7 +20,8 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar, tiempo en ms y dormir.
 - **Teclado en tiempo real**: dispositivo MMIO compatible RARS/MARS (`0xFFFF_0000`) que el programa consulta por polling sin bloquearse — ver [`docs/TECLADO.md`](docs/TECLADO.md).
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).
-- 10 ejemplos comentados en español (uno multi-archivo), accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
+- 11 ejemplos comentados en español (uno multi-archivo), accesibles desde el menú «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
+- **Coma flotante (RV32F/D)**: repertorio completo de single y double, registros `f0`–`f31` con nombres ABI, syscalls 2/3/6/7, panel de registros flotantes; encodings verificados palabra a palabra contra GNU `as`.
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 
 ## Modo gráfico (Framebuffer VGA 13h)
@@ -136,8 +137,12 @@ El recorrido: registros → aritmética (con el complemento a 2 demostrado) → 
 | a7 | Servicio | Argumentos |
 |----|----------|------------|
 | 1  | imprimir entero | `a0` = valor |
+| 2  | imprimir float | `fa0` = valor (f32) |
+| 3  | imprimir double | `fa0` = valor (f64) |
 | 4  | imprimir cadena | `a0` = dirección de cadena NUL |
 | 5  | leer entero | devuelve en `a0` |
+| 6  | leer float | devuelve en `fa0` (NaN-boxed) |
+| 7  | leer double | devuelve en `fa0` |
 | 8  | leer cadena | `a0` = buffer, `a1` = tamaño (guarda ≤ `a1`−1 bytes + NUL; trunca sin error) |
 | 9  | sbrk (reservar memoria) | `a0` = bytes → devuelve `a0` = dirección (heap en `0x10040000`, sin free) |
 | 10 | terminar | — |
@@ -228,7 +233,7 @@ diff salida.txt esperado.txt && echo "APROBADO"
 src-tauri/src/core/   núcleo Rust: assembler, machine (Unicorn), syscalls, elf_export, video, keyboard
 src-tauri/src/commands.rs   comandos Tauri + hilo de emulación
 src/                  frontend TS: editor (CodeMirror 6), paneles, i18n
-ejemplos/             los 9 programas de ejemplo
+ejemplos/             los 11 programas de ejemplo
 docs/                 contrato de trabajo del TFG y capturas
 BITACORA.md           registro de decisiones técnicas (material de tesis)
 ```

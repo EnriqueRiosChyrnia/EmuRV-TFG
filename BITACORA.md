@@ -1357,3 +1357,44 @@ un registro pausado (decimal y 0x crudo); fcsr mostrando flags tras una
 división por cero.
 
 Compuerta F3: suites verdes (34 binarios src-tauri), clippy 0, tsc limpio.
+
+## 2026-06-12 — RP12-F4: ejemplo flotantes y docs F/D (cierre RP-12)
+
+[Seguro] Ejemplo `ejemplos/13-flotantes.asm` (11.º del menú): promedio de
+3 notas leídas con el servicio 6, acumuladas con fadd.s, divididas con
+fdiv.s (divisor por fcvt.s.w), impreso con el 2. Determinista por CLI
+(7.5+8.0+10.0=25.5/3=8.5 — todos exactos en f32): doble corrida idéntica,
+exit 0. En el menú «Ejemplos» (i18n ejemplo.flotantes).
+
+[Seguro] Desensamblador: capstone arch_riscv decodifica F/D — VERIFICADO
+(no asumido): test núcleo disasm_cubre_fd (fadd.s/fmul.d/fcvt.w.s/flw/
+fmadd.s) + test CLI disasm_decodifica_fd sobre el ejemplo 13. El disasm
+del ejemplo muestra fcvt.s.w/fadd.s/fdiv.s/fmv.s legibles.
+
+[Seguro] Docs: ENSAMBLADOR.md §4.1 con subsección F/D completa (registros,
+repertorio S y D, fmv.x.d rechazado, pseudos, NaN-boxing, syscalls
+2/3/6/7) y §5 actualizada (oráculo GNU ahora disponible, reemplaza el
+«no había oráculo externo»); Ayuda integrada con filas 2/3/6/7 en la
+tabla y párrafo «ayuda.flotantes» (panel «Registros F»); README con
+syscalls 2/3/6/7, característica F/D y conteo de ejemplos a 11.
+
+[Probable — PROPUESTA REGISTRADA, no se hace acá] Lección de floats para
+el currículo de RP-9 (lección 11): IEEE 754 visto en el panel «Registros F»
+(hex64 + interpretado), el «engaño» de comparar floats con ==/feq, el
+promedio del ejemplo 13 como base. El plan RP-12 la dejó fuera de alcance
+explícitamente; queda anotada para una futura ampliación del currículo.
+
+[Seguro] CIERRE RP-12 — criterios del ROADMAP:
+- f0–f31 ABI + repertorio F y D completo (sin rm explícito) ✓ F2
+- encodings == GNU as palabra a palabra (60 instrucciones) ✓ F2
+- panel de registros flotantes con NaN-boxing interpretado ✓ F3
+- syscalls 2/3/6/7 con formato documentado (divergencia {} vs Java) ✓ F3
+- ejemplo por UI y CLI; IEEE 754 con valores exactos ✓ F2/F4
+- desensamblador cubre F/D ✓ F4
+Suites verdes (33 binarios src-tauri, CLI 48), clippy 0 ambos, tsc limpio,
+ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30.
+
+[PENDIENTE HUMANO] (heredados de F3) panel F en la app: abrir la sección,
+correr el ejemplo 13, ver «8.5 (f32)», editar un registro pausado.
+Verificación del dueño: ejemplo 13 por CLI con valores IEEE, un fadd.s
+propio contra GNU as, el panel F.
