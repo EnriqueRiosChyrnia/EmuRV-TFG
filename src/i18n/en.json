@@ -28,6 +28,7 @@
   "video.tecladoCapturado": "Keyboard captured — click outside to release",
 
   "panel.depuracion": "Debug",
+  "panel.depuracion.nota": "advanced",
 
   "registros.nombre": "Reg",
   "registros.hex": "Hexadecimal",
@@ -51,6 +52,7 @@
 
   "depuracion.breakpoints": "Breakpoints",
   "depuracion.watchpoints": "Watchpoints",
+  "depuracion.watchpointsAyuda": "What's this? A watchpoint pauses the program when a memory address is read or written — handy for catching whatever touches a piece of data. (Advanced: leave it for later.)",
   "depuracion.linea": "line {linea}",
   "depuracion.condicion": "Condition",
   "depuracion.condicionPlaceholder": "t0 == 5",

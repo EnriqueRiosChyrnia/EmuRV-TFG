@@ -45,8 +45,9 @@ export class Depuracion {
         <h3>${t("depuracion.breakpoints")}</h3>
         <div data-rol="bps"></div>
       </div>
-      <div class="depuracion-seccion">
-        <h3>${t("depuracion.watchpoints")}</h3>
+      <details class="depuracion-watchpoints">
+        <summary>${t("depuracion.watchpoints")}</summary>
+        <div class="wp-ayuda">${t("depuracion.watchpointsAyuda")}</div>
         <div data-rol="wps"></div>
         <form class="depuracion-alta" data-rol="alta">
           <input type="text" class="mono" data-rol="dir" spellcheck="false"
@@ -63,7 +64,7 @@ export class Depuracion {
           </select>
           <button type="submit">${t("depuracion.agregar")}</button>
         </form>
-      </div>
+      </details>
       <div class="panel-error" data-rol="error" hidden></div>`;
     this.listaBp = root.querySelector("[data-rol=bps]")!;
     this.listaWp = root.querySelector("[data-rol=wps]")!;

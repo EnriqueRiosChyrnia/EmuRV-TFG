@@ -2215,3 +2215,59 @@ valor la tabla no «salta».
 Compuerta F2: lateral flex con Registros prioritario · canvas acotado ·
 registros compactos + separadores + tooltips · orden x0..x31 fijado por
 test · i18n anti-drift · tsc/build limpios · Rust/ids intactos.
+
+## 2026-06-13 — RP18-F3: progressive disclosure y jerarquía de toolbar
+
+[Seguro] Progressive disclosure (público principiante: lo esencial a la
+vista, lo avanzado bajo demanda):
+- #panel-memoria: plegable. main.ts `hacerPanelPlegable("panel-memoria")`
+  pone `.panel-titulo-clickeable` en el <h2> y togglea `.colapsado` al
+  click. ABIERTO por defecto (memoria es contextual, no avanzada).
+- #panel-depuracion: arranca PLEGADO (`class="panel colapsado"` en
+  index.html) y se expande SOLO al poner el primer breakpoint
+  (`alCambiarBreakpoints` quita `.colapsado` si hay ≥1 breakpoint) — ahí
+  empieza a importar. El click manual sigue alternando (depuracion.ts ya lo
+  cableaba). Título con nota «avanzado» a la derecha (span aparte del
+  data-i18n, porque traducirTitulos pisa el textContent del elemento con
+  data-i18n; van dos spans hermanos en el <h2>).
+- Watchpoints: pasaron de `<div class="depuracion-seccion">` a un
+  `<details class="depuracion-watchpoints">` plegado, con mini-ayuda
+  «¿Qué es esto?…» (i18n, texto exacto del diseño) visible al desplegar.
+  Los breakpoints quedan directos a la vista; los watchpoints (más
+  abstractos) bajo demanda. La cajita usa `color-mix(... var(--acento) 10%
+  ...)` (ya usado en styles.css, sin token nuevo).
+
+[Seguro — interacción con F2] El `.panel.colapsado { flex:0 0 auto;
+min-height:0 }` de F2 es lo que hace que un panel plegado en el lateral
+flex ENCOJA al título en vez de dejar hueco. Sin F2, el plegado de F3 se
+vería mal.
+
+[Seguro] Jerarquía de toolbar:
+- De-emphasis: clase `.deemph` (opacity .78; hover→1) en los secundarios
+  (Lecciones, Pantalla, Abrir, Guardar, Exportar, Ayuda). Ensamblar
+  (`.principal`) sigue siendo el ÚNICO con acento. El fondo transparente
+  cálido del `.deemph` es RP-19; acá solo la opacidad.
+- `grupo-ejec`: Ejecutar/Paso/Detener/Reiniciar envueltos en un
+  `<div class="grupo-ejec">` (segmentado: bordes compartidos, esquinas
+  redondeadas solo afuera). El helper `boton()` ganó un parámetro `parent`
+  opcional para meterlos en el contenedor sin tocar nada más; los ids de
+  los botones (contrato con el JS) intactos. DESVIACIÓN del diseño: usa
+  `border-radius:6px` en vez de `var(--radio)` — `--radio` es un token de
+  RP-19 que todavía no existe; 6px es el valor que ya usa toda la app y
+  RP-19 lo tokenizará en su barrido. El plan autoriza dejar el pulido de
+  radios/hover para RP-19 (acá solo estructura + segmentado).
+
+[Seguro] i18n: +2 claves en es Y en (panel.depuracion.nota,
+depuracion.watchpointsAyuda; anti-drift verde). Las funciones de plegado
+NO son puras (togglean clases del DOM) → sin test unitario, verificación
+manual (el plan lo contempla: «testeadas si son puras»). tsc estricto y
+vite build limpios. Sin renombrar ids; Rust intacto (frontend).
+
+[PENDIENTE HUMANO] Verificación del flujo: Depuración plegada al abrir la
+app y que se expande sola al poner un breakpoint; Memoria se pliega/despliega
+al click; Watchpoints despliega su mini-ayuda; solo Ensamblar resalta, el
+resto atenuado; los 4 botones de ejecución se ven como UN bloque.
+
+Compuerta F3: progressive disclosure (Memoria plegable · Depuración plegada
+y auto-revelada · watchpoints con ayuda) · jerarquía (deemph + grupo-ejec)
+· i18n anti-drift · tsc/build limpios · ids/Rust intactos.

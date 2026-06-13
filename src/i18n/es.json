@@ -28,6 +28,7 @@
   "video.tecladoCapturado": "Teclado capturado — clic afuera para soltar",
 
   "panel.depuracion": "Depuración",
+  "panel.depuracion.nota": "avanzado",
 
   "registros.nombre": "Reg",
   "registros.hex": "Hexadecimal",
@@ -51,6 +52,7 @@
 
   "depuracion.breakpoints": "Breakpoints",
   "depuracion.watchpoints": "Watchpoints",
+  "depuracion.watchpointsAyuda": "¿Qué es esto? Un watchpoint frena el programa cuando una dirección de memoria se lee o se escribe — sirve para cazar quién toca un dato. (Avanzado: dejalo para más adelante.)",
   "depuracion.linea": "línea {linea}",
   "depuracion.condicion": "Condición",
   "depuracion.condicionPlaceholder": "t0 == 5",
