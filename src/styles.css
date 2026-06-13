@@ -567,6 +567,10 @@ html, body {
   z-index: 50;
 }
 
+/* El selector de id (display: flex) le gana al [hidden] del navegador:
+   sin esta regla el overlay se vería SIEMPRE (mismo patrón que Ayuda). */
+#lecciones-overlay[hidden] { display: none; }
+
 .lecciones-caja {
   width: min(880px, 92vw);
   max-height: 86vh;
