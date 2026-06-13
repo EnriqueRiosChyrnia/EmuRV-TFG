@@ -137,6 +137,8 @@
 
   "ayuda.titulo": "EmuRV Help",
   "ayuda.cerrar": "Close",
+  "ayuda.temas.titulo": "Themes",
+  "ayuda.temas.texto": "Use the theme selector in the toolbar to pick the look: «Educational» (sober dark) or «Retro-CRT» (amber phosphor with scanlines, like an old monitor). The change applies instantly and is remembered. Both themes keep good contrast so the code stays comfortable to read.",
   "ayuda.idioma.titulo": "Language",
   "ayuda.idioma.texto": "EmuRV is available in Spanish or English: use the ES/EN selector in the toolbar (your choice is remembered). The translation covers the interface; the assembler error messages and the lessons stay in Spanish even in English mode — they are the project’s teaching material.",
   "ayuda.ciclo.titulo": "Workflow",

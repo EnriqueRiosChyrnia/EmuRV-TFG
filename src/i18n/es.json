@@ -137,6 +137,8 @@
 
   "ayuda.titulo": "Ayuda de EmuRV",
   "ayuda.cerrar": "Cerrar",
+  "ayuda.temas.titulo": "Temas",
+  "ayuda.temas.texto": "Con el selector de tema de la barra elegís el aspecto: «Educativo» (oscuro sobrio) o «Retro-CRT» (fósforo ámbar con líneas de barrido, como un monitor viejo). El cambio se ve al instante y se recuerda. Ambos temas mantienen buen contraste para leer el código con comodidad.",
   "ayuda.idioma.titulo": "Idioma",
   "ayuda.idioma.texto": "EmuRV está en español o inglés: usá el selector ES/EN de la barra (tu elección se recuerda). La traducción cubre la interfaz; los mensajes de error del ensamblador y las lecciones quedan en español incluso en modo inglés — son el material didáctico del proyecto.",
   "ayuda.ciclo.titulo": "Ciclo de trabajo",

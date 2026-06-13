@@ -30,6 +30,10 @@ export class Ayuda {
             <p>${t("ayuda.idioma.texto")}</p>
           </section>
           <section>
+            <h3>${t("ayuda.temas.titulo")}</h3>
+            <p>${t("ayuda.temas.texto")}</p>
+          </section>
+          <section>
             <h3>${t("ayuda.syscalls.titulo")}</h3>
             <p>${t("ayuda.syscalls.texto")}</p>
             <table>
