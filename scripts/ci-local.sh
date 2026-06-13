@@ -29,9 +29,10 @@ seccion() {
 
 # --- Job 1: test-macos ------------------------------------------------------
 
-seccion "Frontend (npm ci + tsc + vite build)"
+seccion "Frontend (npm ci + tsc + tests UI + vite build)"
 npm ci
 npx tsc --noEmit
+npm run test:ui   # tests del editor (autocompletado, RP14) con node:test
 npx vite build
 
 seccion "Tests y clippy (src-tauri)"

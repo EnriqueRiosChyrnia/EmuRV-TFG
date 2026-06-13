@@ -1583,3 +1583,36 @@ queda pendiente de ojo humano (clave: abrir ejemplos/13-flotantes.asm y
 
 Compuerta F1: anti-drift verde (3 tests) · resaltado verificado por helper
 · tsc limpio · suite Rust intacta (37 binarios) · clippy 0 ambos.
+
+## 2026-06-13 — RP14-F2: autocompletado contextual
+
+[Seguro] Dep nueva `@codemirror/autocomplete` (mismo ecosistema CM6, solo
+JS). Bundle RE-MEDIDO con `cargo tauri build`: 22 MB (sin cambio
+apreciable; el peso de autocomplete es JS embebido en el WebView, no toca
+el binario). RNF-04 ≤30 holgado.
+
+[Seguro] `src/editor/autocompletar.ts`: núcleo PURO `opcionesAutocompletado
+(lineaAntes, doc)` (testeable sin DOM) + adapter `fuenteAutocompletado`
+(CompletionContext→núcleo). Contexto: primer token → mnemónicos+pseudos
+(de isa.ts, ya con F/D/A/C); tras un mnemónico → registros x y f; tras un
+op de salto/rama/la → además las etiquetas del buffer (regex `^etiqueta:`,
+fuente local: funciona ANTES de ensamblar, sin backend). Filtrado por
+prefijo. Inmediatos (dígito/signo) no se autocompletan. RP-14 NO
+re-ensambla al tipear — el provider solo lee el buffer.
+
+[Seguro — decisión de tooling, registrada] No había runner de tests TS.
+Elegí `tsx` (devDep liviano) + `node:test`, no vitest: vitest arrastra más
+y el proyecto solo necesita correr funciones puras. Script `npm run
+test:ui` (`tsx --test "src/**/*.test.ts"`) enganchado en ci-local.sh y
+ci.yml (validado con actionlint). Es tooling de test (dev-only, no entra
+al bundle): no contradice la regla de «no frameworks pesados» de CLAUDE.md.
+
+[Seguro] Tests del provider (src/editor/autocompletar.test.ts, 8 casos):
+inicio de línea ofrece add/fadd.s/amoadd.w/c.addi/li; prefijo «fad» →
+[fadd.s, fadd.d]; tras `add ` registros (incl. ft0) sin mnemónicos; tras
+`j ` etiquetas del buffer; beq ofrece registros + etiqueta en el último
+operando; add NO ofrece etiquetas; etiquetasDelBuffer tolera indentación y
+deduplica. 8/8 verde.
+
+Compuerta F2: tests del provider verdes · tsc limpio · bundle re-medido
+22 MB ≤ 30 ✓.
