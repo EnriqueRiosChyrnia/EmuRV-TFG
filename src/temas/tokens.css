@@ -16,6 +16,26 @@
   font-display: swap;
 }
 
+/* Tipografía de interfaz self-hosted (RP19-F1): IBM Plex Sans, licencia
+   SIL Open Font License 1.1 (src/assets/fonts/IBMPlexSans-OFL.txt, ©2017
+   IBM Corp.). Subconjunto latino (fontsource): Regular 400 + SemiBold 600
+   (~47 KB total). Self-hosted, sin red. La usa la UI (--fuente-ui); el
+   CÓDIGO y los DATOS siguen en --mono. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../assets/fonts/IBMPlexSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../assets/fonts/IBMPlexSans-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-tema="educativo"] {
   /* superficies */
@@ -27,17 +47,20 @@
   /* texto */
   --texto: #d7dde5;
   --texto-suave: #8b97a5;
-  /* texto sobre el color de acento (botón principal) */
-  --texto-sobre-acento: #10151b;
+  /* texto sobre el color de acento (botón principal). RP19: oscuro violáceo
+     para el acento violeta del Educativo (AA: 6.57 sobre el acento). */
+  --texto-sobre-acento: #16122b;
 
-  /* acentos y estados */
-  --acento: #4ea1ff;
+  /* acentos y estados. RP19 — acento VIOLETA del Educativo (estética Cálido,
+     elección del autor; reemplaza el azul #4ea1ff). AA verificado por
+     contraste.test: 5.78 sobre --fondo, 5.36 sobre --fondo-panel. */
+  --acento: #9b8cff;
   --ok: #6fcf6f;
   --error: #ff7a7a;
   --cambio: #ffd166;
 
   /* resaltados derivados (alfa de su color base) */
-  --resaltado-linea: rgba(78, 161, 255, 0.18); /* línea en ejecución (acento) */
+  --resaltado-linea: rgba(155, 140, 255, 0.2); /* línea en ejecución (acento violeta) */
   --resaltado-cambio: rgba(255, 209, 102, 0.16); /* registro modificado (cambio) */
   --fila-par: rgba(255, 255, 255, 0.025); /* zebra de tablas */
 
@@ -50,6 +73,14 @@
      fallback al mono del sistema si la fuente no cargara. */
   --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 
+  /* estética «Cálido» (RP19): único look de la app (decisión del autor),
+     aplicado SIEMPRE — por eso estos tokens viven en :root y los consume
+     styles.css sin selector de estética. Redondez, aire y tipografía UI. */
+  --radio: 9px; /* radio de controles (botones, inputs, grupo-ejec) */
+  --radio-panel: 14px; /* radio de paneles-tarjeta y zonas del layout */
+  --fuente-ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --sombra-panel: 0 1px 2px rgba(0, 0, 0, 0.16), 0 6px 18px rgba(0, 0, 0, 0.1);
+
   /* sintaxis del editor (RP17B-F2): el highlight de CodeMirror NO usa
      colores fijos sino las clases .cm-sx-* (styles.css) que leen estas
      variables, así el código RECOLOREA con el tema. Verificado AA (≥4.5)
@@ -57,8 +88,8 @@
      --sx-com mirror de --texto-suave (comentarios = texto secundario). */
   --sx-com: #8b97a5;
   --sx-dir: #7fcf8f; /* directivas (.data/.text…) */
-  --sx-lbl: #6fb3ff; /* etiquetas (main:) */
-  --sx-ins: #c98cff; /* instrucciones/mnemónicos */
+  --sx-lbl: #a99bff; /* etiquetas (main:) — RP19: tono violeta (AA 6.72) */
+  --sx-ins: #c4b6ff; /* instrucciones/mnemónicos — RP19: violeta (AA 8.74) */
   --sx-str: #9ec97f; /* cadenas y caracteres */
   --sx-num: #e0a36b; /* números */
 }
