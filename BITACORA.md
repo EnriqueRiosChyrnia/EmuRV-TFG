@@ -2132,3 +2132,24 @@ Plex es de RP-19, no entra acá.
 vivo (selector), ver que cada uno se vea como el diseño y que el código del
 editor recolorea, con la línea en ejecución/breakpoints/números de línea
 correctos; confirmar que la persistencia aguanta al reabrir.
+
+## 2026-06-13 — RP18-F1: fix responsive de la toolbar (flex-wrap)
+
+[Seguro] BUG (UI-BRIEF «Problemas de layout conocidos»): `#toolbar` era
+`display:flex` SIN `flex-wrap`, así que en ventana angosta (no maximizada)
+los controles de la derecha (idioma, tema, ayuda) se cortaban/tapaban.
+Fix mínimo y aislado: `flex-wrap: wrap; row-gap: 8px;` → los controles que
+no entran bajan a una 2ª fila y siguen usables a cualquier ancho.
+Maximizada se ve igual que antes (una sola fila). NO toca ids ni JS; el
+menú overflow «⋯» con ResizeObserver queda como mejora futura (el plan lo
+deja fuera; flex-wrap es el fix por defecto). Antes/después: angosta antes
+= controles clipeados; después = 2ª fila visible.
+
+[Seguro] tsc estricto y vite build limpios. Sin tocar Rust (CSS puro) →
+suite intacta. Estética por tokens, sin literales nuevos.
+
+[PENDIENTE HUMANO] Verificación visual a varios anchos (incl. bien
+angosto): ningún control se tapa; maximizada idéntica.
+
+Compuerta F1: bug resuelto (flex-wrap) · tsc/build limpios · sin ids/JS
+tocados · Rust intacto.
