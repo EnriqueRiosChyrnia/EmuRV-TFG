@@ -3,13 +3,16 @@
 // tema NO recarga: las variables CSS aplican en vivo (ventaja sobre el
 // idioma, que sí recarga). Persistencia en localStorage, patrón RP-15/16.
 
-export type Tema = "educativo" | "retro";
-export const TEMAS: Tema[] = ["educativo", "retro"];
+export type Tema = "educativo" | "retro" | "pergamino" | "kawaii" | "disquete";
+// Orden = orden del selector. «educativo» (default) primero. Los 3 últimos
+// son los temas del diseño aprobado (RP17B). Un tema = un bloque de tokens
+// en tokens.css; agregar uno acá basta (selector e i18n lo derivan).
+export const TEMAS: Tema[] = ["educativo", "retro", "pergamino", "kawaii", "disquete"];
 export const CLAVE_TEMA = "emurv.tema.v1";
 
 /// ¿`v` es un tema válido? (validación PURA, para parsear lo persistido).
 export function esTema(v: unknown): v is Tema {
-  return v === "educativo" || v === "retro";
+  return (TEMAS as string[]).includes(v as string);
 }
 
 /// Tema persistido, o «educativo» (default) si no hay nada / es inválido.

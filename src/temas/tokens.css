@@ -49,6 +49,18 @@
   /* tipografía monoespaciada: JetBrains Mono self-hosted (RP17-F2) con
      fallback al mono del sistema si la fuente no cargara. */
   --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+
+  /* sintaxis del editor (RP17B-F2): el highlight de CodeMirror NO usa
+     colores fijos sino las clases .cm-sx-* (styles.css) que leen estas
+     variables, así el código RECOLOREA con el tema. Verificado AA (≥4.5)
+     sobre --fondo (= fondo del editor) por contraste.test.ts.
+     --sx-com mirror de --texto-suave (comentarios = texto secundario). */
+  --sx-com: #8b97a5;
+  --sx-dir: #7fcf8f; /* directivas (.data/.text…) */
+  --sx-lbl: #6fb3ff; /* etiquetas (main:) */
+  --sx-ins: #c98cff; /* instrucciones/mnemónicos */
+  --sx-str: #9ec97f; /* cadenas y caracteres */
+  --sx-num: #e0a36b; /* números */
 }
 
 /* Tema «Retro-CRT» (RP17-F3): identidad del dominio — fósforo ámbar sobre
@@ -77,6 +89,16 @@
   --overlay-fondo: rgba(0, 0, 0, 0.6);
   --sombra-modal: 0 18px 60px rgba(0, 0, 0, 0.6);
   --fondo-pantalla: #000;
+
+  /* sintaxis (RP17B-F2): monitor ámbar casi monocromo — la diferencia
+     entre tokens viene del BRILLO, no del tono. Comentarios apagados,
+     instrucciones brillantes. AA holgado sobre negro cálido (≥7). */
+  --sx-com: #c89b54; /* = --texto-suave (comentarios apagados) */
+  --sx-dir: #b8d96b; /* directivas: ámbar-lima */
+  --sx-lbl: #ffb000; /* etiquetas: el acento */
+  --sx-ins: #ffe0a0; /* instrucciones: ámbar brillante */
+  --sx-str: #d9b86a; /* cadenas: ámbar cálido */
+  --sx-num: #ff9e5c; /* números: naranja */
 }
 
 /* Scanlines sutiles del Retro-CRT: una capa fija de líneas tenues sobre
@@ -94,6 +116,110 @@
     rgba(0, 0, 0, 0) 2px,
     rgba(0, 0, 0, 0.06) 3px
   );
+}
+
+/* ======================================================================
+   TEMAS DE RP17 PARTE B (diseño aprobado por el autor, claude.ai →
+   docs/diseno-ui/propuestas-ui.html). Cada tema = SOLO datos (un bloque
+   [data-tema]); lo que no se sobrescribe hereda de :root/«educativo».
+
+   NOTA DE CONTRASTE (regla innegociable, BITACORA RP17B-F1): varios
+   valores del diseño no llegaban a AA 4.5:1 sobre sus fondos claros. Se
+   corrigió EL TOKEN (oscurecido dentro del mismo tono), nunca el umbral.
+   Cada token corregido lleva el valor del diseño en comentario. El editor
+   pinta sobre --fondo, así que los --sx-* se verifican contra --fondo.
+   Todo lo cubre src/temas/contraste.test.ts (5 temas, AA).
+   ====================================================================== */
+
+[data-tema="pergamino"] {
+  /* claro, papel cálido */
+  --fondo: #f4ecd8;
+  --fondo-panel: #efe6cf;
+  --fondo-claro: #e6dbc0;
+  --borde: #cbbd98;
+
+  --texto: #352c1f;
+  --texto-suave: #5f5544;
+  --texto-sobre-acento: #ffffff;
+
+  --acento: #1f5c9e;
+  --ok: #2c7830; /* diseño #2e7d32 → AA sobre fondo */
+  --error: #b3261e;
+  --cambio: #8a5d00;
+
+  --resaltado-linea: rgba(31, 92, 158, 0.14);
+  --resaltado-cambio: rgba(138, 93, 0, 0.14);
+  --fila-par: rgba(0, 0, 0, 0.035);
+  --overlay-fondo: rgba(40, 33, 20, 0.4);
+
+  --sx-com: #736952; /* diseño #8a7f63 → AA */
+  --sx-dir: #2c7830; /* diseño #2e7d32 → AA */
+  --sx-lbl: #1f5c9e;
+  --sx-ins: #8a3ca6;
+  --sx-str: #3d772d; /* diseño #3f7a2e → AA */
+  --sx-num: #9a5b00;
+}
+
+[data-tema="kawaii"] {
+  /* vaporwave pastel; candy-pink */
+  --fondo: #efe7fb;
+  --fondo-panel: #faf5ff;
+  --fondo-claro: #ece3fa;
+  --borde: #d3bfee;
+
+  --texto: #3f2d63;
+  --texto-suave: #6f5c8e;
+  --texto-sobre-acento: #ffffff;
+
+  --acento: #ba3079; /* diseño #c0327d → AA */
+  --ok: #177753; /* diseño #1f9e6e → AA */
+  --error: #be3353; /* diseño #d83a5e → AA */
+  --cambio: #9e6300; /* diseño #b97400 → AA */
+
+  --resaltado-linea: rgba(186, 48, 121, 0.16);
+  --resaltado-cambio: rgba(158, 99, 0, 0.16);
+  --fila-par: rgba(123, 91, 174, 0.05);
+  --overlay-fondo: rgba(63, 45, 99, 0.4);
+  --fondo-pantalla: #1c1430;
+
+  --sx-com: #70618a; /* diseño #9683ba → AA */
+  --sx-dir: #1b774e; /* diseño #1f8a5a → AA */
+  --sx-lbl: #b8327f;
+  --sx-ins: #6a35c0;
+  --sx-str: #287640; /* diseño #2f8a4a → AA */
+  --sx-num: #9e5619; /* diseño #c2691f → AA */
+}
+
+[data-tema="disquete"] {
+  /* escritorio beige 90s */
+  --fondo: #cdc3a8;
+  --fondo-panel: #e9e2cf;
+  --fondo-claro: #f4efdf;
+  --borde: #8f8164;
+
+  --texto: #2b2719;
+  --texto-suave: #584f3b; /* diseño #6a6047 → AA sobre fondo */
+  --texto-sobre-acento: #fff4e8;
+
+  --acento: #86380f; /* diseño #b14a14 → AA */
+  --ok: #2c592e; /* diseño #3c7a3f → AA */
+  --error: #95281d; /* diseño #b23022 → AA */
+  --cambio: #855c00; /* diseño #9a6b00 → AA */
+
+  --resaltado-linea: rgba(134, 56, 15, 0.16);
+  --resaltado-cambio: rgba(133, 92, 0, 0.16);
+  --fila-par: rgba(80, 70, 40, 0.05);
+  --overlay-fondo: rgba(43, 39, 25, 0.45);
+  --fondo-pantalla: #15120a;
+
+  /* beige #cdc3a8 es un fondo claro OSCURO: la sintaxis del diseño no
+     llegaba a AA, se oscureció dentro de tono. */
+  --sx-com: #584f3c; /* diseño #8a7d5e → AA */
+  --sx-dir: #2c592e; /* diseño #3c7a3f → AA */
+  --sx-lbl: #86380f; /* diseño #b14a14 → AA */
+  --sx-ins: #62399e; /* diseño #6d3fb0 → AA */
+  --sx-str: #235a2b; /* diseño #2f7a3a → AA */
+  --sx-num: #744500; /* diseño #9a5b00 → AA */
 }
 
 /* ----------------------------------------------------------------------

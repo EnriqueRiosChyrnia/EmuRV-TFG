@@ -50,11 +50,19 @@ const PARES: Array<[string, string]> = [
   ["cambio", "fondo-panel"],
 ];
 
+// Sintaxis del editor (RP17B): cada --sx-* es texto que CodeMirror pinta
+// sobre el fondo del editor, que es --fondo (ver styles.css/.cm-editor).
+// La legibilidad del código es tan innegociable como la de la UI.
+const SINTAXIS = ["sx-com", "sx-dir", "sx-lbl", "sx-ins", "sx-str", "sx-num"];
+
 const AA = 4.5;
 
 for (const [sel, nombre] of [
   ['[data-tema="educativo"]', "Educativo"],
   ['[data-tema="retro"]', "Retro-CRT"],
+  ['[data-tema="pergamino"]', "Pergamino"],
+  ['[data-tema="kawaii"]', "Retro Kawaii"],
+  ['[data-tema="disquete"]', "Disquete 90s"],
 ] as const) {
   test(`contraste AA (≥${AA}) en los pares críticos del tema ${nombre}`, () => {
     const tk = tokensDe(sel);
@@ -63,6 +71,20 @@ for (const [sel, nombre] of [
       assert.ok(
         r >= AA,
         `${nombre}: ${fg}(${tk[fg]}) sobre ${bg}(${tk[bg]}) = ${r.toFixed(2)}:1 < ${AA}`,
+      );
+    }
+  });
+
+  test(`contraste AA (≥${AA}) de la sintaxis del editor en el tema ${nombre}`, () => {
+    // Los temas que no redefinen --sx-* heredan los de :root; el test los
+    // resuelve desde :root cuando el bloque del tema no los trae.
+    const base = tokensDe('[data-tema="educativo"]');
+    const tk = { ...base, ...tokensDe(sel) };
+    for (const sx of SINTAXIS) {
+      const r = ratio(tk[sx], tk["fondo"]);
+      assert.ok(
+        r >= AA,
+        `${nombre}: ${sx}(${tk[sx]}) sobre fondo(${tk["fondo"]}) = ${r.toFixed(2)}:1 < ${AA}`,
       );
     }
   });

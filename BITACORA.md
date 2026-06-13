@@ -1988,3 +1988,59 @@ tokens), sin reingeniería.
 [PENDIENTE HUMANO] Verificación visual del conjunto: tipografía JetBrains
 Mono, iconos en la toolbar, cambio Educativo↔Retro-CRT en vivo con
 scanlines, persistencia al reabrir.
+
+## 2026-06-13 — RP17B-F1: temas Pergamino, Retro Kawaii y Disquete 90s
+
+[Seguro] Tres temas nuevos del diseño aprobado (claude.ai →
+docs/diseno-ui/propuestas-ui.html) como bloques de tokens en tokens.css:
+Pergamino (papel cálido claro), Retro Kawaii (vaporwave pastel) y Disquete
+90s (escritorio beige). Cero CSS duplicado: cada tema solo sobrescribe
+variables; lo demás hereda de :root/«educativo». TEMAS pasa a 5 entradas
+(orden = selector, educativo primero); el selector y los nombres i18n se
+derivan solos de TEMAS (no hubo que tocar main.ts). esTema valida contra
+TEMAS. i18n: tema.pergamino/kawaii/disquete en es Y en (anti-drift verde).
+
+[Seguro — LEGIBILIDAD, regla innegociable, «no bajar la vara»] Los valores
+EXACTOS del diseño NO cumplían AA 4.5:1 en varios pares sobre sus fondos
+claros — bastante más que los dos caveats que el plan anticipaba. Medición
+con el algoritmo WCAG de contraste.test.ts ANTES de escribir:
+- Pergamino: ok/fondo 4.35.
+- Kawaii: ok/fondo 2.83, error/fondo 3.73, acento/fondo 4.38, cambio 3.52.
+- Disquete: acento/fondo 3.10, ok/fondo 2.96, texto-suave/fondo 3.54.
+- Sintaxis (--sx-* sobre --fondo, que es el fondo del editor): casi toda
+  la de Kawaii y Disquete por debajo de 4.5 (Disquete sx-com 2.31).
+Decisión (autorizada por el plan: «corregí el token, no bajes la vara»):
+oscurecer cada token que raspa DENTRO de su mismo tono (escala RGB hacia
+negro por búsqueda binaria) hasta ≥4.6 (margen). Cada valor corregido
+queda con el valor del diseño en comentario en tokens.css. NO se tocó la
+estructura del diseño (eso es RP-19); solo el valor de los tokens que la
+legibilidad exigía. Tokens corregidos:
+- Pergamino: ok #2e7d32→#2c7830; sx-com/dir/str.
+- Kawaii: acento #c0327d→#ba3079, ok #1f9e6e→#177753, error #d83a5e→
+  #be3353, cambio #b97400→#9e6300; sx-com/dir/str/num. resaltado-* rgba
+  realineados al acento/cambio corregidos.
+- Disquete: texto-suave #6a6047→#584f3b, acento #b14a14→#86380f, ok
+  #3c7a3f→#2c592e, error #b23022→#95281d, cambio #9a6b00→#855c00; los 6
+  --sx-* (beige #cdc3a8 es un «claro oscuro», la sintaxis necesitaba el
+  mayor ajuste). resaltado-* rgba realineados.
+Mínimos resultantes por tema (texto + sintaxis): Educativo 4.99, Retro
+7.19, Pergamino/Kawaii/Disquete 4.60. Los 5 verdes.
+
+[Seguro] --sx-* (sintaxis del editor) se agregaron a LOS 5 temas, incluido
+:root (valores del diseño, sx-com = mirror de --texto-suave como hex para
+que el test lo lea) y Retro-CRT (derivados ámbar coherentes: casi monocromo,
+la diferencia es brillo no tono; AA holgado ≥7 sobre negro cálido). El test
+de contraste ahora cubre, por tema, los 11 pares de UI MÁS los 6 --sx-*
+sobre --fondo: la legibilidad del código es tan innegociable como la de la
+UI. Consumidos por el theme de CodeMirror en F2.
+
+[Seguro] Tests UI 50 (antes 42): +5 «sintaxis del editor» (uno por tema) +
+los pares críticos de los 3 temas nuevos. tsc estricto limpio, vite build
+ok. Anti-drift es/en verde.
+
+[PENDIENTE HUMANO] Verificación visual de los 5 temas en vivo: que el
+selector muestre los 5, que cada uno se vea como el diseño (papel/pastel/
+beige) y que el contraste se sienta cómodo, no solo que pase el número.
+
+Compuerta F1: contraste AA verde en los 5 temas (texto + sintaxis) ·
+selector deriva 5 de TEMAS · anti-drift i18n verde · tsc/build limpios.
