@@ -2044,3 +2044,58 @@ beige) y que el contraste se sienta cómodo, no solo que pase el número.
 
 Compuerta F1: contraste AA verde en los 5 temas (texto + sintaxis) ·
 selector deriva 5 de TEMAS · anti-drift i18n verde · tsc/build limpios.
+
+## 2026-06-13 — RP17B-F2: theme de sintaxis del editor por tokens
+
+[Seguro] Problema: CodeMirror usaba oneDark FIJO, así que el código del
+editor NO cambiaba de color con el tema (el resto de la UI sí, por las CSS
+vars). Objetivo: que la sintaxis siga los --sx-* del tema activo, en vivo.
+
+[Seguro — punto técnico del plan] CodeMirror NO lee CSS vars de forma
+nativa en un HighlightStyle (los colores se resuelven al construir el
+estilo, no por elemento). Enfoque elegido y verificado: un TagStyle admite
+la propiedad `class` (en @codemirror/language toma precedencia sobre las
+props de color: `class: style.class || …`). Entonces el HighlightStyle
+emite CLASES (.cm-sx-com/dir/lbl/ins/str/num) en vez de colores, y esas
+clases en styles.css pintan con `color: var(--sx-*)`. Cambiar de tema
+recolorea los spans sin recrear el editor — la cascada CSS aplica al
+instante. NO hizo falta mini-spike: el mapeo tag→clase salió directo.
+
+[Seguro] Mapeo tag→clase (los tokens del StreamLanguage de riscv.ts pasan
+por createTokenType → tags.<nombre>): comment→.cm-sx-com, meta(directiva)→
+.cm-sx-dir, labelName→.cm-sx-lbl, keyword(mnemónico)→.cm-sx-ins, string→
+.cm-sx-str, number→.cm-sx-num. Registros (variableName.special) y nombres
+sueltos quedan con el color de texto por defecto — igual que el diseño, que
+tampoco los colorea. `src/editor/tema.ts` exporta `temaEditor` = chrome +
+syntaxHighlighting; index.ts lo monta donde estaba oneDark.
+
+[Seguro] El chrome del editor (fondo, cursor, selección, gutter, línea
+activa) pasó de oneDark a un EditorView.theme cuyo color sale TODO de
+tokens de la app (var(--fondo), var(--acento), var(--fondo-panel),
+var(--fila-par)…). El fondo del editor es --fondo, que es justo el fondo
+contra el que F1 verificó los --sx-*. La línea en ejecución
+(.cm-linea-actual, !important) y los breakpoints (.cm-breakpoint-*) se
+estilan en styles.css y mandan sobre el chrome: intactos.
+
+[Seguro] Test anti-drift (src/editor/tema.test.ts, 3): las 6 clases que
+declara el HighlightStyle existen como regla `color:var(--sx-*)` en
+styles.css (un typo de cualquier lado dejaría la sintaxis sin color sin
+romper el build — el test lo caza), y index.ts ya no referencia oneDark.
+No se testea el recoloreo en sí (necesita DOM/navegador) → verificación
+humana. Dependencia @codemirror/theme-one-dark queda declarada pero sin
+importar (no entra al bundle); se quitará si se hace limpieza de deps.
+
+[Seguro] Suites: UI 53 (antes 50: +3 anti-drift del theme). Rust intacto
+(F2 es solo frontend): src-tauri y emurv-cli verdes. tsc estricto y vite
+build limpios.
+
+[PENDIENTE HUMANO] Verificación visual del recoloreo: cambiar entre los 5
+temas y confirmar que el CÓDIGO del editor recolorea en vivo (comentarios/
+directivas/etiquetas/instrucciones/cadenas/números), que la línea en
+ejecución, los breakpoints y los números de línea siguen bien, y que la
+sintaxis se lee cómoda en cada tema (sobre todo Disquete, el más oscuro de
+los claros).
+
+Compuerta F2: highlight por clases siguiendo --sx-* · chrome por tokens ·
+exec-line/breakpoints/gutter intactos · anti-drift de clases verde · tsc/
+build limpios · Rust intacto.
