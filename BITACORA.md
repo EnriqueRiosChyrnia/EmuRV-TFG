@@ -1681,3 +1681,22 @@ frontend; cubre las funciones puras del editor.
 [PENDIENTE HUMANO] Verificación visual en la app (heredada de F3):
 autocompletado (Ctrl-Espacio), hover sobre fadd.s/amoadd.w/c.addi,
 Cmd/Ctrl-click a definición de etiqueta, resaltado de usos.
+
+## 2026-06-13 — RP15-F1: lecciones embebidas, parser de cabecera e índice
+
+[Seguro] Las 10 lecciones embebidas con `?raw` (patrón de los ejemplos); la
+08 embebe sus 3 archivos (main.s + utiles.s + constantes.s). `src/lecciones/
+index.ts` arma el currículo ORDENADO (orden de aprendizaje, no alfabético).
+
+[Seguro — anti-drift, patrón RP-14] Metadatos del navegador (número, título,
+objetivos, paneles) SIN duplicar: `src/lecciones/parser.ts::parseLeccion`
+los extrae de la cabecera de plantilla fija de RP-9. Separé el parser PURO
+(parser.ts, sin imports `?raw`) del índice embebido (index.ts) para que el
+test corra bajo node:test/tsx — los `?raw` de Vite no resuelven fuera del
+bundle. El test (parser.test.ts) corre el parser sobre los .s REALES del
+disco (misma fuente que ?raw embebe): las 10 parsean número+título+≥1
+objetivo+paneles, la 08 tiene sus 3 archivos, y separa objetivos uniendo
+continuaciones. Si una lección rompe la plantilla, el test rojo.
+
+Compuerta F1: test verde (22 UI: 18 previos + 4 lecciones) · tsc limpio ·
+suite Rust intacta (37 binarios) · clippy 0.
