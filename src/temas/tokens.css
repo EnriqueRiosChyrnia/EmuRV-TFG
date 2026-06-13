@@ -50,3 +50,48 @@
      fallback al mono del sistema si la fuente no cargara. */
   --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 }
+
+/* Tema «Retro-CRT» (RP17-F3): identidad del dominio — fósforo ámbar sobre
+   negro cálido, como un monitor viejo. Solo sobrescribe tokens (cero CSS
+   duplicado). Contraste WCAG AA verificado en los pares críticos (test
+   src/temas/contraste.test.ts): mínimo 7.19:1, holgado sobre 4.5. */
+[data-tema="retro"] {
+  --fondo: #140d00;
+  --fondo-panel: #1c1402;
+  --fondo-claro: #2a2008;
+  --borde: #6b5410;
+
+  --texto: #ffd383;
+  --texto-suave: #c89b54;
+  --texto-sobre-acento: #1a1200;
+
+  --acento: #ffb000;
+  --ok: #8ae234;
+  --error: #ff8a76;
+  --cambio: #ffe08a;
+
+  --resaltado-linea: rgba(255, 176, 0, 0.16);
+  --resaltado-cambio: rgba(255, 224, 138, 0.16);
+  --fila-par: rgba(255, 196, 80, 0.04);
+
+  --overlay-fondo: rgba(0, 0, 0, 0.6);
+  --sombra-modal: 0 18px 60px rgba(0, 0, 0, 0.6);
+  --fondo-pantalla: #000;
+}
+
+/* Scanlines sutiles del Retro-CRT: una capa fija de líneas tenues sobre
+   toda la app (decorativa, no interactiva). Solo cuando el tema está
+   activo; el default «Educativo» no la tiene. */
+[data-tema="retro"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.06) 3px
+  );
+}
