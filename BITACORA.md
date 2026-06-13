@@ -1398,3 +1398,51 @@ ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30.
 correr el ejemplo 13, ver «8.5 (f32)», editar un registro pausado.
 Verificación del dueño: ejemplo 13 por CLI con valores IEEE, un fadd.s
 propio contra GNU as, el panel F.
+
+## 2026-06-13 — RP13-F1: spike A nativo y viabilidad de C
+
+[Seguro — medido por tests/spike_ac.rs, Unicorn 2.1.5 crudo]
+**A (atómicas): nativo, sin sorpresas.**
+- amoadd.w t0,t1,(t2): memoria 100→110, rd recibió el VIEJO (100). ✓
+- lr.w + sc.w: store-conditional EXITOSO mono-hart (sc devuelve 0), la
+  memoria quedó con el valor. ✓
+- Encodings a mano == GNU as -march=rv32ima (amoadd.w=0x0063a2af,
+  lr.w=0x1003a2af, sc.w=0x1863a2af). A es el piso: cero riesgo.
+
+[Seguro] **C (comprimidas): VIABLE.** La pregunta central respondida:
+- Unicorn RISCV32 decodifica y ejecuta instrucciones C de 2 bytes **SIN
+  flag** con el modo actual (Mode::RISCV32). c.addi/c.li ejecutan.
+- El pc **avanza de a 2** tras una C (C-P2: una c.li deja pc=BASE+2).
+- Secuencia MIXTA 4-2-2-4 (addi + c.addi + c.addi + addi): a0=8 y
+  pc=BASE+12 exactos (C-P1). Mezclar tamaños no descarrila el motor.
+- Encodings C == GNU as -march=rv32imac (c.addi a0,1=0x0505, c.nop=0x0001,
+  c.li a2,5=0x4615, c.mv a1,a0=0x85aa).
+
+**Auditoría de consumidores del supuesto-4-bytes (la condición del plan):**
+1. `assemble` pasada 2 (assembler.rs:644-657): emite `w.to_le_bytes()` (4
+   bytes) y calcula `addr = ins.addr + k*4`. Cambio acotado: un encoder de
+   c.* que devuelve 2 bytes + el loop emitiendo tamaño real.
+2. `instr_size` (assembler.rs): YA es variable (li/la/loads con etiqueta
+   dan 8). c.* → size=2 es mecánico; `text_off += size` y `cur_addr` ya
+   manejan offsets de bytes (no asumen 4 en su estructura).
+3. `disasm` + `words_de` (disasm.rs:27-58): asumen 4 bytes (chunks_exact,
+   i*4). Cambio acotado: avanzar por longitud (2 bits bajos != 0b11 → 2
+   bytes); Capstone arch_riscv decodifica C (verificado RP-11, a confirmar
+   en F3).
+4. source_map / breakpoints (RP-7) / resaltado: el source_map es un mapa
+   addr↔line ARBITRARIO — no asume 4 bytes en su forma, solo el CÓDIGO que
+   lo llena (punto 1). Con direcciones reales, los breakpoints por
+   dirección y el step quedan exactos.
+
+**Por qué NINGÚN test de RP-1..RP-12 se rompe:** el ensamblador NO comprime
+automáticamente (decisión del autor) — una instrucción de 32 bits sigue
+emitiendo 32 bits idénticos; un programa sin c.* produce las MISMAS
+direcciones de hoy. C aparece solo si el usuario escribe c.* o se importa
+un ELF. El disasm reescrito para longitud variable debe dar resultados
+idénticos sobre input de solo-4-bytes (lo vigilan los tests RP-11/12).
+
+DECISIÓN [Seguro]: **C VIABLE** — los cambios son acotados y enumerables, y
+el invariante se preserva porque la compresión no es automática. Se
+implementa en F3.
+
+Compuerta F1: spike A verde + veredicto C=VIABLE con evidencia ✓.
