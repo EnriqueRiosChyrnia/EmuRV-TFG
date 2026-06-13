@@ -21,7 +21,7 @@ import {
   setReadOnly,
   toggleBreakpointAtLine,
 } from "./editor";
-import { t } from "./i18n";
+import { getLang, setLang, t } from "./i18n";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
@@ -188,6 +188,31 @@ class App {
     boton("guardar", "toolbar.guardar").onclick = () => void this.guardarArchivo();
     boton("exportar", "toolbar.exportar").onclick = () => void this.exportarElf();
     boton("ayuda", "toolbar.ayuda").onclick = () => this.ayuda.abrir();
+
+    // Selector de idioma (RP16): es/en. Cambiar persiste y recarga la
+    // ventana (la UI se construye al cargar; recargar evita estado a medio
+    // traducir). El español va primero (lengua primaria).
+    const idioma = document.createElement("select");
+    idioma.id = "idioma";
+    idioma.title = t("toolbar.idioma");
+    for (const [valor, etiqueta] of [
+      ["es", "ES"],
+      ["en", "EN"],
+    ] as const) {
+      const o = document.createElement("option");
+      o.value = valor;
+      o.textContent = etiqueta;
+      if (valor === getLang()) o.selected = true;
+      idioma.appendChild(o);
+    }
+    idioma.onchange = () => {
+      const v = idioma.value === "en" ? "en" : "es";
+      if (v !== getLang()) {
+        setLang(v);
+        location.reload();
+      }
+    };
+    bar.appendChild(idioma);
   }
 
   private sep(): HTMLElement {
