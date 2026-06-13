@@ -477,8 +477,8 @@ fn subcomando_disasm(args: &[String]) -> u8 {
         Ok(p) => p,
         Err(code) => return code,
     };
-    use emurv_lib::core::disasm::{disasm, listado, words_de};
-    let lineas = disasm(&words_de(&programa.text), emurv_lib::core::TEXT_BASE);
+    use emurv_lib::core::disasm::{disasm_bytes, listado};
+    let lineas = disasm_bytes(&programa.text, emurv_lib::core::TEXT_BASE);
     print!("{}", listado(&lineas));
     0
 }
