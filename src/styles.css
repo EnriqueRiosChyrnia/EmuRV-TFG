@@ -1,19 +1,7 @@
 /* EmuRV — estilos de la aplicación. Tema oscuro sobrio, monoespaciado
-   donde se muestran datos de máquina. */
-
-:root {
-  --fondo: #1e2227;
-  --fondo-panel: #23282f;
-  --fondo-claro: #2b323b;
-  --borde: #3a424d;
-  --texto: #d7dde5;
-  --texto-suave: #8b97a5;
-  --acento: #4ea1ff;
-  --ok: #6fcf6f;
-  --error: #ff7a7a;
-  --cambio: #ffd166;
-  --mono: "SF Mono", ui-monospace, Menlo, monospace;
-}
+   donde se muestran datos de máquina.
+   La estética (colores, sombras, fuente) vive en src/temas/tokens.css como
+   design tokens; este archivo solo referencia var(--…) (RP17). */
 
 * { box-sizing: border-box; }
 
@@ -61,7 +49,7 @@ html, body {
 
 #toolbar button:hover:not(:disabled) { border-color: var(--acento); }
 #toolbar button:disabled { opacity: 0.45; cursor: default; }
-#toolbar button.principal { background: var(--acento); color: #10151b; font-weight: 600; }
+#toolbar button.principal { background: var(--acento); color: var(--texto-sobre-acento); font-weight: 600; }
 #toolbar .separador { width: 1px; align-self: stretch; background: var(--borde); margin: 0 4px; }
 #toolbar .espacio { flex: 1; }
 
@@ -91,7 +79,7 @@ html, body {
 
 /* línea que está por ejecutarse (RF-04) */
 .cm-linea-actual {
-  background: rgba(78, 161, 255, 0.18) !important;
+  background: var(--resaltado-linea) !important;
   box-shadow: inset 3px 0 0 var(--acento);
 }
 
@@ -214,14 +202,14 @@ html, body {
   white-space: nowrap;
 }
 
-.registros-tabla tr:nth-child(even) { background: rgba(255, 255, 255, 0.025); }
+.registros-tabla tr:nth-child(even) { background: var(--fila-par); }
 .registros-tabla td:first-child { color: var(--texto-suave); }
 .registros-xn { opacity: 0.5; font-size: 11px; }
 
 .registros-pc td { color: var(--acento); font-weight: 600; }
 
 /* resaltado de registros modificados en el último paso (RF-05) */
-.registros-tabla tr.cambiado td { background: rgba(255, 209, 102, 0.16); }
+.registros-tabla tr.cambiado td { background: var(--resaltado-cambio); }
 .registros-tabla tr.cambiado td:first-child { color: var(--cambio); }
 
 /* CSRs (avanzado, RP8-F4): sección plegable al pie, cerrada por defecto */
@@ -383,7 +371,7 @@ html, body {
 #ayuda-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-fondo);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -401,7 +389,7 @@ html, body {
   background: var(--fondo-panel);
   border: 1px solid var(--borde);
   border-radius: 10px;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--sombra-modal);
 }
 
 .ayuda-caja header {
@@ -482,7 +470,7 @@ html, body {
   display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
-  background: #000;
+  background: var(--fondo-pantalla);
   border: 1px solid var(--borde);
   border-radius: 4px;
   /* escalado nítido por píxel, sin interpolación borrosa (RF de FB2) */
@@ -560,7 +548,7 @@ html, body {
 #lecciones-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-fondo);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -672,7 +660,7 @@ html, body {
   cursor: pointer;
 }
 
-.lecciones-detalle button.principal { background: var(--acento); color: #10151b; font-weight: 600; }
+.lecciones-detalle button.principal { background: var(--acento); color: var(--texto-sobre-acento); font-weight: 600; }
 .lecciones-detalle button:disabled { opacity: 0.45; cursor: default; }
 
 /* selector de idioma (RP16) */
