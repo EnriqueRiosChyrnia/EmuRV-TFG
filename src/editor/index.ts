@@ -10,15 +10,21 @@ import {
   Decoration,
   EditorView,
   GutterMarker,
+  ViewPlugin,
   gutter,
   highlightActiveLine,
   highlightActiveLineGutter,
+  hoverTooltip,
   keymap,
   lineNumbers,
   type DecorationSet,
+  type ViewUpdate,
 } from "@codemirror/view";
 import type { AsmError } from "../api";
 import { fuenteAutocompletado } from "./autocompletar";
+import { ayudaDe, descripcionInstr } from "./ayuda-isa";
+import { definicionDeEtiqueta, palabraEn, usosDeEtiqueta } from "./etiquetas";
+import { esMnemonico } from "./isa";
 import { riscvLanguage } from "./riscv";
 
 // ---------------------------------------------------------------------------
@@ -132,6 +138,91 @@ export function setErrors(view: EditorView, errores: AsmError[]): void {
 }
 
 // ---------------------------------------------------------------------------
+// Hover de ayuda por instrucción (RP14-F3)
+// ---------------------------------------------------------------------------
+
+/// Tooltip al pasar sobre un mnemónico: muestra sintaxis + descripción del
+/// diccionario. Un mnemónico sin entrada (o cualquier otra palabra) NO
+/// produce tooltip — nunca uno vacío.
+const hoverAyuda = hoverTooltip((view, pos) => {
+  const doc = view.state.doc.toString();
+  const palabra = palabraEn(doc, pos);
+  if (!palabra || !esMnemonico(palabra.texto)) return null;
+  const ayuda = ayudaDe(palabra.texto);
+  if (!ayuda) return null;
+  return {
+    pos: palabra.from,
+    end: palabra.to,
+    above: true,
+    create() {
+      const dom = document.createElement("div");
+      dom.className = "cm-ayuda-tooltip";
+      const sint = document.createElement("div");
+      sint.className = "cm-ayuda-sintaxis";
+      sint.textContent = ayuda.sintaxis;
+      const desc = document.createElement("div");
+      desc.textContent = ayuda.descripcion;
+      dom.append(sint, desc);
+      return { dom };
+    },
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Resaltar usos de la etiqueta bajo el cursor (RP14-F3)
+// ---------------------------------------------------------------------------
+
+const marcaUsoEtiqueta = Decoration.mark({ class: "cm-uso-etiqueta" });
+
+const resaltarUsosEtiqueta = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.calcular(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.selectionSet) {
+        this.decorations = this.calcular(u.view);
+      }
+    }
+    calcular(view: EditorView): DecorationSet {
+      const sel = view.state.selection.main;
+      const doc = view.state.doc.toString();
+      const palabra = palabraEn(doc, sel.head);
+      // Solo resaltar si el cursor está sobre una etiqueta REAL (tiene
+      // definición) y no sobre un mnemónico/registro.
+      if (!palabra || esMnemonico(palabra.texto)) return Decoration.none;
+      if (definicionDeEtiqueta(doc, palabra.texto) === null) return Decoration.none;
+      const usos = usosDeEtiqueta(doc, palabra.texto);
+      if (usos.length < 2) return Decoration.none; // sin usos además del cursor
+      return Decoration.set(usos.map((u) => marcaUsoEtiqueta.range(u.from, u.to)));
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+// ---------------------------------------------------------------------------
+// Ir-a-definición de etiqueta: Cmd/Ctrl-click (RP14-F3)
+// ---------------------------------------------------------------------------
+
+const irADefinicionEtiqueta = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    if (!event.metaKey && !event.ctrlKey) return false;
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return false;
+    const doc = view.state.doc.toString();
+    const palabra = palabraEn(doc, pos);
+    if (!palabra || esMnemonico(palabra.texto)) return false;
+    const def = definicionDeEtiqueta(doc, palabra.texto);
+    if (def === null) return false; // sin definición: no romper, dejar pasar
+    event.preventDefault();
+    view.dispatch({ selection: { anchor: def }, scrollIntoView: true });
+    view.focus();
+    return true;
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Construcción del editor
 // ---------------------------------------------------------------------------
 
@@ -182,8 +273,12 @@ export function createEditor(
         keymap.of([...defaultKeymap, ...completionKeymap, ...historyKeymap, indentWithTab]),
         riscvLanguage,
         // Autocompletado contextual (RP14): mnemónicos, registros y
-        // etiquetas del buffer. El `info` (descripción) se enchufa en F3.
-        autocompletion({ override: [(ctx) => fuenteAutocompletado(ctx)] }),
+        // etiquetas del buffer, con descripción del diccionario en el info.
+        autocompletion({ override: [(ctx) => fuenteAutocompletado(ctx, descripcionInstr)] }),
+        // Hover de ayuda, resaltado de usos e ir-a-definición (RP14-F3).
+        hoverAyuda,
+        resaltarUsosEtiqueta,
+        irADefinicionEtiqueta,
         oneDark,
         // Al editar: limpiar diagnósticos viejos y reportar breakpoints
         // (sus posiciones se mueven con el texto).
