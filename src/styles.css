@@ -99,15 +99,15 @@ html, body {
   border-color: var(--borde);
 }
 
-/* RP18-F3 — grupo de ejecución segmentado: Ejecutar/Paso/Detener/Reiniciar
-   como UN bloque con bordes compartidos, no 4 cajas sueltas. Solo
-   estructura + segmentado básico; radios/hover cálidos van en RP-19. */
+/* Grupo de ejecución segmentado: Ejecutar/Paso/Detener/Reiniciar como UN
+   bloque con bordes compartidos. RP19-F2: radio tokenizado (var(--radio),
+   antes 6px literal de RP18) + hover cálido por el segmentado. */
 .grupo-ejec {
   display: inline-flex;
   align-items: stretch;
   flex: none;
   border: 1px solid var(--borde);
-  border-radius: 6px;
+  border-radius: var(--radio);
   overflow: hidden;
 }
 .grupo-ejec button {
@@ -117,6 +117,29 @@ html, body {
 }
 .grupo-ejec button:last-child { border-right: 0 !important; }
 .grupo-ejec button:hover:not(:disabled) { background: var(--fondo-panel); }
+
+/* ---------- microinteracciones (RP19-F2, valores exactos del mock) ---------- */
+/* Íconos unificados: trazo 1.8 redondeado; relleno solo donde es convención
+   (el play de Ejecutar lleva .ico-fill). */
+.ico { stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ico:not(.ico-fill) { fill: none; stroke: currentColor; }
+.ico-fill { fill: currentColor; stroke: none; }
+
+/* Transiciones baratas: solo color/borde/sombra (sin reflow ni filtros). */
+button, select, input, summary {
+  transition: background-color 0.12s ease, border-color 0.12s ease,
+    box-shadow 0.12s ease, color 0.12s ease;
+}
+
+/* Foco de teclado coherente por tema (accesibilidad): el anillo usa el
+   acento del tema activo, así que el violeta del Educativo, el ámbar del
+   Retro, etc. se ven correctos. */
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:focus-visible { border-color: var(--acento); }
 
 /* ---------- editor ---------- */
 /* Cálido (RP19): el editor es una tarjeta más (borde + radio). overflow
@@ -146,6 +169,18 @@ html, body {
   color: var(--error);
   font-size: 11px;
   line-height: 1.4;
+  padding-left: 4px;
+}
+
+/* Pista de breakpoint al pasar el mouse (RP19-F2): un ● tenue en el margen
+   de una línea SIN breakpoint, para invitar a poner uno. Traducción del
+   `.ln:not(.bp):hover .num::after` del mock a la gutter de CodeMirror;
+   :has() detecta la ausencia del marcador real. */
+.cm-breakpoint-gutter .cm-gutterElement:not(:has(.cm-breakpoint-marker)):hover::after {
+  content: "●";
+  color: var(--error);
+  opacity: 0.3;
+  font-size: 11px;
   padding-left: 4px;
 }
 
@@ -308,7 +343,10 @@ html, body {
 }
 
 .consola-entrada.activa { opacity: 1; }
-.consola-entrada.activa .consola-prompt { color: var(--ok); }
+/* Prompt acentuado (RP19-F2): el › en color de acento y en negrita, como en
+   el mock (.ce-prompt). El «caret parpadeante» del mock es scaffolding del
+   mockup; el input real ya tiene su caret nativo — se lo tiñe de acento. */
+.consola-prompt { color: var(--acento); font-weight: 700; }
 
 .consola-entrada input {
   flex: 1;
@@ -316,6 +354,7 @@ html, body {
   border: none;
   outline: none;
   color: var(--texto);
+  caret-color: var(--acento);
   font-family: var(--mono);
   font-size: 13px;
 }
@@ -375,6 +414,13 @@ html, body {
 
 /* resaltado de registros modificados en el último paso (RF-05) */
 .registros-tabla tr.cambiado td { background: var(--resaltado-cambio); }
+/* Destello ÚNICO (one-shot, RP19-F2): cuando un registro cambia, un flash
+   de 0.7s que se desvanece al fondo persistente — NO es bucle (no distrae
+   a un principiante). La clase .cambiado la togglea registros.ts por paso. */
+@keyframes emurv-cambio-flash {
+  from { background: color-mix(in srgb, var(--cambio) 50%, transparent); }
+}
+.registros-tabla tr.cambiado td { animation: emurv-cambio-flash 0.7s ease-out; }
 /* Cálido (RP19): además del fondo, una barra lateral en --cambio (señal más
    clara de «este registro cambió»). */
 .registros-tabla tr.cambiado td:first-child {

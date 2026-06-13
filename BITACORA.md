@@ -2374,3 +2374,55 @@ los 5 temas.
 Compuerta F1: se ve como el mock (visual) · contraste AA 5 temas verde
 (violeta incluido) · IBM Plex self-hosted (OFL) · bundle 22 MB ≤30 ·
 tsc/build limpios · Rust/ids intactos.
+
+## 2026-06-13 — RP19-F2: microinteracciones y grupo-ejec tokenizado
+
+[Seguro] grupo-ejec tokenizado: `border-radius:6px` (literal que RP18 dejó
+para acá) → `var(--radio)`. Cierra la deuda de RP18-F3.
+
+[Seguro] Microinteracciones (valores EXACTOS del mock):
+- Transiciones baratas (solo color/borde/sombra, sin reflow ni filtros) en
+  button/select/input/summary, .12s ease.
+- `:focus-visible { outline:2px solid var(--acento); outline-offset:2px }`
+  en botones/selects/inputs/summary (+ border-color acento en inputs). El
+  anillo usa el acento del TEMA activo → coherente en los 5 (violeta en
+  Educativo, ámbar en Retro, etc.).
+- Íconos unificados: `.ico { stroke-width:1.8; …round }`,
+  `.ico:not(.ico-fill){ fill:none; stroke:currentColor }`,
+  `.ico-fill{ fill:currentColor; stroke:none }`. El play (Ejecutar) pasa a
+  relleno por convención: iconos.ts le pone clase `ico ico-fill`.
+- Destello one-shot de registros: `@keyframes emurv-cambio-flash` (de
+  `--cambio 50%` al fondo persistente) en `tr.cambiado td`, 0.7s, UNA vez —
+  NO bucle. registros.ts ya togglea .cambiado por paso.
+
+[Seguro — adaptaciones mock→app, fidelidad con criterio]:
+- Caret de consola: el mock dibuja un caret falso parpadeante (`.ce-caret`,
+  keyframe infinito) porque su consola es estática. La app real tiene un
+  `<input>` con caret NATIVO → en vez de un span falso (bucle innecesario),
+  se tiñe el caret real con `caret-color:var(--acento)` y el prompt `›` va
+  en acento+negrita (`.consola-prompt`, = `.ce-prompt` del mock). Resultado:
+  CERO animaciones en bucle (la directriz «sin bucles que distraigan» se
+  cumple incluso mejor que el mock); el flash es la única animación y es
+  one-shot.
+- Hover de breakpoint: el mock usa `.ln:not(.bp):hover .num::after` sobre su
+  editor falso. Traducido a la gutter real de CodeMirror:
+  `.cm-breakpoint-gutter .cm-gutterElement:not(:has(.cm-breakpoint-marker)):hover::after`
+  → ● tenue (opacity .3) en líneas sin breakpoint, para invitar a poner uno.
+  `:has()` (soportado por el WebKit de Tauri) detecta la ausencia del
+  marcador.
+- Número de línea de ejecución en acento (`.ln.act .num` del mock): se
+  omite — CodeMirror no expone el número de la línea de EJECUCIÓN (≠ línea
+  del cursor) de forma simple; la exec-line ya se marca con la barra de
+  acento (box-shadow de `.cm-linea-actual`). Registrado como omisión menor.
+
+[Seguro] Sin lógica nueva testeable salvo el `ico-fill` (string del SVG); no
+hay test de iconos y el cambio es trivial. tsc estricto y vite build
+limpios, UI 56, Rust intacto (frontend).
+
+[PENDIENTE HUMANO] Verificación visual: que las microinteracciones se sientan
+sutiles (flash one-shot al cambiar un registro, foco con anillo de acento,
+caret de consola en acento, ● tenue al pasar por el margen) y NO molesten.
+
+Compuerta F2: microinteracciones one-shot/no molestas · focus-visible
+coherente por tema · grupo-ejec con var(--radio) · tsc/build limpios ·
+suite intacta.
