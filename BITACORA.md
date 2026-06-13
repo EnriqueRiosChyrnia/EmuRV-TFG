@@ -1804,3 +1804,33 @@ falta la clave, clave inexistente→la clave, interpolación por idioma,
 setLang/getLang persisten con stub de localStorage.
 
 Compuerta F1: tests verdes (32 UI) · tsc limpio · suite Rust intacta (37).
+
+## 2026-06-13 — RP16-F2: traducción inglesa de la UI y anti-drift es/en
+
+[Seguro] en.json: las 165 claves traducidas a inglés técnico de
+herramientas de desarrollo (Assemble/Step/Run/Stop/Reset, Registers/Memory/
+Console/Debug, Breakpoints/Watchpoints…). Términos RISC-V intactos (ABI,
+ecall, mtvec, sbrk, lr/sc, MMIO…). Interpolaciones {line}/{addr}/{path}/…
+preservadas. `toolbar.idioma` queda «Idioma / Language» en ambos (rótulo
+del selector, bilingüe a propósito).
+
+[Seguro — anti-drift es/en, patrón RP-14/15] Test idiomas.test.ts:
+es.json y en.json tienen EXACTAMENTE el mismo conjunto de claves (ni
+faltantes ni sobrantes), cada clave preserva sus interpolaciones {…}, y
+ninguna traducción quedó vacía. Si un RP futuro agrega una clave a es y
+olvida en, el test rojo.
+
+[Seguro] Auditoría de hardcodeos de UI fuera de t(): CERO. Los únicos
+literales con palabras "españolas" en .ts son un id de DOM
+(«pantalla-canvas») y dos nombres de comando Tauri («leer_archivo_texto»,
+«guardar_archivo_texto») — no son texto de usuario. index.html: el único
+texto visible es la marca «EmuRV»; los 5 títulos de panel usan data-i18n
+(traducidos por t()). El placeholder «0x10010000» de Depuración es un
+ejemplo de dirección, locale-neutral.
+
+[Probable] Verificación manual pendiente: cambiar a EN recarga la ventana y
+muestra la UI en inglés; volver a ES funciona; el idioma persiste al
+reabrir.
+
+Compuerta F2: anti-drift verde (35 UI) · auditoría hardcodeos = 0 · tsc
+limpio · suite Rust intacta (37).
