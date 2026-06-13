@@ -498,6 +498,26 @@ impl Machine<'_> {
         Ok(regs)
     }
 
+    /// fcsr (flags acumulados + modo de redondeo) para el panel F (RP12).
+    pub fn fcsr(&self) -> Result<u32, String> {
+        self.uc
+            .reg_read(CSR_ID_FCSR)
+            .map(|v| v as u32)
+            .map_err(|e| format!("no se pudo leer fcsr: {e:?}"))
+    }
+
+    /// Edición en vivo de un registro f (RP12): bits CRUDOS de 64 (la UI
+    /// decide el NaN-boxing según cómo interprete el valor). Mismo guard
+    /// de pausa que write_reg, aplicado en commands.
+    pub fn write_reg_f(&mut self, n: usize, bits: u64) -> Result<(), String> {
+        if n > 31 {
+            return Err(format!("registro f inválido: f{n} (válidos f0–f31)"));
+        }
+        self.uc
+            .reg_write(FREG_ID_BASE + n as i32, bits)
+            .map_err(|e| format!("no se pudo escribir f{n}: {e:?}"))
+    }
+
     /// x0..x31 (x0 siempre 0). Si algún registro no se puede leer, el error
     /// se propaga en vez de reportar "el registro vale 0".
     pub fn registers(&self) -> Result<[u32; 32], String> {

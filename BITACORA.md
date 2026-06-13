@@ -1322,3 +1322,38 @@ registro entero, acceso por etiqueta en ambas direcciones.
 
 Compuerta F2: oráculo palabra a palabra ✓ · suites verdes (32 binarios
 src-tauri, CLI 46) · clippy 0 ambos ✓.
+
+## 2026-06-12 — RP12-F3: syscalls float y panel de registros F
+
+[Seguro] Syscalls RARS: 2 (PrintFloat, fa0 como f32 de los bits bajos),
+3 (PrintDouble, fa0 entero), 6 (ReadFloat → fa0 NAN-BOXED: 0xFFFFFFFF en
+los altos, como exige la espec D — test lo fija bit a bit), 7 (ReadDouble
+→ bits crudos). Lectura con la vía bloqueante de read_int y reintento
+didáctico («…usá punto decimal, ej. 1.5» — la coma rioplatense se rechaza
+con guía, test incluido).
+
+[Seguro — divergencia registrada] Formato de impresión = el «{}» de Rust:
+1.5 / -0 / NaN / inf. RARS (Java) imprime p. ej. Infinity y -0.0.
+Alternativa considerada: imitar a Java — descartada (frágil, sin valor
+didáctico); el contrato es NUESTRO formato y el test
+print_float_formato_fijado lo vigila.
+
+[Seguro] Panel «Registros F (flotante)»: plegable patrón CSRs RP-8
+(cerrado = CERO invokes — get_fregs solo viaja con la sección abierta),
+32 filas nombre ABI + hex de 64 + valor interpretado, y fcsr al pie.
+Interpretación según la regla del spike F1: alto==0xFFFFFFFF (boxed) o
+alto==0 con bajo≠0 (quirk de Unicorn: no boxea resultados .s) → f32;
+si no → f64 — la celda lo etiqueta («1.75 (f32)»). u64 viaja como hex de
+16 dígitos (JSON no representa u64 sin perder precisión).
+
+[Seguro] Edición inline (guard de pausa de RP-7, write_reg_f por canal):
+«0x…» = bits crudos de 64; decimal con punto se codifica según la
+interpretación ACTUAL del registro (f32 → NaN-boxed, f64 → bits double).
+write_reg_f valida índice (f0–f31) con rechazo claro.
+
+[PENDIENTE HUMANO] Panel F en la app: abrir la sección (cerrada por
+defecto), correr la lección/ejemplo de floats, ver «1.75 (f32)» y editar
+un registro pausado (decimal y 0x crudo); fcsr mostrando flags tras una
+división por cero.
+
+Compuerta F3: suites verdes (34 binarios src-tauri), clippy 0, tsc limpio.

@@ -17,6 +17,53 @@ const CSRS: string[] = [
   "mstatus", "mie", "mtvec", "mscratch", "mepc", "mcause", "mtval", "mip",
 ];
 
+/** Nombres ABI de los registros f (RP12), f0..f31. */
+const FABI: string[] = [
+  "ft0", "ft1", "ft2", "ft3", "ft4", "ft5", "ft6", "ft7", "fs0", "fs1",
+  "fa0", "fa1", "fa2", "fa3", "fa4", "fa5", "fa6", "fa7",
+  "fs2", "fs3", "fs4", "fs5", "fs6", "fs7", "fs8", "fs9", "fs10", "fs11",
+  "ft8", "ft9", "ft10", "ft11",
+];
+
+/** Interpreta los 64 bits de un registro f (hex de 16 dígitos).
+ *  Regla del spike RP12-F1: alto == 0xFFFFFFFF (NaN-boxing de la espec) O
+ *  alto == 0 con bajo ≠ 0 (Unicorn no boxea el RESULTADO de las ops .s —
+ *  quirk medido) → single; si no → double. Un f64 real con alto == 0 es
+ *  un denormal < 1e-308: no aparece en uso didáctico. */
+function interpretarF(hex16: string): { texto: string; esF32: boolean } {
+  const hi = Number.parseInt(hex16.slice(0, 8), 16) >>> 0;
+  const lo = Number.parseInt(hex16.slice(8), 16) >>> 0;
+  const dv = new DataView(new ArrayBuffer(8));
+  if (hi === 0xffff_ffff || (hi === 0 && lo !== 0)) {
+    dv.setUint32(0, lo);
+    return { texto: `${dv.getFloat32(0)} (f32)`, esF32: true };
+  }
+  if (hi === 0 && lo === 0) return { texto: "0 (f64)", esF32: false };
+  dv.setUint32(0, hi);
+  dv.setUint32(4, lo);
+  return { texto: `${dv.getFloat64(0)} (f64)`, esF32: false };
+}
+
+/** Texto del usuario → 16 dígitos hex para write_reg_f: «0x…» son bits
+ *  crudos; un decimal con punto se codifica según la interpretación
+ *  ACTUAL del registro (f32 → NaN-boxed, f64 → bits de double). */
+function bitsDesdeTexto(texto: string, esF32: boolean): string | null {
+  const v = texto.trim().replace(/ \(f(32|64)\)$/, "");
+  if (/^0x[0-9a-f]{1,16}$/i.test(v)) return v.slice(2).padStart(16, "0").toLowerCase();
+  const n = Number(v);
+  if (Number.isNaN(n) && v !== "NaN") return null;
+  const dv = new DataView(new ArrayBuffer(8));
+  if (esF32) {
+    dv.setFloat32(0, n);
+    const lo = dv.getUint32(0).toString(16).padStart(8, "0");
+    return `ffffffff${lo}`;
+  }
+  dv.setFloat64(0, n);
+  const hi = dv.getUint32(0).toString(16).padStart(8, "0");
+  const lo = dv.getUint32(4).toString(16).padStart(8, "0");
+  return `${hi}${lo}`;
+}
+
 const hex = (v: number) => `0x${(v >>> 0).toString(16).padStart(8, "0")}`;
 /** Valor decimal con signo (los registros se muestran como i32). */
 const dec = (v: number) => String(v | 0);
@@ -42,6 +89,9 @@ export class Registros {
   private errorEl: HTMLElement;
   private csrDetalles: HTMLDetailsElement;
   private csrCeldas: { hex: HTMLElement; dec: HTMLElement }[] = [];
+  private fDetalles: HTMLDetailsElement;
+  private fCeldas: { hex: HTMLElement; valor: HTMLElement }[] = [];
+  private fcsrCelda: { hex: HTMLElement; dec: HTMLElement } | null = null;
 
   constructor(root: HTMLElement) {
     const tabla = document.createElement("table");
@@ -106,6 +156,48 @@ export class Registros {
     });
     root.appendChild(this.csrDetalles);
 
+    // Sección plegable de registros F (RP12), mismo patrón que los CSRs:
+    // cerrada por defecto = cero invokes durante una ejecución larga.
+    this.fDetalles = document.createElement("details");
+    this.fDetalles.className = "registros-csrs";
+    const resumenF = document.createElement("summary");
+    resumenF.textContent = t("registros.fregs.titulo");
+    this.fDetalles.appendChild(resumenF);
+    const tablaF = document.createElement("table");
+    tablaF.className = "registros-tabla";
+    tablaF.title = t("registros.editarHint");
+    tablaF.innerHTML = `<thead><tr>
+        <th>${t("registros.nombre")}</th>
+        <th>${t("registros.hex")}</th>
+        <th>${t("registros.valor")}</th>
+      </tr></thead>`;
+    const cuerpoF = document.createElement("tbody");
+    FABI.forEach((nombre, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${nombre} <span class="registros-xn">f${i}</span></td>
+        <td class="mono"></td><td class="mono"></td>`;
+      const hexEl = tr.children[1] as HTMLElement;
+      const valEl = tr.children[2] as HTMLElement;
+      this.hacerEditableF(hexEl, i);
+      this.hacerEditableF(valEl, i);
+      cuerpoF.appendChild(tr);
+      this.fCeldas.push({ hex: hexEl, valor: valEl });
+    });
+    // fcsr al pie (solo lectura: flags acumulados + modo de redondeo).
+    const trFcsr = document.createElement("tr");
+    trFcsr.innerHTML = `<td>fcsr</td><td class="mono"></td><td class="mono"></td>`;
+    this.fcsrCelda = {
+      hex: trFcsr.children[1] as HTMLElement,
+      dec: trFcsr.children[2] as HTMLElement,
+    };
+    cuerpoF.appendChild(trFcsr);
+    tablaF.appendChild(cuerpoF);
+    this.fDetalles.appendChild(tablaF);
+    this.fDetalles.addEventListener("toggle", () => {
+      if (this.fDetalles.open) void this.refrescarFregs();
+    });
+    root.appendChild(this.fDetalles);
+
     this.errorEl = document.createElement("div");
     this.errorEl.className = "panel-error";
     this.errorEl.hidden = true;
@@ -137,6 +229,7 @@ export class Registros {
     this.anterior = [...regs];
     this.pcAnterior = estado.pc;
     void this.refrescarCsrs();
+    void this.refrescarFregs();
   }
 
   /** Estado inicial sin resaltados (tras ensamblar/reiniciar). */
@@ -156,6 +249,14 @@ export class Registros {
     for (const c of this.csrCeldas) {
       c.hex.textContent = "—";
       c.dec.textContent = "—";
+    }
+    for (const c of this.fCeldas) {
+      c.hex.textContent = "—";
+      c.valor.textContent = "—";
+    }
+    if (this.fcsrCelda) {
+      this.fcsrCelda.hex.textContent = "—";
+      this.fcsrCelda.dec.textContent = "—";
     }
   }
 
@@ -180,6 +281,84 @@ export class Registros {
       if (!c.hex.querySelector("input")) c.hex.textContent = hex(valores[i]);
       if (!c.dec.querySelector("input")) c.dec.textContent = dec(valores[i]);
     }
+  }
+
+  // ----- registros F (RP12) -----
+
+  /** Vuelca los registros f en su sección plegable (mismas reglas que
+   *  refrescarCsrs: solo abierta, sin pisar ediciones en curso). */
+  private async refrescarFregs(): Promise<void> {
+    if (!this.fDetalles.open) return;
+    if (this.fDetalles.querySelector("input")) return;
+    let regs: string[];
+    let fcsr: number;
+    try {
+      [regs, fcsr] = await api.getFregs();
+    } catch {
+      return; // sin sesión: la tabla conserva los «—»
+    }
+    for (let i = 0; i < this.fCeldas.length && i < regs.length; i++) {
+      const c = this.fCeldas[i];
+      if (!c.hex.querySelector("input")) c.hex.textContent = `0x${regs[i]}`;
+      if (!c.valor.querySelector("input")) c.valor.textContent = interpretarF(regs[i]).texto;
+    }
+    if (this.fcsrCelda) {
+      this.fcsrCelda.hex.textContent = hex(fcsr);
+      this.fcsrCelda.dec.textContent = dec(fcsr);
+    }
+  }
+
+  /** Edición de un registro f: «0x…» = bits crudos; decimal con punto se
+   *  codifica según la interpretación ACTUAL (f32 NaN-boxed o f64). */
+  private hacerEditableF(celda: HTMLElement, indice: number): void {
+    celda.addEventListener("dblclick", () => {
+      if (celda.querySelector("input")) return;
+      const original = celda.textContent ?? "";
+      if (original === "—") return;
+      const hexActual = this.fCeldas[indice].hex.textContent ?? "";
+      const esF32 = /^0x[0-9a-f]{16}$/i.test(hexActual)
+        ? interpretarF(hexActual.slice(2)).esF32
+        : false;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "edicion-inline";
+      input.value = original;
+      input.spellcheck = false;
+      celda.textContent = "";
+      celda.appendChild(input);
+      input.focus();
+      input.select();
+      let cerrado = false;
+      const cerrar = () => {
+        if (cerrado) return;
+        cerrado = true;
+        celda.textContent = original;
+      };
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          cerrar();
+          return;
+        }
+        if (e.key !== "Enter") return;
+        const bits = bitsDesdeTexto(input.value, esF32);
+        if (bits === null) {
+          this.mostrarError(t("edicion.valorFInvalido"));
+          return;
+        }
+        void (async () => {
+          try {
+            await api.writeRegF(indice, bits);
+            cerrar();
+            this.errorEl.hidden = true;
+            await this.refrescarFregs();
+          } catch (err) {
+            cerrar();
+            this.mostrarError(String(err));
+          }
+        })();
+      });
+      input.addEventListener("blur", () => cerrar());
+    });
   }
 
   // ----- edición en vivo (RP7; los CSRs de RP8 reusan el mismo flujo) -----
