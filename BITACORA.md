@@ -2515,3 +2515,50 @@ tarjetas con aire e IBM Plex, violeta del Educativo, headers tintados,
 densidad, wordmark bi-tono recoloreando, microinteracciones sutiles (foco,
 flash one-shot, caret, hover de breakpoint), ruido reducido. RP-20 (modales +
 ayuda 2-col + Acerca de) cierra el rediseño.
+
+## 2026-06-13 — RP20-F1: shell de modales y ayuda 2 columnas
+
+[Seguro] Shell común de modales (`src/paneles/modal.ts`, clase `Modal`):
+overlay `.emurv-modal` + `.modal-backdrop` (cierra al click, anim
+`emurv-fade`) + `.modal-card` (anim `emurv-pop`, radio/sombra/`--fuente-ui`),
+del mock. Escape cierra (listener que se registra al abrir y se quita al
+cerrar); el foco entra a la card al abrir y VUELVE al disparador al cerrar
+(accesibilidad — el botón Ayuda se pasa como disparador desde main.ts). El
+`.modal-x` se cablea por delegación. Adaptaciones mock→app: `position:fixed`
+(el mock usa absolute dentro de su demo) y UN overlay por modal (el mock
+conmuta tres cards con `data-modal`; instancias separadas son más simples).
+
+[Seguro] Ayuda reescrita a 2 columnas (`ayuda.ts`): `.ay-body` grid 200px/1fr
+con `.ay-nav` (índice agrupado: Empezar / Referencia / Herramientas /
+Proyecto) y `.ay-cont` scrolleable con las secciones EXACTAS del mock
+(ay-ciclo, ay-ejemplos, ay-syscalls con `.ay-tabla`/`.ay-num`, ay-memoria,
+ay-teclado, ay-directivas con `.ay-chips`, ay-editor, ay-depuracion,
+ay-idioma, ay-about). PRESENTACIÓN nueva, CONTENIDO el de siempre: todos los
+textos salen de las claves i18n `ayuda.*` existentes (NO se reescribió
+ninguna). El About queda como sección vacía con su título (lo llena F2).
+
+[Seguro] Scroll-spy: lógica PURA `seccionActiva(scrollTop, secciones)` en
+`scroll-spy.ts` (la última sección cuya cabecera ya pasó el tope) con 6
+tests. La usa ayuda.ts en los dos sentidos: click en el índice → `scrollTo`
+suave + marca activa; scroll a mano → recalcula la activa.
+
+[Seguro] i18n: +8 claves en es Y en (ayuda.subtitulo, ayuda.grupo.*,
+ayuda.depuracion.titulo, ayuda.idiomaTemas.titulo, ayuda.about.titulo;
+anti-drift verde). Se eliminó el CSS viejo del overlay de Ayuda
+(`#ayuda-overlay`/`.ayuda-caja`/`.ayuda-cuerpo`), reemplazado por el de
+modales. `.ayuda-ejemplo` se conserva (restyle del mock) para los bloques de
+código de la ayuda.
+
+[Seguro] Contraste: el modal reusa pares ya cubiertos por contraste.test
+(--texto sobre --fondo-panel, --acento, --texto-suave); los 5 temas siguen
+verdes sin cambiar tokens. tsc estricto y vite build limpios. UI 62 tests
+(+6 scroll-spy). Sin renombrar ids; Rust intacto (frontend).
+
+[PENDIENTE HUMANO] Verificación visual del modal de Ayuda en los 5 temas:
+2 columnas, índice agrupado con la activa resaltada, scroll-spy al
+desplazarse, tablas/chips/notas como el mock; Escape cierra y el foco vuelve
+al botón Ayuda.
+
+Compuerta F1: ayuda 2-col como el mock · scroll-spy (pura + testeada) ·
+Escape/foco · i18n anti-drift · contraste AA 5 temas (pares ya cubiertos) ·
+tsc/build limpios · Rust/ids intactos.

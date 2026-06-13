@@ -214,7 +214,8 @@ class App {
     boton("abrir", "toolbar.abrir", "deemph").onclick = () => void this.abrirArchivo();
     boton("guardar", "toolbar.guardar", "deemph").onclick = () => void this.guardarArchivo();
     boton("exportar", "toolbar.exportar", "deemph").onclick = () => void this.exportarElf();
-    boton("ayuda", "toolbar.ayuda", "deemph").onclick = () => this.ayuda.abrir();
+    const btnAyuda = boton("ayuda", "toolbar.ayuda", "deemph");
+    btnAyuda.onclick = () => this.ayuda.abrir(btnAyuda);
 
     // Selector de idioma (RP16): es/en. Cambiar persiste y recarga la
     // ventana (la UI se construye al cargar; recargar evita estado a medio
