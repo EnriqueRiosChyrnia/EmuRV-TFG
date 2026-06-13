@@ -2602,3 +2602,56 @@ con su bi-tono adaptándose, autor/IA/créditos legibles, licencias correctas.
 
 Compuerta F2: about completo y fiel (wordmark adaptable, autor, IA, créditos
 con licencias verificadas + IBM Plex, GPLv2) · tsc/build limpios.
+
+## 2026-06-13 — RP20-F3: modales de Ejemplos y Lecciones
+
+[Seguro] Ejemplos: el `<select id="ejemplos">` de la toolbar pasó a un BOTÓN
+«Ejemplos» que abre un modal con la cara del mock (`modal-cuerpo-ejemplos`:
+lista de `.modal-item` con `.mi-titulo` + `.mi-desc`). Elegir uno hace lo
+MISMO que antes: `cargarEjemplo(i)` (la lógica del viejo onchange, extraída a
+un método). `src/paneles/ejemplos.ts` nuevo, sobre el shell `Modal`. i18n:
++12 descripciones `ejemplo.*.desc` + `ejemplos.sub` (es/en, anti-drift verde;
+contenido NUEVO — las descripciones no existían, no es «reescribir» la ayuda).
+
+[Seguro] Lecciones: `src/paneles/lecciones.ts` reescrito a la cara del mock
+(`modal-cuerpo-lecciones`: `.modal-progreso` con barra + lista de
+`.modal-item` con `.modal-check` si está completada / `.modal-num` si está
+pendiente, «· en curso» en la primera no hecha). La barra y los checks leen
+el PROGRESO REAL de RP-15 (`leerProgreso`); elegir una lección la abre
+directo (un click) vía los mismos callbacks `onAbrir`/`onAbrirMultiarchivo`;
+`marcarCompletada` intacto. La LÓGICA y la PERSISTENCIA (`src/lecciones/`:
+datos, parser, progreso + sus tests) NO se tocaron — solo la presentación.
+
+[DECISIÓN — DESVIACIÓN A REVISAR, marcada para la verificación visual] El
+mock de Lecciones es una lista de UN click; el navegador de RP-15 tenía una
+2ª columna de DETALLE (objetivos + «qué paneles mirar» + Abrir/marcar/
+prev-next). Al darle «la cara del mock» esa columna de detalle DESAPARECE:
+ahora el click abre la lección directo. Se preservó algo de su valor poniendo
+el PRIMER objetivo de cada lección como `.mi-desc` del item. Lectura del plan
+que resolvió la tensión («cara del mock» vs «no reescribir el navegador»): lo
+protegido es la LÓGICA/PERSISTENCIA (`src/lecciones/`, intacta); «darle cara»
+= cambiar la presentación (`paneles/lecciones.ts`). Si el autor quiere de
+vuelta la vista de objetivos, es un agregado chico sobre esta base. El reset
+de progreso se conservó como un enlace discreto (`.ml-reset`) en la cabecera
+de la barra (el mock no lo mostraba; no quise perder la función).
+
+[Seguro] i18n lecciones: +`lecciones.progresoSub` («{hechas} de {total}
+completadas», interpolaciones verificadas es/en), `lecciones.tuProgreso`,
+`lecciones.enCurso`. Las claves del detalle viejo (objetivos/paneles/abrir/
+prev/next) quedan en i18n sin usar (inocuas; no las borré para no arriesgar
+el anti-drift). CSS viejo del navegador (#lecciones-overlay/.lecciones-*)
+eliminado; reemplazado por el modal + `.ml-reset`.
+
+[Seguro] tsc estricto, vite build y UI 62 verdes. El id contratado del JS no
+cambió (el `<select>` tenía id="ejemplos", que NO está en la lista de ids
+contratados de UI-BRIEF; el botón nuevo lo reusa). Rust intacto.
+
+[PENDIENTE HUMANO] Verificación visual de los 3 modales en los 5 temas:
+Ejemplos (lista carga al click), Lecciones (barra de progreso real, check/
+número, abre al click) y Ayuda; Escape cierra y el foco vuelve. CONFIRMAR la
+decisión de Lecciones (lista sin la 2ª columna de objetivos del navegador
+viejo): si se prefiere la vista de detalle, avisar.
+
+Compuerta F3: Ejemplos y Lecciones con la cara del mock sobre la lógica
+existente · progreso real · ids/registros/Rust intactos · i18n anti-drift ·
+tsc/build limpios.

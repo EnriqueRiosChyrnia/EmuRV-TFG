@@ -11,6 +11,9 @@
 // card), más simple. `position:fixed` (el mock usa absolute porque vive
 // dentro de un contenedor de demo; la app real cubre toda la ventana).
 
+/** SVG de la «X» de cerrar (lo estila .ico de RP19: trazo 1.8, currentColor). */
+export const ICONO_CERRAR = `<svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>`;
+
 export class Modal {
   readonly overlay: HTMLElement;
   readonly card: HTMLElement;

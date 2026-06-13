@@ -4,12 +4,10 @@
 // siempre (RP-20 reorganiza la PRESENTACIÓN, no reescribe textos). Usa el
 // shell común de modales (modal.ts) para overlay/Escape/foco.
 import { t } from "../i18n";
-import { Modal } from "./modal";
+import { Modal, ICONO_CERRAR } from "./modal";
 import { seccionActiva, type SeccionPos } from "./scroll-spy";
 // Wordmark bi-tono (RP19) reusado en el «Acerca de» (se adapta al tema).
 import wordmark from "../assets/emurv-wordmark.svg?raw";
-
-const ICONO_CERRAR = `<svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>`;
 
 // Filas de la tabla de syscalls: a7, clave i18n del servicio, argumentos
 // (notación técnica, igual que antes — no es texto traducible).

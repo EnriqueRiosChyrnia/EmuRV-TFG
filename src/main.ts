@@ -32,6 +32,7 @@ import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
 import { Depuracion, type FilaBreakpoint } from "./paneles/depuracion";
 import { Lecciones } from "./paneles/lecciones";
+import { Ejemplos } from "./paneles/ejemplos";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
@@ -76,6 +77,7 @@ class App {
   private video: Video;
   private ayuda: Ayuda;
   private lecciones: Lecciones;
+  private ejemplos!: Ejemplos;
   private programa: AssembleOk | null = null;
   /** El texto del editor cambió desde el último ensamblado exitoso:
    *  line_to_addr ya no es confiable para validar breakpoints. */
@@ -134,6 +136,7 @@ class App {
       onAbrir: (l) => this.abrirLeccion(l),
       onAbrirMultiarchivo: (l) => void this.abrirLeccionMultiarchivo(l),
     });
+    this.ejemplos = new Ejemplos(EJEMPLOS, (i) => this.cargarEjemplo(i));
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
       this.setModo("corriendo", t("estado.corriendo"));
@@ -180,36 +183,17 @@ class App {
     bar.appendChild(grupoEjec);
     bar.appendChild(this.sep());
 
-    const sel = document.createElement("select");
-    sel.id = "ejemplos";
-    const ph = document.createElement("option");
-    ph.textContent = t("toolbar.ejemplos");
-    ph.value = "";
-    sel.appendChild(ph);
-    EJEMPLOS.forEach((e, i) => {
-      const o = document.createElement("option");
-      o.value = String(i);
-      o.textContent = t(e.clave);
-      sel.appendChild(o);
-    });
-    sel.onchange = () => {
-      const i = Number(sel.value);
-      if (!Number.isNaN(i) && sel.value !== "") {
-        this.salirModoBinario();
-        setDoc(this.editor, EJEMPLOS[i].codigo);
-        this.programa = null;
-        this.rutaArchivo = null; // ejemplo embebido: sin base de .include
-        this.setModo("sin_programa", t("estado.sin_programa"));
-      }
-      sel.value = "";
-    };
-    bar.appendChild(sel);
+    // Ejemplos (RP20-F3): botón que abre el modal con la lista (antes era un
+    // <select>). Cargar un ejemplo hace lo mismo que antes (cargarEjemplo).
+    const btnEjemplos = boton("ejemplos", "toolbar.ejemplos");
+    btnEjemplos.onclick = () => this.ejemplos.abrir(btnEjemplos);
 
     const espacio = document.createElement("span");
     espacio.className = "espacio";
     bar.appendChild(espacio);
     // Secundarios atenuados (RP18-F3): no compiten con Ensamblar (.principal).
-    boton("lecciones", "toolbar.lecciones", "deemph").onclick = () => this.lecciones.abrir();
+    const btnLecciones = boton("lecciones", "toolbar.lecciones", "deemph");
+    btnLecciones.onclick = () => this.lecciones.abrir(btnLecciones);
     boton("video", "toolbar.video", "deemph").onclick = () => this.video.alternar();
     boton("abrir", "toolbar.abrir", "deemph").onclick = () => void this.abrirArchivo();
     boton("guardar", "toolbar.guardar", "deemph").onclick = () => void this.guardarArchivo();
@@ -626,6 +610,16 @@ class App {
     if (this.bannerBinario) this.bannerBinario.hidden = true;
     this.botones["ensamblar"].disabled = false;
     this.memoria.setDisasm(null);
+  }
+
+  /** Carga un ejemplo embebido al editor (RP20-F3, lo invoca el modal de
+   *  Ejemplos). Misma lógica que el viejo <select> de la toolbar. */
+  private cargarEjemplo(i: number): void {
+    this.salirModoBinario();
+    setDoc(this.editor, EJEMPLOS[i].codigo);
+    this.programa = null;
+    this.rutaArchivo = null; // ejemplo embebido: sin base de .include
+    this.setModo("sin_programa", t("estado.sin_programa"));
   }
 
   /** Columna de instrucción del panel Memoria (RP11): vale para fuentes
