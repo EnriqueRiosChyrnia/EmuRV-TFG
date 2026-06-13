@@ -39,6 +39,32 @@ Codifica los seis formatos de la especificación base más la extensión M (mult
 - **J** (salto incondicional): jal.
 - **Sistema**: ecall, ebreak y fence. *(2026-06-12, RP-8: además `mret` y las Zicsr — csrrw/csrrs/csrrc, variantes inmediatas y pseudos csrr/csrw/csrs/csrc, con CSRs por nombre: mstatus, mie, mtvec, mscratch, mepc, mcause, mtval, mip — ver docs/TRAPS.md.)* *(Nota 2026-06-12, RP-1: `ebreak` es una pausa por software estilo RARS/gdb — la ejecución se detiene mostrando el estado y al reanudar continúa en la instrucción siguiente, sin re-ejecutar el `ebreak`; ver BITACORA RP1.)*
 
+#### Extensiones F/D (coma flotante, RP-12, 2026-06-12)
+
+Repertorio RV32F y RV32D completo (modo de redondeo `dyn` fijo: un sufijo
+explícito como `fadd.s ft0, ft1, ft2, rtz` se rechaza con error didáctico).
+
+- **Registros f**: `f0`–`f31` y los nombres ABI `ft0`–`ft11`, `fs0`–`fs11`,
+  `fa0`–`fa7`. Tabla propia: usar un registro entero donde va uno f (o al
+  revés) da un error que lo explica.
+- **F (single)**: `flw`/`fsw`, `fadd.s`/`fsub.s`/`fmul.s`/`fdiv.s`/`fsqrt.s`,
+  `fmin.s`/`fmax.s`, fused `fmadd.s`/`fmsub.s`/`fnmadd.s`/`fnmsub.s`,
+  conversiones `fcvt.w.s`/`fcvt.wu.s`/`fcvt.s.w`/`fcvt.s.wu`, `fmv.x.w`/`fmv.w.x`,
+  comparaciones `feq.s`/`flt.s`/`fle.s` (resultado 0/1 en registro entero),
+  `fsgnj.s`/`fsgnjn.s`/`fsgnjx.s`, `fclass.s`.
+- **D (double)**: las análogas `.d`, más `fcvt.s.d`/`fcvt.d.s`. **`fmv.x.d`
+  y `fmv.d.x` no existen en RV32** (un f64 no entra en un registro x de 32
+  bits): el error sugiere pasar el valor por memoria (`fsd` + dos `lw`).
+- **Pseudos** (sgnj-based, igual que GNU): `fmv.s`/`fmv.d`, `fabs.s`/`fabs.d`,
+  `fneg.s`/`fneg.d`; `flw`/`fsw`/`fld`/`fsd` con etiqueta + registro entero
+  auxiliar (`flw ft0, dato, t0`), expansión `lui`+acceso.
+- **NaN-boxing**: un single en un registro de 64 lleva los 32 altos en unos
+  (espec D). El panel «Registros F» lo interpreta; ver BITACORA RP12-F1 para
+  el quirk de Unicorn (no boxea el resultado de operaciones `.s`).
+
+Syscalls de punto flotante (RARS): `2` PrintFloat (`fa0`), `3` PrintDouble,
+`6` ReadFloat (→`fa0`), `7` ReadDouble. Ejemplo completo: `ejemplos/13-flotantes.asm`.
+
 ### 4.2. Pseudo-instrucciones
 
 Soporta el repertorio habitual de pseudo-instrucciones que el material didáctico en español emplea, expandiéndolas a instrucciones reales:
@@ -112,10 +138,19 @@ Este nivel de control sobre el mensaje de error es imposible de obtener delegand
 
 ## 5. Verificación
 
-Las codificaciones se validaron contra la especificación RV32I calculadas a mano en los tests, dado que no había oráculo externo disponible. Ejemplos documentados en la suite:
+Las codificaciones de RV32IM+Zicsr se validaron contra la especificación
+calculadas a mano en los tests. Ejemplos documentados en la suite:
 
 - `addi x1, x0, 5` → `0x00500093`
 - `beq x1, x2, +8` → `0x00208463`
+
+> **Oráculo externo (2026-06-12, RP-11/RP-12):** la toolchain GNU
+> (`riscv64-elf-as`, instalada en RP-11) ya está disponible — el oráculo
+> que esta sección lamentaba no tener. El repertorio **F/D completo** se
+> verifica **palabra a palabra** contra `riscv64-elf-as -march=rv32imfd`
+> (`tests/rp12_gnu_oracle.rs`): si la toolchain no está en el equipo, el
+> test se saltea con aviso. Es un criterio más fuerte que el cálculo a
+> mano y conviene extenderlo al repertorio entero a futuro.
 
 La suite completa del proyecto (ensamblador + máquina + syscalls + export ELF + integración de los 6 ejemplos) cierra en **35/35 tests verdes**, con `cargo clippy --all-targets` sin advertencias.
 

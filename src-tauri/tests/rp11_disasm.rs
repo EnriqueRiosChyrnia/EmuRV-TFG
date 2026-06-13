@@ -133,3 +133,25 @@ fn breakpoint_en_linea_del_listado_frena_en_su_direccion() {
     assert_eq!(regs[5], 1, "t0 ya ejecutado");
     assert_eq!(regs[7], 0, "t2 todavía no");
 }
+
+/// RP12: el desensamblador (capstone arch_riscv) cubre F/D — verificado,
+/// no asumido. Las palabras del repertorio float decodifican legibles.
+#[test]
+fn disasm_cubre_fd() {
+    let src = "
+.text
+  fadd.s ft0, ft1, ft2
+  fmul.d ft3, ft4, ft5
+  fcvt.w.s t0, ft0
+  flw ft0, 0(t0)
+  fmadd.s ft0, ft1, ft2, ft3
+";
+    let p = assemble(src).expect("ensambla");
+    let lineas = disasm(&words_de(&p.text), TEXT_BASE);
+    let texto: Vec<&str> = lineas.iter().map(|l| l.texto.as_str()).collect();
+    assert!(texto.iter().any(|t| t.starts_with("fadd.s")), "{texto:?}");
+    assert!(texto.iter().any(|t| t.starts_with("fmul.d")), "{texto:?}");
+    assert!(texto.iter().any(|t| t.starts_with("fcvt.w.s")), "{texto:?}");
+    assert!(texto.iter().any(|t| t.starts_with("flw")), "{texto:?}");
+    assert!(texto.iter().any(|t| t.starts_with("fmadd.s")), "{texto:?}");
+}

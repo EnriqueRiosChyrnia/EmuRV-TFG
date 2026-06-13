@@ -76,6 +76,7 @@
   "estado.watchpoint.accedio": "accedió a",
   "estado.ebreak": "Pausado por ebreak (línea {line})",
   "ayuda.directivas.rp5": "«.include \"archivo.s\"» inserta otro archivo (el programa debe estar guardado en disco); «.eqv NOMBRE valor» define constantes; «.macro nombre (%p)…/.end_macro» define macros; «%hi(x)»/«%lo(x)» parten una dirección para «lui»+«addi». Detalle: docs/ENSAMBLADOR.md §4.4.",
+  "ayuda.flotantes": "Coma flotante (RV32F/D): registros f0–f31 con nombres ABI (ft, fs, fa); aritmética .s (single) y .d (double), conversiones, comparaciones y fma. Los valores se ven en el panel plegable «Registros F (flotante)» (hex de 64 bits + número interpretado). El ejemplo «Coma flotante» lo muestra; detalle en docs/ENSAMBLADOR.md §4.1.",
   "ayuda.traps": "Avanzado: con «csrw mtvec, reg» el programa instala su propio manejador de excepciones — los ecall desconocidos, las instrucciones ilegales y los accesos inválidos saltan ahí (mcause dice qué pasó) y «mret» vuelve. El ejemplo «Manejador de excepciones» lo muestra completo; detalle en docs/TRAPS.md.",
   "ayuda.ebreak": "Además, la instrucción «ebreak» pausa el programa (pausa por software, como un breakpoint puesto desde el código): podés inspeccionar registros y memoria, y reanudar con «Ejecutar» o «Paso» desde la instrucción siguiente.",
   "estado.terminado": "Programa terminado (código {code})",
@@ -93,6 +94,7 @@
   "ejemplo.eco": "Eco de teclado (tiempo real)",
   "ejemplo.tetrisRt": "Tetris en tiempo real",
   "ejemplo.trap": "Manejador de excepciones (CSRs)",
+  "ejemplo.flotantes": "Coma flotante (promedio de notas)",
 
   "error.posicion": "línea {line}, col {col}: {msg}",
 
@@ -121,8 +123,12 @@
   "ayuda.syscalls.servicio": "Servicio",
   "ayuda.syscalls.args": "Argumentos",
   "ayuda.syscalls.s1": "imprimir entero",
+  "ayuda.syscalls.s2": "imprimir float (single)",
+  "ayuda.syscalls.s3": "imprimir double",
   "ayuda.syscalls.s4": "imprimir cadena",
   "ayuda.syscalls.s5": "leer entero (la consola espera tu entrada)",
+  "ayuda.syscalls.s6": "leer float (single)",
+  "ayuda.syscalls.s7": "leer double",
   "ayuda.syscalls.s8": "leer cadena: guarda a lo sumo a1−1 caracteres + byte 0 final (trunca sin error)",
   "ayuda.syscalls.s9": "reservar memoria del heap (sbrk; arranca en 0x10040000, sin free)",
   "ayuda.syscalls.s10": "terminar el programa",
@@ -146,7 +152,7 @@
   "ayuda.memoria.sp": "tope de la pila (sp inicial; crece hacia abajo)",
   "ayuda.directivas.titulo": "Directivas soportadas",
   "ayuda.ejemplos.titulo": "Ejemplos",
-  "ayuda.ejemplos.texto": "El menú «Ejemplos» carga 7 programas comentados: hola mundo, suma con entrada de usuario, contador, fibonacci, pila/funciones (factorial recursivo), franjas de color (dibuja en la pantalla gráfica) y un Tetris gráfico (port de un Tetris 8086: tablero en memoria, bitmaps de piezas, colisiones y líneas completas, dibujado en la pantalla de 320×240). Son un buen punto de partida para tu propio código.",
+  "ayuda.ejemplos.texto": "El menú «Ejemplos» carga programas comentados: hola mundo, suma interactiva, contador, fibonacci, pila/funciones (factorial recursivo), franjas de color y Tetris gráfico (port de un Tetris 8086, dibujado en la pantalla de 320×240), eco de teclado y Tetris en tiempo real (teclado MMIO), manejador de excepciones (CSRs/traps) y coma flotante (promedio de notas con F/D). Son un buen punto de partida para tu propio código.",
   "ayuda.breakpoints.titulo": "Breakpoints",
   "ayuda.depuracion.texto": "En el panel «Depuración» podés sumarle una condición a cada breakpoint (ej.: «t0 == 5»: frena solo cuando se cumple) y vigilar zonas de datos con watchpoints (frenan cuando el programa las lee o escribe). Con la máquina pausada, doble clic sobre un registro o una palabra de memoria los edita en vivo. Detalle: docs/DEPURACION.md.",
   "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar»."
