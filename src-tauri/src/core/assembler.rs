@@ -1279,6 +1279,37 @@ fn parse_operand(
 }
 
 // ---------------------------------------------------------------------------
+// Extensión A (atómicas, RP13)
+// ---------------------------------------------------------------------------
+
+/// Si `mnem` es una instrucción atómica RV32A, devuelve
+/// (funct5, aq, rl, es_lr, es_sc). El sufijo opcional .aq/.rl/.aqrl define
+/// los bits de ordenamiento (sin sufijo = ambos 0). Todas son `.w` (RV32).
+fn parse_amo(mnem: &str) -> Option<(u32, bool, bool, bool, bool)> {
+    let resto = mnem.strip_suffix(".aqrl").map(|b| (b, true, true))
+        .or_else(|| mnem.strip_suffix(".aq").map(|b| (b, true, false)))
+        .or_else(|| mnem.strip_suffix(".rl").map(|b| (b, false, true)))
+        .unwrap_or((mnem, false, false));
+    let (base, aq, rl) = resto;
+    let base = base.strip_suffix(".w")?;
+    let funct5 = match base {
+        "amoadd" => 0x00,
+        "amoswap" => 0x01,
+        "lr" => 0x02,
+        "sc" => 0x03,
+        "amoxor" => 0x04,
+        "amoor" => 0x08,
+        "amoand" => 0x0C,
+        "amomin" => 0x10,
+        "amomax" => 0x14,
+        "amominu" => 0x18,
+        "amomaxu" => 0x1C,
+        _ => return None,
+    };
+    Some((funct5, aq, rl, base == "lr", base == "sc"))
+}
+
+// ---------------------------------------------------------------------------
 // Tamaño de cada instrucción (pasada 1)
 // ---------------------------------------------------------------------------
 
@@ -1342,8 +1373,29 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
     // semántico silencioso — p. ej. %hi con auipc es %pcrel_hi, que no
     // soportamos).
     let is_hilo = |i: usize| matches!(ops[i].kind, HiLo { .. });
+    // RP13: operando de memoria atómica «(rs1)» = Mem con offset 0.
+    let is_paren = |i: usize| matches!(ops[i].kind, Mem { off: 0, .. });
     // RP12: registros flotantes y sus errores didácticos.
     let is_freg = |i: usize| matches!(ops[i].kind, FReg(_));
+    // RP13: atómicas — lr.w rd, (rs1) ; resto rd, rs2, (rs1).
+    if let Some((_, _, _, es_lr, _)) = parse_amo(mnem) {
+        if es_lr {
+            want(2, "registro, (registro)")?;
+            if !(is_reg(0) && is_paren(1)) {
+                return err(format!(
+                    "«{mnem}» espera registro y dirección entre paréntesis                      (ej.: {mnem} t0, (t1))"
+                ));
+            }
+        } else {
+            want(3, "registro, registro, (registro)")?;
+            if !(is_reg(0) && is_reg(1) && is_paren(2)) {
+                return err(format!(
+                    "«{mnem}» espera rd, rs2 y dirección entre paréntesis                      (ej.: {mnem} t0, t1, (t2)) — la dirección NO lleva                      desplazamiento"
+                ));
+            }
+        }
+        return Ok(());
+    }
     let pista_f = |hasta: usize| -> &'static str {
         if (0..hasta.min(n)).any(|i| matches!(ops[i].kind, Reg(_))) {
             " — necesita registros f (ft0…ft11, fs0…fs11, fa0…fa7) y usaste \
@@ -1727,6 +1779,18 @@ fn enc_s(imm: i32, rs2: u8, rs1: u8, f3: u32) -> u32 {
         | ((imm & 0x1F) << 7)
         | 0x23
 }
+/// R-type atómica (RP13): opcode AMO 0x2F, funct3=010 (.w).
+fn enc_amo(funct5: u32, aq: bool, rl: bool, rs2: u8, rs1: u8, rd: u8) -> u32 {
+    (funct5 << 27)
+        | ((aq as u32) << 26)
+        | ((rl as u32) << 25)
+        | ((rs2 as u32) << 20)
+        | ((rs1 as u32) << 15)
+        | (2 << 12)
+        | ((rd as u32) << 7)
+        | 0x2F
+}
+
 /// S-type sobre STORE-FP (0x27): fsw/fsd (RP12).
 fn enc_s_fp(imm: i32, rs2: u8, rs1: u8, f3: u32) -> u32 {
     let imm = imm as u32 & 0xFFF;
@@ -2152,6 +2216,24 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
                 enc_u(hi20(addr), rd, 0x37),
                 enc_i(lo12(addr), rd, 0, rd, 0x13),
             ]);
+        }
+        // ---- RV32A (RP13): opcode AMO 0x2F, funct3=010 (.w) ----
+        _ if parse_amo(m).is_some() => {
+            let (funct5, aq, rl, es_lr, _es_sc) = parse_amo(m).unwrap();
+            // (rs1) es el operando de memoria con offset 0.
+            let base = |i: usize| -> Result<u8, AsmError> {
+                match c.ins.ops.get(i).map(|o| &o.kind) {
+                    Some(OpKind::Mem { off: 0, base }) => Ok(*base),
+                    _ => Err(c.internal_err(i, "una dirección «(rsN)» sin desplazamiento")),
+                }
+            };
+            let (rd, rs2, rs1) = if es_lr {
+                // lr.w rd, (rs1): rs2 debe ser 0 en el encoding.
+                (c.reg(0)?, 0u8, base(1)?)
+            } else {
+                (c.reg(0)?, c.reg(1)?, base(2)?)
+            };
+            enc_amo(funct5, aq, rl, rs2, rs1, rd)
         }
         other => {
             return Err(AsmError::new(
