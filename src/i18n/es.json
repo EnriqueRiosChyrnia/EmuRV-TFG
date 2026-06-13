@@ -136,7 +136,7 @@
   "ayuda.ciclo.titulo": "Ciclo de trabajo",
   "ayuda.ciclo.texto": "Escribí tu programa, presioná «Ensamblar» y después «Ejecutar» (corre hasta el final) o «Paso» (una instrucción por vez). «Reiniciar» vuelve la máquina al estado inicial sin re-ensamblar. Los paneles de la derecha muestran los registros (los que cambiaron quedan resaltados) y la memoria.",
   "ayuda.binario": "«Abrir» también acepta ejecutables ELF32 RISC-V: el editor muestra el listado desensamblado (solo lectura) y Ejecutar/Paso/breakpoints funcionan sobre el listado. Para compilar con gcc: -march=rv32im -mabi=ilp32 -Ttext=0x00400000 -Tdata=0x10010000 -nostdlib (detalle: README §Abrir binarios).",
-  "ayuda.lecciones": "¿Arrancás de cero? La carpeta «lecciones/» del proyecto trae un curso de 10 lecciones: cada una es un programa comentado que se recorre con «Paso» y cuyo texto te va diciendo qué mirar en cada panel. Empezá por lecciones/01-registros/leccion.s y seguí el orden del índice (lecciones/README.md).",
+  "ayuda.lecciones": "¿Arrancás de cero? Apretá el botón «Lecciones» de la barra: un navegador con el curso de 10 lecciones ordenadas. Al elegir una ves sus objetivos y qué paneles mirar antes de abrirla; «Abrir lección» carga el código al editor para recorrerlo con «Paso». El navegador marca tu progreso y te lleva a la siguiente. La lección 8 usa varios archivos: al abrirla te pide una carpeta donde guardarlos (lo necesita el .include).",
   "ayuda.syscalls.titulo": "Syscalls (convención RARS)",
   "ayuda.syscalls.texto": "Cargá el número de servicio en a7, los argumentos en a0, y ejecutá «ecall»:",
   "ayuda.syscalls.servicio": "Servicio",

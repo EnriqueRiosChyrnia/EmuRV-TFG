@@ -3,7 +3,15 @@
 Currículo progresivo de 10 lecciones para aprender ensamblador RISC-V (RV32IM)
 **sin docente al lado**: cada `leccion.s` es un programa comentado que se abre
 en EmuRV y se recorre con el botón **«Paso»**, leyendo los comentarios — el
-texto de la lección es tu docente. Todas corren también por terminal:
+texto de la lección es tu docente.
+
+> **Desde la app (RP-15):** el botón **«Lecciones»** abre un navegador con
+> este mismo currículo: elegís una lección, ves sus objetivos y qué paneles
+> mirar, y «Abrir lección» la carga al editor; marca tu progreso y te lleva a
+> la siguiente. La lección 8 (multi-archivo) te pide una carpeta donde
+> guardar sus archivos, porque el `.include` necesita estar en disco.
+
+También corren por terminal:
 
 ```
 emurv-cli run lecciones/01-registros/leccion.s

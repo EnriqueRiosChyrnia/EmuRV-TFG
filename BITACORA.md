@@ -1752,3 +1752,28 @@ includes; cancelar la carpeta → aviso.
 
 Compuerta F3: tests verdes (27 UI) · tsc limpio · caso 08 verificado por
 CLI (flujo de carpeta: pendiente humano).
+
+## 2026-06-13 — RP15-F4: docs navegador de lecciones (cierre RP-15)
+
+[Seguro] Docs: README §«Aprendé RISC-V con EmuRV» ahora apunta al botón
+«Lecciones» de la app (no solo a la carpeta); Ayuda integrada (ayuda.
+lecciones) describe el navegador + el caso de la carpeta de la 08;
+lecciones/README.md con nota de acceso desde la app.
+
+[Seguro] CIERRE RP-15 — criterios del ROADMAP:
+- Panel/menú de lecciones con el mapa de aprendizaje; abrir con objetivos
+  visibles ANTES de cargar ✓ F2
+- Progreso persistido (localStorage versionado) + navegación
+  siguiente/anterior por orden de currículo ✓ F3
+- Sin gamificación (registrada como NO-alcance) ✓
+- Metadatos SIN duplicar: parser de la cabecera fija + anti-drift por test
+  (patrón RP-14) ✓ F1
+- Caso multi-archivo (08) coherente con RP-5 (guardar a carpeta + base_dir)
+  ✓ F3
+Suites verdes (37 src-tauri, 50 CLI, 27 UI), clippy 0 ambos, tsc limpio,
+ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30 (10
+lecciones embebidas con ?raw, sin impacto medible — texto liviano).
+
+[PENDIENTE HUMANO] Verificación visual: navegador (objetivos/paneles por
+lección), progreso persistente al recargar, siguiente/anterior, y el flujo
+de la 08 (elegir carpeta → ensambla con includes / cancelar → aviso).

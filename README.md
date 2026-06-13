@@ -130,7 +130,7 @@ Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando 
 
 ## Aprendé RISC-V con EmuRV
 
-¿Nunca programaste en ensamblador? La carpeta [`lecciones/`](lecciones/README.md) trae un **curso de 10 lecciones** pensado para un principiante absoluto sin docente al lado: cada lección es un programa comentado que se abre en EmuRV y se recorre con «Paso» — el texto te dice qué mirar en cada panel ANTES de que pase, y cierra con 3 ejercicios.
+¿Nunca programaste en ensamblador? EmuRV trae un **curso de 10 lecciones** pensado para un principiante absoluto sin docente al lado. Abrilo desde el botón **«Lecciones»** de la app: un navegador muestra el currículo ordenado y, al elegir una lección, sus objetivos y qué paneles mirar ANTES de cargar el código; marca tu progreso (completadas, persistido) y tiene navegación siguiente/anterior. También está en la carpeta [`lecciones/`](lecciones/README.md) para leerlo o correrlo por terminal. Cada lección es un programa comentado que se recorre con «Paso» — el texto te dice qué mirar en cada panel ANTES de que pase, y cierra con 3 ejercicios.
 
 El recorrido: registros → aritmética (con el complemento a 2 demostrado) → memoria (endianness ante tus ojos) → condicionales → bucles (con breakpoints condicionales) → funciones y pila → syscalls → proyectos multi-archivo → MMIO y tiempo real → traps (tu primer mini-kernel). El [índice](lecciones/README.md) tiene el mapa de aprendizaje y los prerrequisitos de cada una. Todas las lecciones corren también por terminal (`emurv-cli run lecciones/01-registros/leccion.s`) y están vigiladas por tests en la CI.
 
