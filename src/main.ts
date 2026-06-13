@@ -22,9 +22,11 @@ import {
   toggleBreakpointAtLine,
 } from "./editor";
 import { t } from "./i18n";
+import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
 import { Depuracion, type FilaBreakpoint } from "./paneles/depuracion";
+import { Lecciones } from "./paneles/lecciones";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
@@ -68,6 +70,7 @@ class App {
   private depuracion: Depuracion;
   private video: Video;
   private ayuda: Ayuda;
+  private lecciones: Lecciones;
   private programa: AssembleOk | null = null;
   /** El texto del editor cambió desde el último ensamblado exitoso:
    *  line_to_addr ya no es confiable para validar breakpoints. */
@@ -118,6 +121,10 @@ class App {
       document.getElementById("video-desacoplar")!,
     );
     this.ayuda = new Ayuda();
+    this.lecciones = new Lecciones({
+      onAbrir: (l) => this.abrirLeccion(l),
+      onAbrirMultiarchivo: (l) => void this.abrirLeccionMultiarchivo(l),
+    });
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
       this.setModo("corriendo", t("estado.corriendo"));
@@ -175,6 +182,7 @@ class App {
     const espacio = document.createElement("span");
     espacio.className = "espacio";
     bar.appendChild(espacio);
+    boton("lecciones", "toolbar.lecciones").onclick = () => this.lecciones.abrir();
     boton("video", "toolbar.video").onclick = () => this.video.alternar();
     boton("abrir", "toolbar.abrir").onclick = () => void this.abrirArchivo();
     boton("guardar", "toolbar.guardar").onclick = () => void this.guardarArchivo();
@@ -414,6 +422,53 @@ class App {
     this.reinicioPedido = true;
     this.consola.setInputMode(false);
     await api.reset();
+  }
+
+  /** Carga una lección normal al editor (buffer sin ruta, como un ejemplo).
+   *  La marca como completada al abrirla (progreso persistido, RP15). */
+  private abrirLeccion(l: Leccion): void {
+    this.salirModoBinario();
+    setDoc(this.editor, l.codigo);
+    this.programa = null;
+    this.rutaArchivo = null; // lección embebida: sin base de .include
+    this.setModo("sin_programa", t("leccion.abierta", { titulo: l.titulo }));
+    this.lecciones.marcarCompletada(l.numero);
+  }
+
+  /** Caso multi-archivo (08): el `.include` necesita disco (RP5). Se ofrece
+   *  guardar los 3 archivos en una carpeta y abrir main.s CON esa ruta base;
+   *  si el usuario cancela, aviso didáctico explicando por qué. */
+  private async abrirLeccionMultiarchivo(l: Leccion): Promise<void> {
+    const archivos = l.archivos;
+    if (!archivos) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const carpeta = await open({
+      title: t("leccion.elegirCarpeta"),
+      directory: true,
+    });
+    if (typeof carpeta !== "string") {
+      // Canceló: aviso didáctico, no se abre nada roto.
+      this.consola.clear();
+      this.consola.append(`${t("leccion.multiarchivoCancelado")}\n`, "error");
+      return;
+    }
+    try {
+      const sep = carpeta.includes("\\") ? "\\" : "/";
+      let mainPath = "";
+      for (const [nombre, contenido] of Object.entries(archivos)) {
+        const ruta = `${carpeta}${sep}${nombre}`;
+        await api.guardarArchivo(ruta, contenido);
+        if (nombre === "main.s") mainPath = ruta;
+      }
+      this.salirModoBinario();
+      setDoc(this.editor, archivos["main.s"]);
+      this.programa = null;
+      this.rutaArchivo = mainPath; // base_dir para .include (RP5)
+      this.setModo("sin_programa", t("leccion.multiarchivoListo", { carpeta }));
+      this.lecciones.marcarCompletada(l.numero);
+    } catch (e) {
+      this.consola.append(`${t("archivo.errorGuardar", { message: String(e) })}\n`, "error");
+    }
   }
 
   /** Abre un archivo del usuario: un fuente reemplaza el contenido del
