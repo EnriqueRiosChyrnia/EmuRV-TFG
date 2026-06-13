@@ -7,8 +7,8 @@
 //! interfaz es la ÚNICA puerta al desensamblador: si la decisión
 //! cambiara, se reemplaza solo este módulo.
 
-use capstone::arch::riscv::ArchMode;
-use capstone::arch::BuildsCapstone;
+use capstone::arch::riscv::{ArchExtraMode, ArchMode};
+use capstone::arch::{BuildsCapstone, BuildsCapstoneExtraMode};
 use capstone::Capstone;
 use serde::Serialize;
 
@@ -55,6 +55,60 @@ pub fn words_de(text: &[u8]) -> Vec<u32> {
     text.chunks_exact(4)
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect()
+}
+
+/// Desensambla `.text` recorriéndolo por LONGITUD VARIABLE (RP13): una
+/// instrucción comprimida (C) ocupa 2 bytes — se reconoce porque sus dos
+/// bits bajos NO son `11`; el resto ocupa 4. Cada línea trae su dirección
+/// real, así el modo binario y los breakpoints sobre el listado quedan
+/// exactos con C de por medio. Para `.text` de solo-4-bytes da el mismo
+/// resultado que `disasm(words_de(...))`.
+pub fn disasm_bytes(text: &[u8], base: u32) -> Vec<DisasmLine> {
+    // RiscVC (extra_mode) habilita la decodificación de instrucciones
+    // comprimidas; sin él, capstone devuelve una C como dato (RP13-F3).
+    let cs = Capstone::new()
+        .riscv()
+        .mode(ArchMode::RiscV32)
+        .extra_mode([ArchExtraMode::RiscVC].iter().copied())
+        .build();
+    let mut out = Vec::new();
+    let mut off = 0usize;
+    while off < text.len() {
+        let comprimida = text[off] & 0b11 != 0b11;
+        let len = if comprimida { 2 } else { 4 };
+        if off + len > text.len() {
+            break; // resto incompleto: no inventar una instrucción
+        }
+        let addr = base.wrapping_add(off as u32);
+        let bytes = &text[off..off + len];
+        let word = if comprimida {
+            u32::from(u16::from_le_bytes([bytes[0], bytes[1]]))
+        } else {
+            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+        };
+        let texto = cs
+            .as_ref()
+            .ok()
+            .and_then(|cs| {
+                let insns = cs.disasm_count(bytes, u64::from(addr), 1).ok()?;
+                let insn = insns.iter().next()?;
+                let mn = insn.mnemonic()?;
+                Some(match insn.op_str() {
+                    Some(ops) if !ops.is_empty() => format!("{mn} {ops}"),
+                    _ => mn.to_string(),
+                })
+            })
+            .unwrap_or_else(|| {
+                if comprimida {
+                    format!(".half 0x{word:04X}")
+                } else {
+                    format!(".word 0x{word:08X}")
+                }
+            });
+        out.push(DisasmLine { addr, word, texto });
+        off += len;
+    }
+    out
 }
 
 /// Listado completo formateado (UI modo binario y `emurv-cli disasm`):

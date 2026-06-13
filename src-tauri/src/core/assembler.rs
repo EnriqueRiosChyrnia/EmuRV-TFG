@@ -642,6 +642,25 @@ pub fn assemble_with_includes(
     let mut source_map = SourceMap::default();
     let mut origins = Vec::with_capacity(p.instrs.len());
     for ins in &p.instrs {
+        // RP13: las comprimidas (C) emiten 2 bytes. El resto, una o dos
+        // palabras de 4 (li/la/loads con etiqueta). El source_map se llena
+        // con la dirección REAL de cada media/palabra — así breakpoints,
+        // resaltado y step quedan exactos con tamaños mixtos.
+        if ins.size == 2 {
+            match encode_compressed(ins, &p.symbols) {
+                Ok(half) => {
+                    source_map.addr_to_line.insert(ins.addr, ins.main_line);
+                    origins.push((ins.addr, ins.file, ins.line));
+                    text.extend_from_slice(&half.to_le_bytes());
+                    source_map
+                        .line_to_addr
+                        .entry(ins.main_line)
+                        .or_insert(ins.addr);
+                }
+                Err(e) => p.errors.push(con_archivo(e, ins.file)),
+            }
+            continue;
+        }
         match encode_instr(ins, &p.symbols) {
             Ok(words) => {
                 debug_assert_eq!(words.len() as u32 * 4, ins.size);
@@ -1282,6 +1301,27 @@ fn parse_operand(
 // Extensión A (atómicas, RP13)
 // ---------------------------------------------------------------------------
 
+/// ¿`mnem` es una instrucción comprimida (extensión C, RP13)? Conjunto
+/// didáctico: las que un alumno escribiría a mano para ver compresión.
+fn es_comprimida(mnem: &str) -> bool {
+    matches!(
+        mnem,
+        "c.nop" | "c.addi" | "c.li" | "c.mv" | "c.jr" | "c.j" | "c.lw" | "c.sw"
+            | "c.beqz" | "c.bnez"
+    )
+}
+
+/// Registro comprimido (x8–x15): los formatos CL/CS/CB usan 3 bits.
+/// Devuelve el código de 3 bits o un error didáctico si el registro no
+/// está en el rango permitido por C.
+fn creg(r: u8) -> Option<u32> {
+    if (8..=15).contains(&r) {
+        Some(u32::from(r) - 8)
+    } else {
+        None
+    }
+}
+
 /// Si `mnem` es una instrucción atómica RV32A, devuelve
 /// (funct5, aq, rl, es_lr, es_sc). El sufijo opcional .aq/.rl/.aqrl define
 /// los bits de ordenamiento (sin sufijo = ambos 0). Todas son `.w` (RV32).
@@ -1338,6 +1378,9 @@ fn instr_size(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<u32, AsmEr
             OpKind::Sym(_) | OpKind::Imm(_) => 8,
             _ => 4,
         },
+        // C (RP13): toda instrucción comprimida ocupa 2 bytes. El ensamblador
+        // NO comprime automáticamente — solo emite C si el usuario la escribe.
+        m if es_comprimida(m) => 2,
         // F/D (RP12): con etiqueta expanden a lui(aux)+acceso, como sw.
         "flw" | "fld" | "fsw" | "fsd" => match &ops[1].kind {
             OpKind::Sym(_) | OpKind::Imm(_) => 8,
@@ -1377,6 +1420,56 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
     let is_paren = |i: usize| matches!(ops[i].kind, Mem { off: 0, .. });
     // RP12: registros flotantes y sus errores didácticos.
     let is_freg = |i: usize| matches!(ops[i].kind, FReg(_));
+    // RP13: comprimidas (C). Cada forma valida sus operandos; los registros
+    // de los formatos CL/CS/CB deben estar en x8–x15.
+    if es_comprimida(mnem) {
+        let creg_ok = |i: usize| matches!(ops[i].kind, Reg(r) if (8..=15).contains(&r));
+        match mnem {
+            "c.nop" => want(0, "sin operandos")?,
+            "c.addi" | "c.li" => {
+                want(2, "registro, inmediato")?;
+                if !(is_reg(0) && is_imm(1)) {
+                    return err(format!("«{mnem}» espera registro e inmediato (ej.: {mnem} a0, 5)"));
+                }
+            }
+            "c.mv" => {
+                want(2, "registro, registro")?;
+                if !(is_reg(0) && is_reg(1)) {
+                    return err("«c.mv» espera dos registros (ej.: c.mv a1, a0)".into());
+                }
+            }
+            "c.jr" => {
+                want(1, "registro")?;
+                if !is_reg(0) {
+                    return err("«c.jr» espera un registro (ej.: c.jr ra)".into());
+                }
+            }
+            "c.j" => {
+                want(1, "etiqueta")?;
+                if !(is_sym(0) || is_imm(0)) {
+                    return err("«c.j» espera una etiqueta (ej.: c.j fin)".into());
+                }
+            }
+            "c.lw" | "c.sw" => {
+                want(2, "registro, desplazamiento(base)")?;
+                if !(creg_ok(0) && is_mem(1)) {
+                    return err(format!(
+                        "«{mnem}» espera registro x8–x15 y desplazamiento(base) con base                          x8–x15 (ej.: {mnem} a0, 4(a1)) — la extensión C solo alcanza                          esos registros"
+                    ));
+                }
+            }
+            "c.beqz" | "c.bnez" => {
+                want(2, "registro, etiqueta")?;
+                if !(creg_ok(0) && (is_sym(1) || is_imm(1))) {
+                    return err(format!(
+                        "«{mnem}» espera registro x8–x15 y etiqueta (ej.: {mnem} a0, fin)"
+                    ));
+                }
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
     // RP13: atómicas — lr.w rd, (rs1) ; resto rd, rs2, (rs1).
     if let Some((_, _, _, es_lr, _)) = parse_amo(mnem) {
         if es_lr {
@@ -2388,6 +2481,116 @@ fn encode_fstore(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
             enc_s_fp(lo12(addr), rs2, rt, f3),
         ])
     }
+}
+
+/// Codifica una instrucción comprimida (extensión C, RP13) en 16 bits.
+/// Encodings verificados a mano contra `riscv64-elf-as -march=rv32imac`
+/// (ver BITACORA RP13-F3). Los inmediatos con rango/alineación inválidos
+/// dan error didáctico — el ensamblador no comprime solo, así que un valor
+/// fuera de rango es siempre culpa de lo que el usuario escribió.
+fn encode_compressed(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<u16, AsmError> {
+    let c = Ctx { ins, symbols };
+    let m = ins.mnem.as_str();
+    let err = |col: u32, msg: String| AsmError::new(ins.line, col, msg);
+    let w: u16 = match m {
+        "c.nop" => 0x0001,
+        "c.addi" | "c.li" => {
+            let rd = c.reg(0)?;
+            let imm = c.imm(1)?;
+            if m == "c.addi" && rd == 0 {
+                return Err(err(ins.ops[0].col, "«c.addi» no admite x0/zero como destino".into()));
+            }
+            if rd == 0 {
+                return Err(err(ins.ops[0].col, "«c.li» no admite x0/zero como destino".into()));
+            }
+            if !(-32..=31).contains(&imm) {
+                return Err(err(
+                    ins.ops[1].col,
+                    format!("el inmediato de «{m}» debe caber en 6 bits con signo (-32..31); hay {imm}"),
+                ));
+            }
+            let funct3: u16 = if m == "c.addi" { 0b000 } else { 0b010 };
+            let imm = imm as u16 & 0x3F;
+            (funct3 << 13) | ((imm >> 5) << 12) | ((rd as u16) << 7) | ((imm & 0x1F) << 2) | 0b01
+        }
+        "c.mv" => {
+            let (rd, rs2) = (c.reg(0)?, c.reg(1)?);
+            if rd == 0 || rs2 == 0 {
+                return Err(err(ins.ops[0].col, "«c.mv» no admite x0/zero".into()));
+            }
+            (0b1000 << 12) | ((rd as u16) << 7) | ((rs2 as u16) << 2) | 0b10
+        }
+        "c.jr" => {
+            let rs1 = c.reg(0)?;
+            if rs1 == 0 {
+                return Err(err(ins.ops[0].col, "«c.jr» no admite x0/zero".into()));
+            }
+            (0b1000 << 12) | ((rs1 as u16) << 7) | 0b10
+        }
+        "c.j" => {
+            let off = c.branch_off(0)?;
+            if !(-2048..=2046).contains(&off) || off % 2 != 0 {
+                return Err(err(ins.ops[0].col, format!("«c.j» fuera de alcance (±2 KB, par); offset {off}")));
+            }
+            let o = off as u16 & 0xFFF;
+            let bit = |b: u16| (o >> b) & 1;
+            let imm: u16 = (bit(11) << 10)
+                | (bit(4) << 9)
+                | (bit(9) << 8)
+                | (bit(8) << 7)
+                | (bit(10) << 6)
+                | (bit(6) << 5)
+                | (bit(7) << 4)
+                | (bit(3) << 3)
+                | (bit(2) << 2)
+                | (bit(1) << 1)
+                | bit(5);
+            (0b101 << 13) | (imm << 2) | 0b01
+        }
+        "c.lw" | "c.sw" => {
+            let r = creg(c.reg(0)?).ok_or_else(|| {
+                err(ins.ops[0].col, format!("«{m}» solo alcanza x8–x15"))
+            })?;
+            let (off, base) = c.mem(1)?;
+            let base = creg(base).ok_or_else(|| {
+                err(ins.ops[1].col, format!("«{m}»: la base solo puede ser x8–x15"))
+            })?;
+            if !(0..=124).contains(&off) || off % 4 != 0 {
+                return Err(err(
+                    ins.ops[1].col,
+                    format!("«{m}»: el desplazamiento debe ser múltiplo de 4 entre 0 y 124; hay {off}"),
+                ));
+            }
+            let o = off as u16;
+            let funct3: u16 = if m == "c.lw" { 0b010 } else { 0b110 };
+            // opcode de C de loads/stores = 0b00 (omitido: el OR sería no-op)
+            (funct3 << 13)
+                | (((o >> 3) & 0x7) << 10)
+                | ((base as u16) << 7)
+                | (((o >> 2) & 1) << 6)
+                | (((o >> 6) & 1) << 5)
+                | ((r as u16) << 2)
+        }
+        "c.beqz" | "c.bnez" => {
+            let rs1 = creg(c.reg(0)?).ok_or_else(|| {
+                err(ins.ops[0].col, format!("«{m}» solo alcanza x8–x15"))
+            })?;
+            let off = c.branch_off(1)?;
+            if !(-256..=254).contains(&off) || off % 2 != 0 {
+                return Err(err(ins.ops[1].col, format!("«{m}» fuera de alcance (±256 B, par); offset {off}")));
+            }
+            let o = off as u16 & 0x1FF;
+            let bit = |b: u16| (o >> b) & 1;
+            let funct3: u16 = if m == "c.beqz" { 0b110 } else { 0b111 };
+            let imm_hi = (bit(8) << 2) | (bit(4) << 1) | bit(3);
+            let imm_lo = (bit(7) << 4) | (bit(6) << 3) | (bit(2) << 2) | (bit(1) << 1) | bit(5);
+            (funct3 << 13) | (imm_hi << 10) | ((rs1 as u16) << 7) | (imm_lo << 2) | 0b01
+        }
+        otro => {
+            return Err(err(1, format!("error interno: «{otro}» no tiene encoding comprimido (bug)")));
+        }
+    };
+    Ok(w)
 }
 
 fn encode_li(c: &Ctx) -> Result<Vec<u32>, AsmError> {

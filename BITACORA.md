@@ -1475,3 +1475,42 @@ modelo correcto para enseñar el patrón lr/sc, no para paralelismo.
 
 Compuerta F2: encodings == GNU ✓ · suite completa (35 binarios src-tauri,
 CLI 48) ✓ · clippy 0 ambos ✓. C entra en F3 (veredicto F1 = VIABLE).
+
+## 2026-06-13 — RP13-F3: extensión C compatible con source_map y breakpoints
+
+[Seguro] C IMPLEMENTADA (veredicto F1 = VIABLE confirmado en la práctica).
+Set didáctico: c.nop, c.addi, c.li, c.mv, c.jr, c.j, c.lw, c.sw, c.beqz,
+c.bnez — las que un alumno escribe a mano para ver compresión. El
+ensamblador NO comprime automáticamente: una instrucción de 32 bits sigue
+emitiendo 32 bits; C aparece solo si el usuario la escribe (o se importa
+un ELF).
+
+[Seguro — oráculo] Repertorio C ensamblado por nosotros == `riscv64-elf-as
+-march=rv32imac` BYTE A BYTE (tests/rp13_comprimidas.rs, comparación de
+buffers completos, no solo palabra a palabra). Encodings verificados a
+mano contra GNU antes de codificar (c.nop=0x0001, c.addi a0,1=0x0505,
+c.li a2,5=0x4615, c.mv a1,a0=0x85aa, c.jr ra=0x8082, c.j off=10=0xa029,
+c.lw a0,4(a1)=0x41c8, c.sw a0,8(a1)=0xc588, c.beqz a0,+4=0xc111,
+c.bnez a0,+2=0xe109) — el scrambling de inmediatos CJ/CB/CL es el de la
+espec.
+
+[Seguro] El invariante de tamaño variable, resuelto con cambios ACOTADOS:
+- `instr_size`: c.* → 2 (ya era variable para li/la/loads con etiqueta).
+- pasada 2: rama de 2 bytes (`encode_compressed -> u16`) ANTES del camino
+  de 4; el source_map se llena con la dirección REAL de cada instrucción.
+  El camino de 4 bytes quedó INTACTO → cero regresión.
+- `disasm_bytes(text, base)`: nuevo, recorre por longitud (2 bits bajos !=
+  0b11 → 2 bytes) con capstone + extra_mode RiscVC (sin ese flag capstone
+  devuelve la C como dato — medido). Para .text de solo-4-bytes da
+  resultado idéntico a `disasm(words_de(...))`. commands.rs (modo binario)
+  y `emurv-cli disasm` ahora usan disasm_bytes.
+
+[Seguro] CERO regresión verificada: los 36 binarios de test de src-tauri y
+los 48 del CLI siguen verdes (breakpoints RP-7, resaltado, disasm RP-11,
+import RP-11). Pruebas nuevas del invariante: source_map con tamaño mixto
+(meta tras 4+2+2 está en +8), breakpoint sobre una C frena exacto en +6,
+ejecución mixta 4/2 (a0=8), disasm_bytes con direcciones correlativas,
+ELF round-trip con C importadas.
+
+Compuerta F3: todo verde, ningún test previo roto, clippy 0 ambos, tsc
+limpio. C ENTRÓ limpia.

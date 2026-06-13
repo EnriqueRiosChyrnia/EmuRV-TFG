@@ -588,10 +588,7 @@ pub fn abrir_programa(
         std::fs::read(&path).map_err(|e| format!("no se pudo leer el archivo: {e}"))?;
     if crate::core::elf_import::es_elf(&bytes) {
         let mut program = crate::core::elf_import::import_elf(&bytes)?;
-        let lineas = crate::core::disasm::disasm(
-            &crate::core::disasm::words_de(&program.text),
-            TEXT_BASE,
-        );
+        let lineas = crate::core::disasm::disasm_bytes(&program.text, TEXT_BASE);
         let listado = crate::core::disasm::listado(&lineas);
         // El listado ES el «fuente» del modo binario: línea n ↔ dirección.
         // Con el source_map poblado así, el resaltado de ejecución, la
@@ -627,10 +624,7 @@ pub fn get_disasm(
     let s = guard
         .as_ref()
         .ok_or("no hay programa ensamblado: usá «Ensamblar» primero")?;
-    let lineas = crate::core::disasm::disasm(
-        &crate::core::disasm::words_de(&s.program.text),
-        TEXT_BASE,
-    );
+    let lineas = crate::core::disasm::disasm_bytes(&s.program.text, TEXT_BASE);
     Ok(lineas.into_iter().map(|l| (l.addr, l.texto)).collect())
 }
 
