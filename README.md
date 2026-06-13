@@ -16,8 +16,9 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - **Editor profesional**: autocompletado contextual (mnemónicos, registros y etiquetas del buffer; Ctrl-Espacio), ayuda al pasar el mouse sobre una instrucción (hover en español), e ir-a-definición de etiquetas (Cmd/Ctrl-click) con resaltado de sus usos.
 - Ensamblador propio RV32IM (enteros + multiplicación/división) con errores **por línea y columna, en español**.
 - Ejecución completa o paso a paso sobre [Unicorn Engine](https://www.unicorn-engine.org/); la línea por ejecutarse queda resaltada.
-- Vista de registros (x0–x31 + pc, nombres ABI, hex y decimal) con **resaltado de los que cambiaron** en el último paso.
+- Vista de registros (x0–x31 + pc, nombres ABI, hex y decimal) con **resaltado de los que cambiaron** en el último paso; orden estándar RISC-V (RARS/gdb), separadores sutiles entre grupos ABI y tooltip con el rol de cada registro.
 - Vista de memoria navegable con accesos rápidos a `.text`, `.data` y la pila.
+- **Paneles con divulgación progresiva** (pensado para principiantes): Registros siempre a la vista y prioritario; Memoria plegable; Depuración arranca plegada y se revela sola al poner el primer breakpoint, con los watchpoints (más avanzados) en una sub-sección con mini-ayuda. La barra de herramientas se adapta a cualquier ancho de ventana (los controles bajan de fila, no se cortan).
 - Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar, tiempo en ms y dormir.
 - **Teclado en tiempo real**: dispositivo MMIO compatible RARS/MARS (`0xFFFF_0000`) que el programa consulta por polling sin bloquearse — ver [`docs/TECLADO.md`](docs/TECLADO.md).
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).

@@ -2271,3 +2271,47 @@ resto atenuado; los 4 botones de ejecución se ven como UN bloque.
 Compuerta F3: progressive disclosure (Memoria plegable · Depuración plegada
 y auto-revelada · watchpoints con ayuda) · jerarquía (deemph + grupo-ejec)
 · i18n anti-drift · tsc/build limpios · ids/Rust intactos.
+
+## 2026-06-13 — RP18-F4: docs ajustes de layout y UX (cierre)
+
+[Seguro] Docs de cara al usuario (flujos que cambiaron): README suma la
+divulgación progresiva de los paneles (Registros prioritario y siempre
+visible; Memoria plegable; Depuración plegada hasta el primer breakpoint;
+watchpoints con mini-ayuda) y la toolbar adaptable a cualquier ancho, más
+la nota de orden RISC-V + separadores + tooltips en registros. Ayuda
+integrada: `ayuda.depuracion.texto` (es y en) actualizada — el panel
+arranca plegado y se abre solo al primer breakpoint, watchpoints en
+sub-sección con ayuda. Anti-drift es/en verde. ROADMAP-PRO y Cap. VI: NO
+tocados.
+
+[Seguro] CIERRE RP-18 — criterios de aceptación:
+- Toolbar usable a cualquier ancho (bug flex-wrap resuelto) ✓ F1
+- Registros legible sin aplastar, con separadores y tooltips; orden x0..x31
+  INTACTO (fijado por test) ✓ F2
+- Pantalla no domina el lateral (canvas acotado) ✓ F2
+- Progressive disclosure: Depuración plegada por defecto + auto-revelada,
+  Memoria plegable, watchpoints con ayuda ✓ F3
+- Jerarquía: solo Ensamblar con acento, secundarios atenuados, ejecución
+  segmentada ✓ F3
+- Cero regresión funcional: ids del JS intactos, `grid-template-areas` de
+  `#app` sin tocar, suites verdes; legibilidad AA (los 5 temas de RP-17B
+  siguen verdes en contraste.test) y bundle ≤30 ✓ todas
+- i18n es/en de los textos nuevos (anti-drift verde) ✓ F2/F3
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0
+ambos · UI 56 con node:test), tsc estricto limpio, ci-local.sh completo
+verde, tauri build ok, bundle EmuRV.app 22 MB ≤ 30 (RNF-04).
+
+[Seguro] DEJADO COMO FUTURO (fuera del alcance de este plan, registrado):
+- Ensanche de la consola cuando el video está oculto: requiere reescribir
+  `grid-template-areas` de `#app` (más invasivo) — el plan lo excluye.
+- Menú overflow «⋯» con ResizeObserver para la toolbar: mejora sobre el
+  fix por defecto (flex-wrap); no hacía falta.
+- Pulido cálido (radios via --radio, sombras, IBM Plex, acento violeta del
+  Educativo, hover/fondo transparente del .deemph, chevrons en los títulos
+  plegables): es RP-19. El `border-radius:6px` del grupo-ejec es provisorio
+  hasta que RP-19 tokenice los radios.
+
+[PENDIENTE HUMANO] Verificación visual final a varios anchos de ventana:
+toolbar que envuelve sin cortar; lateral con Registros prioritario y sin
+hueco al plegar; pantalla acotada; Depuración que se revela al breakpoint;
+jerarquía (solo Ensamblar resalta). Recomendado en los 5 temas de RP-17B.
