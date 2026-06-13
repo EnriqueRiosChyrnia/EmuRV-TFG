@@ -18,7 +18,8 @@ use super::keyboard::KeyboardShared;
 use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::video::{FramebufferRGBA, VideoShared};
 use super::{
-    CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC, DATA_BASE,
+    CSR_ID_FCSR, CSR_ID_MCAUSE, CSR_ID_MEPC, CSR_ID_MSTATUS, CSR_ID_MTVAL, CSR_ID_MTVEC,
+    DATA_BASE, FREG_ID_BASE,
     DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE, FRAMEBUFFER_SIZE,
     GP_INIT, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
     RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
@@ -449,7 +450,19 @@ impl Machine<'_> {
         for id in [CSR_ID_MTVEC, CSR_ID_MEPC, CSR_ID_MCAUSE, CSR_ID_MTVAL] {
             let _ = self.uc.reg_write(id, 0);
         }
-        let _ = self.uc.reg_write(CSR_ID_MSTATUS, 1 << 3);
+        // RP12: mstatus.FS = Initial (bits 14:13 = 01). La espec privilegiada
+        // (§3.1.6, campo FS) exige FS != Off para ejecutar instrucciones
+        // F/D — con FS=Off (el estado de arranque de Unicorn, medido por el
+        // spike RP12-F1) todo fadd.s da instrucción ilegal. El propio motor
+        // lo promueve a Dirty al ensuciar registros f.
+        let _ = self
+            .uc
+            .reg_write(CSR_ID_MSTATUS, (1 << 3) | (1 << 13));
+        // Registros f y fcsr en cero (sin valores fantasma entre sesiones).
+        for n in 0..32 {
+            let _ = self.uc.reg_write(FREG_ID_BASE + n, 0);
+        }
+        let _ = self.uc.reg_write(CSR_ID_FCSR, 0);
         Ok(())
     }
 
@@ -469,6 +482,20 @@ impl Machine<'_> {
             .reg_read(PC)
             .map(|v| v as u32)
             .map_err(|e| format!("no se pudo leer el pc: {e:?}"))
+    }
+
+    /// f0..f31 crudos de 64 bits (RP12): un single NaN-boxed lleva los 32
+    /// altos en unos; OJO (spike RP12-F1): Unicorn no boxea el RESULTADO
+    /// de operaciones .s — la UI interpreta con esa regla.
+    pub fn registers_f(&self) -> Result<[u64; 32], String> {
+        let mut regs = [0u64; 32];
+        for (n, r) in regs.iter_mut().enumerate() {
+            *r = self
+                .uc
+                .reg_read(FREG_ID_BASE + n as i32)
+                .map_err(|e| format!("no se pudo leer el registro f{n}: {e:?}"))?;
+        }
+        Ok(regs)
     }
 
     /// x0..x31 (x0 siempre 0). Si algún registro no se puede leer, el error

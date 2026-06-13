@@ -1283,3 +1283,42 @@ lo maneja (RP-0), pero el spike lo re-descubrió a mano.
 
 Compuerta F1: 6/6 preguntas respondidas [Seguro], decisión de
 inicialización tomada, spike verde, clippy 0.
+
+## 2026-06-12 — RP12-F2: ensamblador F/D verificado contra GNU as
+
+[Seguro — EL criterio de la compuerta] Oráculo GNU: el repertorio F/D
+completo (60 instrucciones reales: loads/stores, aritmética, sqrt, fma R4,
+conversiones, comparaciones, sign-inject, fclass, fmv x↔w, y los pseudos
+fmv/fabs/fneg de un word) ensamblado por NOSOTROS y por riscv64-elf-as
+(-march=rv32imfd -mabi=ilp32d) da las MISMAS palabras, una por una
+(tests/rp12_gnu_oracle.rs; sin toolchain el test se saltea con aviso).
+Verde a la PRIMERA corrida — los detalles finos coincidieron: rm=dyn(7)
+en aritmética/conversiones inexactas, rm=0 en las conversiones EXACTAS
+(fcvt.d.s / fcvt.d.w / fcvt.d.wu, que GNU también fija en 0), funct3
+fijos de sgnj/min-max/comparaciones/fclass/fmv.
+
+[Seguro] Ensamblador: tabla propia freg_number (ft0-11/fs0-11/fa0-7/fN,
+convención de llamada estándar), OpKind::FReg (los .eqv no pueden pisar
+nombres f: el registro gana), shapes con errores didácticos
+(«fadd.s … necesita registros f … usaste un registro entero»; fcvt con
+destino equivocado dice cuál va dónde), flw/fld/fsw/fsd con etiqueta =
+lui(aux)+acceso con AUXILIAR ENTERO obligatorio (el destino f no puede
+hacer de puntero, a diferencia de lw — documentado en el error).
+Rechazos del diseño: fmv.x.d/fmv.d.x («no existe en RV32: el camino es
+fsd + lw/lw») y modo de redondeo explícito como 4.º operando
+(rne/rtz/rdn/rup/rmm/dyn → «EmuRV usa siempre dyn»).
+
+[Seguro] Máquina: load() inicializa mstatus = MIE | FS_Initial (1<<3 |
+1<<13) con cita de la espec (§3.1.6) — sin eso la primera flw da ilegal
+(spike F1); registros f y fcsr a cero por sesión/reinicio (sin valores
+fantasma); registers_f() → [u64;32] con la nota del no-boxeo de
+resultados .s. Constantes FREG_ID_BASE=158 / CSR_ID_FCSR=43 en core
+(las verificadas por el spike, no las erradas).
+
+[Seguro] Ejecución con bits IEEE exactos (tests/rp12_fp_exec.rs):
+1.5+0.25=1.75 en f32 Y f64 (por memoria y por registros), fmadd
+2*3+0.5=6.5, fneg/fabs por sgnj, round-trip fcvt 7→7.0→7, feq/flt a
+registro entero, acceso por etiqueta en ambas direcciones.
+
+Compuerta F2: oráculo palabra a palabra ✓ · suites verdes (32 binarios
+src-tauri, CLI 46) · clippy 0 ambos ✓.
