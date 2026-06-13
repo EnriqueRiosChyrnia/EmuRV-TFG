@@ -96,3 +96,9 @@ pub const CSR_ID_MEPC: i32 = 128;
 pub const CSR_ID_MCAUSE: i32 = 129;
 pub const CSR_ID_MTVAL: i32 = 130;
 pub const CSR_ID_MIP: i32 = 131;
+
+/// IDs de los registros FLOTANTES en el binding de Unicorn 2.1.5,
+/// verificados por el spike RP12-F1 contra el bindings.rs generado (el
+/// dato previo «F0=57» era errado): F0..F31 = 158..189, FCSR = 43.
+pub const FREG_ID_BASE: i32 = 158;
+pub const CSR_ID_FCSR: i32 = 43;
