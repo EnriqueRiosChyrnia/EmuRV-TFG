@@ -1654,3 +1654,30 @@ autocompletado.
 
 Compuerta F3: tests verdes · cobertura hover 100% de mnemónicos · tsc
 limpio.
+
+## 2026-06-13 — RP14-F4: docs editor profesional (cierre RP-14)
+
+[Seguro] Docs: README con la característica de resaltado RV32IMAFDC y la de
+«Editor profesional» (autocompletado/hover/ir-a-etiqueta); Ayuda integrada
+con sección «Editor» nueva (clave i18n ayuda.editor.*) que describe los
+cuatro flujos y recuerda que el editor NO re-ensambla al tipear.
+
+[Seguro] CIERRE RP-14 — criterios del ROADMAP:
+- Autocompletado de mnemónicos y registros con la lista AL DÍA (no la
+  vieja) ✓ F1/F2
+- Hover con ayuda por instrucción en español, cobertura 100% ✓ F3
+- Ir-a-definición de etiquetas + resaltar usos ✓ F3
+- Deuda del resaltado desactualizado (sin F/D/A/C) SALDADA ✓ F1
+- Anti-drift: la lista del editor no puede desincronizarse del ensamblador
+  (test cruzado isa.ts ↔ known_mnemonics) ✓ F1
+Suites verdes (37 src-tauri, 50 CLI, 18 UI), clippy 0 ambos, tsc limpio,
+ci-local --skip-bundle verde, tauri build ok, bundle 22 MB ≤ 30 (dep nueva
+@codemirror/autocomplete sin impacto medible).
+
+Tooling agregado: `tsx` (devDep) + `npm run test:ui` (node:test) en
+ci-local.sh y ci.yml (actionlint OK) — primer runner de tests del
+frontend; cubre las funciones puras del editor.
+
+[PENDIENTE HUMANO] Verificación visual en la app (heredada de F3):
+autocompletado (Ctrl-Espacio), hover sobre fadd.s/amoadd.w/c.addi,
+Cmd/Ctrl-click a definición de etiqueta, resaltado de usos.

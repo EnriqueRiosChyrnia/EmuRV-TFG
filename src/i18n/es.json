@@ -155,6 +155,8 @@
   "ayuda.directivas.titulo": "Directivas soportadas",
   "ayuda.ejemplos.titulo": "Ejemplos",
   "ayuda.ejemplos.texto": "El menú «Ejemplos» carga programas comentados: hola mundo, suma interactiva, contador, fibonacci, pila/funciones (factorial recursivo), franjas de color y Tetris gráfico (port de un Tetris 8086, dibujado en la pantalla de 320×240), eco de teclado y Tetris en tiempo real (teclado MMIO), manejador de excepciones (CSRs/traps) y coma flotante (promedio de notas con F/D). Son un buen punto de partida para tu propio código.",
+  "ayuda.editor.titulo": "Editor",
+  "ayuda.editor.texto": "El editor te ayuda mientras escribís: autocompletado de mnemónicos, registros y etiquetas (aparece solo al tipear, o con Ctrl-Espacio); al pasar el mouse sobre una instrucción se muestra su sintaxis y qué hace; Cmd/Ctrl-click sobre una etiqueta salta a su definición, y al poner el cursor sobre una etiqueta se resaltan todos sus usos. Los errores se siguen viendo al «Ensamblar» (el editor no re-ensambla mientras tipeás).",
   "ayuda.breakpoints.titulo": "Breakpoints",
   "ayuda.depuracion.texto": "En el panel «Depuración» podés sumarle una condición a cada breakpoint (ej.: «t0 == 5»: frena solo cuando se cumple) y vigilar zonas de datos con watchpoints (frenan cuando el programa las lee o escribe). Con la máquina pausada, doble clic sobre un registro o una palabra de memoria los edita en vivo. Detalle: docs/DEPURACION.md.",
   "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar»."
