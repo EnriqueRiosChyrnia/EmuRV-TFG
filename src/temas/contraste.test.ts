@@ -1,11 +1,14 @@
 // Legibilidad innegociable (RP17-F3): el contraste WCAG de los pares
 // críticos texto/fondo de CADA tema cumple AA (4.5:1). Lee los hex de
 // tokens.css por bloque de tema — fuente única, sin duplicar valores.
+// La fórmula (luminancia/ratio) y la lista de pares viven en contraste.ts
+// (RP28), compartidas con el aviso en vivo del editor de tema de usuario.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { test } from "node:test";
+import { AA, PARES, SINTAXIS, ratio } from "./contraste";
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const css = readFileSync(resolve(aqui, "tokens.css"), "utf8");
@@ -21,41 +24,6 @@ function tokensDe(sel: string): Record<string, string> {
   }
   return out;
 }
-
-function luminancia(hex: string): number {
-  const c = hex.replace("#", "");
-  const v = [0, 2, 4]
-    .map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
-    .map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
-}
-function ratio(a: string, b: string): number {
-  const la = luminancia(a);
-  const lb = luminancia(b);
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
-
-// Pares críticos: texto/fondos, texto-suave, error, acento y ok como texto.
-const PARES: Array<[string, string]> = [
-  ["texto", "fondo"],
-  ["texto", "fondo-panel"],
-  ["texto", "fondo-claro"],
-  ["texto-suave", "fondo-panel"],
-  ["texto-suave", "fondo"],
-  ["error", "fondo-panel"],
-  ["error", "fondo"],
-  ["acento", "fondo"],
-  ["acento", "fondo-panel"],
-  ["ok", "fondo"],
-  ["cambio", "fondo-panel"],
-];
-
-// Sintaxis del editor (RP17B): cada --sx-* es texto que CodeMirror pinta
-// sobre el fondo del editor, que es --fondo (ver styles.css/.cm-editor).
-// La legibilidad del código es tan innegociable como la de la UI.
-const SINTAXIS = ["sx-com", "sx-dir", "sx-lbl", "sx-ins", "sx-str", "sx-num"];
-
-const AA = 4.5;
 
 for (const [sel, nombre] of [
   ['[data-tema="educativo"]', "Educativo"],
