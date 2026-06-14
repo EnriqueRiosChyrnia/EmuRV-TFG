@@ -3089,3 +3089,94 @@ Sin tocar código Rust, sin renombrar ids, sin reordenar registros.
 panel o la pantalla y cerrar la principal → la hija se cierra; (b) Nuevo /
 Guardar / Guardar como / Abrir andan y «Guardar» no re-pregunta cuando ya hay
 ruta (sí la pide la primera vez).
+
+## 2026-06-14 — RP28-F1: tema de usuario (editor de tokens + persistencia)
+
+Punto RP-28 del ROADMAP-PRO: la «Parte B» de RP17 (que el USUARIO arme su
+tema). Ejecutado en worktree propio (rama `rp28/tema-usuario`), área
+`src/temas/` + un panel/modal nuevo, disjunta del resto del lote paralelo.
+
+[Seguro] DECISIÓN — variables inline vs bloque CSS editado por JS. El tema
+«usuario» NO es un bloque `[data-tema="usuario"]` en tokens.css escrito por
+JS, sino un objeto de tokens en localStorage (`emurv.tema-usuario.v1`)
+aplicado como variables CSS INLINE sobre `:root`
+(`documentElement.style.setProperty`). Alternativas consideradas: (a) editar
+un bloque CSS vía CSSOM (frágil: hay que localizar la regla, pelear
+especificidad, y el preview es más caro); (b) generar el bloque como string e
+inyectarlo. El estilo inline gana la cascada sobre cualquier `[data-tema]`
+sin tocar tokens.css → preview en vivo = un `setProperty`, sin parsear CSS.
+Contracara conocida y resuelta: esas vars inline taparían a CUALQUIER otro
+tema, así que `aplicarTema()` SIEMPRE limpia las vars de usuario al entrar, y
+solo las repinta si el tema es «usuario» (ver `index.ts` →
+`limpiarVarsUsuario`/`aplicarVarsUsuario`). Confianza: Seguro (cubierto por
+`usuario.test.ts` e `index.test.ts`).
+
+[Seguro] DECISIÓN — alcance de tokens editables. 17 tokens: superficies
+(fondo, fondo-panel, fondo-claro, borde), texto (texto, texto-suave,
+texto-sobre-acento), acento/estados (acento, ok, error, cambio) y la sintaxis
+del editor (sx-com/dir/lbl/ins/str/num). Se INCLUYÓ la sintaxis —el plan la
+daba como opcional «si entra»— porque si no, al cambiar `--fondo` a un tono
+claro la sintaxis heredada del Educativo (pensada para fondo oscuro) podría
+quedar ilegible y el aviso de contraste no tendría cómo corregirse: un
+callejón sin salida. Con los `--sx-*` editables, el aviso AA puede vigilarlos
+y el usuario arreglarlos. Default = copia EXACTA del Educativo
+(`DEFAULT_USUARIO`), atada al bloque `educativo` de tokens.css por un test
+anti-drift (lee el CSS y compara) → fuente única, sin copia desincronizada.
+
+[Seguro] DECISIÓN — aviso de contraste, NO bloqueo. Al editar/guardar se
+calculan los pares críticos (misma lógica WCAG que el test de los built-in,
+ahora extraída a `contraste.ts` y compartida por test y UI) y se AVISA en el
+modal si alguno < 4.5:1, sin impedir guardar: es el tema del usuario, la
+legibilidad de los 5 built-in sigue siendo innegociable (test verde) pero la
+del tema propio es su responsabilidad informada. Por eso «usuario» NO entra
+en `contraste.test.ts` (no tiene valores estáticos que testear).
+
+[Probable] DECISIÓN — export/importar JSON: SÍ en v1. El plan lo daba como
+opcional «si es barato». Es barato (Blob + `<a download>` para exportar;
+`<input type=file>` + FileReader para importar, sin plugin de Tauri ni
+permisos nuevos) y completa el «cargar» del título de RP-28. Riesgo: el
+comportamiento de descarga/diálogo de archivo dentro del webview de Tauri no
+se verificó en automático → queda como PENDIENTE HUMANO. Importar normaliza
+el objeto (claves conocidas con `#hex` válido; lo demás hereda del default),
+así un archivo parcial o ajeno no rompe.
+
+[Probable] DECISIÓN — CSS del modal INYECTADO por el componente
+(`editor-tema.ts`, `<style id="estilo-editor-tema">`) en vez de tocar
+`styles.css`. Razón: RP28 corre en un worktree disjunto del lote paralelo y
+`styles.css` es un archivo muy compartido; mantener el modal autocontenido
+evita conflictos de integración y respeta el «quedate en tu área». Todo el
+CSS usa `var(--…)`, así el editor recolorea con el tema en edición. Si en el
+futuro se unifica, el bloque `.et-*` se puede mover a styles.css sin cambios.
+
+[Seguro] Todo RP28 es FRONTEND: sin tocar `src-tauri/`, `emurv-cli`, ni el
+núcleo. `main.ts` mínimo (import + campo + construir el modal + un botón
+«Editar tema» junto al selector + sincronizar el `<select>`). El selector
+suma «Personalizado» solo (deriva de `TEMAS`). i18n es/en de todo lo nuevo
+al final de ambos catálogos (anti-drift verde).
+
+[PENDIENTE HUMANO] Verificación manual (lo visual, que el test no cubre):
+(a) «Editar tema» abre el modal; mover un color o tipear un hex se ve al
+instante en toda la app (preview en vivo); (b) cerrar SIN guardar revierte al
+tema previo; «Guardar tema» persiste y deja «Personalizado» seleccionado;
+reabrir la app conserva el tema; (c) poner un texto casi igual al fondo →
+aparece el aviso de contraste (y NO impide guardar); «Restaurar Educativo»
+vuelve al punto de partida; (d) Exportar baja `emurv-tema.json` e Importar lo
+vuelve a cargar (verificar el diálogo dentro del .app empaquetada).
+
+## 2026-06-14 — RP28-F2: docs y cierre
+
+[Seguro] Docs: README estrena el bullet «Tema personalizado (crear/editar/
+cargar)»; Ayuda integrada suma `ayuda.temas.usuario` (es/en) en la sección
+«Idioma y temas»; tokens.css estrena una nota que explica por qué el tema
+«usuario» no tiene bloque (vars inline desde localStorage). ROADMAP-PRO y el
+Cap. VI: NO tocados.
+
+[Seguro] CIERRE RP-28 — criterios de aceptación:
+- El usuario crea/edita un tema, preview en vivo, persistido ✓ F1
+- Aviso de contraste AA (no bloqueante) ✓ F1
+- Los 5 temas built-in y su contraste intactos ✓ F1 (contraste.test verde,
+  bloques built-in de tokens.css sin tocar)
+- Diferenciador del nicho (Tabla 2.1): ninguna herramienta lo tiene ✓
+Compuerta de cierre: cargo test + clippy AMBOS crates, tsc estricto, UI con
+node:test, ci-local.sh --skip-bundle, tauri build y bundle ≤30 MB (RNF-04)
+— resultados al pie de esta sesión.
