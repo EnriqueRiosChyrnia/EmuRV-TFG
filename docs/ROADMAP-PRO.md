@@ -100,7 +100,7 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
 | RP-26 | Búsqueda en el panel de Memoria | Baja | DOCUMENTADO |
 | RP-27 | Persistir workspace/sesión (último archivo, layout, ventanas) | Media | PENDIENTE |
 | RP-28 | Tema de usuario (crear/editar/cargar) | Media | DOCUMENTADO |
-| RP-29 | ELF reubicable (auipc, independiente de dirección de carga) | Media | PENDIENTE |
+| RP-29 | ELF reubicable (auipc, independiente de dirección de carga) | Media | DOCUMENTADO |
 | RP-30 | Pestañas + archivos recientes | Media-Alta | PENDIENTE |
 | RP-31 | Sprites + sonido (sobre el framebuffer) | Media-Alta | PENDIENTE |
 | RP-32 | RV64 — soporte 64 bits, conmutable RV32/RV64 | Alta (esfuerzo) | PENDIENTE |
