@@ -274,6 +274,9 @@ class App {
         .then((st) => this.registros.actualizar(st))
         .catch(() => {});
     });
+    this.agregarDesacople("memoria", "panel-memoria", "panel.memoria", 560, 460, () => {
+      void this.memoria.refrescar();
+    });
   }
 
   private agregarDesacople(

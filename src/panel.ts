@@ -10,8 +10,9 @@
 // origen — best-effort; al abrir siempre es correcto).
 import { inicializarTema } from "./temas";
 import { t } from "./i18n";
-import { api, events, type MachineState } from "./api";
+import { api, events, type MachineState, type AssembleOk } from "./api";
 import { Registros } from "./paneles/registros";
+import { Memoria } from "./paneles/memoria";
 
 inicializarTema(); // data-tema desde localStorage (emurv.tema.v1)
 
@@ -44,6 +45,44 @@ if (which === "registros") {
   void api.getState().then(pintar).catch(() => {
     // sin sesión de emulación todavía: la tabla queda en «—»
   });
+}
+
+if (which === "memoria") {
+  // La MISMA clase Memoria, con read_mem/write_mem y navegación. Para la
+  // columna de instrucción desensamblada (RP11) la clase necesita el
+  // «programa» (rango .text): se sintetiza de las claves de get_disasm
+  // (que SON las direcciones de .text), con data_base/sp_init estándar —
+  // así no hace falta un comando nuevo ni tocar la clase.
+  const mem = new Memoria(cuerpo);
+  const cargarDisasm = async (): Promise<void> => {
+    try {
+      const d = await api.getDisasm();
+      const addrs = Object.keys(d).map(Number).filter((n) => !Number.isNaN(n));
+      if (addrs.length > 0) {
+        const tb = addrs.reduce((a, b) => Math.min(a, b));
+        const tlen = addrs.reduce((a, b) => Math.max(a, b)) - tb + 4;
+        const prog: AssembleOk = {
+          text_base: tb,
+          text_len: tlen,
+          data_base: 0x1001_0000,
+          sp_init: 0x7fff_fff0,
+          data_len: 0,
+          symbols: {},
+          line_to_addr: {},
+          addr_to_line: {},
+        };
+        mem.setPrograma(prog);
+        mem.setDisasm(d); // setDisasm ya refresca
+      } else {
+        void mem.refrescar();
+      }
+    } catch {
+      void mem.refrescar(); // sin sesión: dump en blanco / «—»
+    }
+  };
+  void cargarDisasm();
+  // Al detenerse (pausa/paso/breakpoint/fin) se relee la zona visible.
+  void events.onStopped(() => void mem.refrescar());
 }
 
 // Propagación en vivo de tema/idioma (best-effort, mismo origen): si la
