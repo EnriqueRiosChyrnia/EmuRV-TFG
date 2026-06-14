@@ -921,10 +921,64 @@ input:focus-visible { border-color: var(--acento); }
   border-radius: 3px;
 }
 
-/* ---------- lecciones (RP20: modal con la cara del mock) ---------- */
-/* El navegador 2-col de RP-15 (#lecciones-overlay/.lecciones-*) se reemplazó
-   por el modal-cuerpo-lecciones (lista + barra de progreso). Reset de
-   progreso: enlace discreto en la cabecera de progreso. */
+/* ---------- lecciones (modal 2 columnas: lista + detalle) ---------- */
+/* RP21 recupera la vista de objetivos de RP-15 (regresión de RP-20): a la
+   izquierda la lista (con check/num + barra de progreso), a la derecha el
+   detalle de la lección elegida (objetivos, paneles, abrir, sig/ant). Mismo
+   lenguaje visual que la Ayuda 2-col. */
+.modal-card.modal-cuerpo-lecciones { width: min(820px, 100%); max-height: 88%; }
+.lec-body { display: grid; grid-template-columns: 260px 1fr; flex: 1; min-height: 0; }
+.lec-lista { overflow: auto; padding: 8px; border-right: 1px solid var(--borde); }
+/* item de la lista seleccionado (como el ay-nav .activo de la Ayuda) */
+.lec-lista .modal-item.activa { background: color-mix(in srgb, var(--acento) 15%, transparent); }
+
+.lec-detalle { overflow: auto; padding: 8px 22px 22px; }
+.lec-detalle h3 {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--texto);
+  margin: 14px 0 10px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--borde);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.lec-detalle h3::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--acento); flex: none; }
+.lec-detalle h4 {
+  margin: 16px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-suave);
+}
+.lec-detalle p { font-size: 13px; line-height: 1.6; color: var(--texto); margin: 6px 0; }
+.lec-objetivos { margin: 0; padding-left: 18px; line-height: 1.6; font-size: 13px; color: var(--texto); }
+.lec-objetivos li { margin: 2px 0; }
+.lec-acciones { margin-top: 16px; }
+.lec-nav { display: flex; gap: 8px; margin-top: 14px; }
+.lec-detalle button {
+  background: var(--fondo-claro);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 7px 13px;
+  font-size: 13px;
+  font-family: var(--fuente-ui);
+  cursor: pointer;
+}
+.lec-detalle button:hover:not(:disabled) { border-color: var(--acento); }
+.lec-detalle button:disabled { opacity: 0.45; cursor: default; }
+.lec-detalle button.principal {
+  background: var(--acento);
+  color: var(--texto-sobre-acento);
+  font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--acento) 45%, transparent);
+}
+
+/* Reset de progreso: enlace discreto en la cabecera de la barra. */
 .ml-reset {
   background: none;
   border: 0;
