@@ -15,6 +15,7 @@ import { Registros } from "./paneles/registros";
 import { Memoria } from "./paneles/memoria";
 import { Depuracion } from "./paneles/depuracion";
 import { depSync, type FilaConCond } from "./paneles/dep-sync";
+import { panelSync } from "./paneles/panel-sync";
 
 inicializarTema(); // data-tema desde localStorage (emurv.tema.v1)
 
@@ -44,6 +45,9 @@ if (which === "registros") {
   const pintar = (st: MachineState): void => reg.actualizar(st);
   void events.onRegisters(pintar);
   void events.onStopped((ev) => reg.actualizar(ev.state));
+  // Ensamblar/Reiniciar reinician el estado sin emitir emu://detenido: la
+  // ventana se re-sincroniza con la señal de panelSync. (Fix post-RP22.)
+  void panelSync.onResync(() => void api.getState().then(pintar).catch(() => {}));
   void api.getState().then(pintar).catch(() => {
     // sin sesión de emulación todavía: la tabla queda en «—»
   });
@@ -83,13 +87,15 @@ if (which === "memoria") {
     }
   };
   void cargarDisasm();
-  // Al detenerse (pausa/paso/breakpoint/fin) se RE-SINCRONIZA el programa y se
-  // relee la zona visible. Antes solo refrescaba: si la ventana se abría sin un
-  // programa ensamblado (o se ensamblaba uno nuevo después), `this.programa`
-  // quedaba null y refrescar() dejaba la memoria en blanco para siempre
-  // (cargarDisasm —que setea el programa— solo corría al abrir). cargarDisasm()
-  // re-pide el disasm/programa vigente y refresca. (Fix post-RP22.)
+  // Re-sincroniza el programa + relee la memoria. cargarDisasm() (no solo
+  // refrescar()) porque si la ventana se abrió sin programa, this.programa
+  // quedaba null y refrescar() dejaba la memoria en blanco. (Fix post-RP22.)
+  // - onStopped: paradas de ejecución (pausa/paso/breakpoint/fin).
+  // - panelSync: cambios FUERA de ejecución (Ensamblar/Reiniciar), que NO
+  //   emiten emu://detenido — era el caso del bug: ensamblar con la ventana
+  //   desacoplada no actualizaba la memoria hasta reacoplar.
   void events.onStopped(() => void cargarDisasm());
+  void panelSync.onResync(() => void cargarDisasm());
 }
 
 if (which === "depuracion") {
