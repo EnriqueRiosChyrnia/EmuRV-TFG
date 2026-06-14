@@ -2843,3 +2843,35 @@ editado.
 Compuerta F1: Registros desacopla/recompone/edita/sincroniza · tema+idioma
 en la ventana · contraste AA (pares ya cubiertos) · mecanismo genérico ·
 Pantalla intacta · tsc/build · Rust intacto.
+
+## 2026-06-13 — RP22-F2: desacople de Memoria
+
+[Seguro] Memoria desacoplable con el MISMO mecanismo de F1 (cero código
+nuevo de infraestructura): `agregarDesacople("memoria", …)` en main.ts +
+rama `memoria` en panel.ts. La ventana instancia `Memoria`, se refresca por
+emu://detenido (la memoria se relee al pausar, no por instrucción), navega
+con sus botones .text/.data/.pila e Ir, y edita con doble-click → write_mem
+(ya en la clase). Al reacoplar, `alReacoplar` → `memoria.refrescar()` recoge
+las ediciones hechas en la ventana.
+
+[Seguro — columna disasm sin tocar Rust ni la clase] La columna de
+instrucción (RP11) necesita el «programa» (rango .text) que la ventana no
+tiene. Se SINTETIZA: `get_disasm()` devuelve addr→texto y sus claves SON las
+direcciones de .text → text_base = mín, text_len = máx−mín+4; data_base
+(0x10010000) y sp_init (0x7FFFFFF0) son los estándar fijos del emulador. Con
+ese `AssembleOk` sintético + `setDisasm()` la columna aparece igual que en el
+lateral, y los botones de navegación van a las direcciones correctas. Sin
+comando nuevo, sin modificar la clase Memoria. Si no hay sesión, dump en
+blanco.
+
+[Seguro] index.html: el `<h2>` de Memoria pasó a `panel-titulo-con-boton` +
+`<span data-i18n>` (igual que Registros) para colgarle el ⧉. tsc estricto y
+vite build limpios, UI 62. Sin claves i18n nuevas (reusa `desacople.titulo` +
+`panel.memoria`). Sin tocar Rust ni ids.
+
+[PENDIENTE HUMANO] Verificación visual: ⧉ en Memoria abre la ventana (sale
+del lateral); navega/edita/se refresca al detener; la columna disasm aparece
+con un programa ensamblado; al cerrar vuelve al lateral con lo editado.
+
+Compuerta F2: Memoria desacoplable igual que Registros (navega, edita,
+sincroniza, reaparece) · columna disasm · tsc/build · Rust intacto.
