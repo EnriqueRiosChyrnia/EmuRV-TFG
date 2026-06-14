@@ -943,10 +943,12 @@ class App {
     b.detener.disabled = modo !== "corriendo" && modo !== "esperando";
     b.reiniciar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
     b.exportar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
-    // Abrir reemplazaría el editor (y Guardar leería un estado a medias)
-    // con el hilo de ejecución vivo: mismo criterio que Exportar.
-    b.abrir.disabled = modo === "corriendo" || modo === "esperando";
-    b.guardar.disabled = modo === "corriendo" || modo === "esperando";
+    // Menú Archivo (Nuevo/Abrir/Guardar/Guardar como): se deshabilita mientras
+    // la ejecución está viva — Abrir reemplazaría el editor y Guardar leería un
+    // estado a medias (mismo criterio que Exportar). [Fix: antes referenciaba
+    // b.abrir/b.guardar, que dejaron de existir al agrupar el menú → setModo
+    // lanzaba TypeError y la ejecución nunca arrancaba.]
+    b.archivo.disabled = modo === "corriendo" || modo === "esperando";
   }
 }
 
