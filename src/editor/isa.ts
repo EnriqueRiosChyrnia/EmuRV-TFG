@@ -21,6 +21,11 @@ export const MNEMONICS: string[] = [
   "fence", "ecall", "ebreak",
   // RV32M
   "mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu",
+  // RV64IM (RP32) — solo válidas en programas RV64 (el ensamblador las
+  // rechaza con error didáctico en RV32; el editor igual las resalta).
+  "ld", "lwu", "sd", "addiw", "slliw", "srliw", "sraiw",
+  "addw", "subw", "sllw", "srlw", "sraw",
+  "mulw", "divw", "divuw", "remw", "remuw",
   // Zicsr (RP8)
   "csrrw", "csrrs", "csrrc", "csrrwi", "csrrsi", "csrrci", "mret",
   // RV32F (RP12)
