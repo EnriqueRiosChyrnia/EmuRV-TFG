@@ -4,7 +4,7 @@
 [![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
 -->
 
-Entorno educativo de programación en ensamblador **RISC-V (RV32IM)** para macOS, concebido como reemplazo moderno de emu8086: **editar → ensamblar → ejecutar / paso a paso → observar registros y memoria**, con mensajes de error en español pensados para principiantes.
+Entorno educativo de programación en ensamblador **RISC-V (RV32IM, conmutable a RV64IM)** para macOS, concebido como reemplazo moderno de emu8086: **editar → ensamblar → ejecutar / paso a paso → observar registros y memoria**, con mensajes de error en español pensados para principiantes.
 
 Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
@@ -25,9 +25,10 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - Consola integrada con syscalls estilo RARS (`ecall` con selector en `a7`): imprimir/leer enteros, cadenas, caracteres, terminar, tiempo en ms y dormir.
 - **Teclado en tiempo real**: dispositivo MMIO compatible RARS/MARS (`0xFFFF_0000`) que el programa consulta por polling sin bloquearse — ver [`docs/TECLADO.md`](docs/TECLADO.md).
 - Exportación a **ELF32 RISC-V estándar**, cargable en otras herramientas (p. ej. Ripes).
-- 12 ejemplos comentados en español (uno multi-archivo), accesibles desde el botón «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
+- 13 ejemplos comentados en español (uno multi-archivo, uno RV64), accesibles desde el botón «Ejemplos» — incluido un **Tetris gráfico**, port a RV32IM de un Tetris 8086 de la materia Microprocesadores, dibujado en la pantalla de 320×240, y su versión **en tiempo real** (teclado MMIO + gravedad por reloj).
 - **Coma flotante (RV32F/D)**: repertorio completo de single y double, registros `f0`–`f31` con nombres ABI, syscalls 2/3/6/7, panel de registros flotantes; encodings verificados palabra a palabra contra GNU `as`.
-- **Atómicas (RV32A) y comprimidas (RV32C)**: repertorio A completo (amoadd/lr/sc…, semántica mono-hart documentada) y C de 2 bytes (c.addi, c.li, c.lw… escritas a mano, sin compresión automática); ambas verificadas contra GNU `as`. RV64 queda fuera por decisión de alcance.
+- **Atómicas (RV32A) y comprimidas (RV32C)**: repertorio A completo (amoadd/lr/sc…, semántica mono-hart documentada) y C de 2 bytes (c.addi, c.li, c.lw… escritas a mano, sin compresión automática); ambas verificadas contra GNU `as`.
+- **Arquitectura conmutable RV32 / RV64**: un selector en la barra elige el ancho (persistido); RV32 es el default. En **RV64** el repertorio gana las instrucciones de 64 bits — `ld`/`sd` (doubleword), `lwu`, las «W» (`addiw`, `addw`, `subw`, `sllw`/`srlw`/`sraw`, `mulw`, `divw`/`divuw`, `remw`/`remuw`) y los corrimientos con `shamt` de 6 bits — y el panel de registros muestra los 64 bits (16 dígitos hex). Encodings RV64IM verificados palabra a palabra contra GNU `as -march=rv64im`. RV32 queda 100 % intacto; una instrucción de 64 bits en un programa RV32 da un error didáctico. (Por línea de comandos: `emurv-cli asm|run --rv64`.)
 - Mapa de memoria compatible con RARS: `.text` en `0x00400000`, `.data` en `0x10010000`, `sp` inicial `0x7FFFFFF0`.
 - **Interfaz en español o inglés**: selector de idioma en la barra (ES/EN), persistido. La UI cáscara está traducida; **los diagnósticos del ensamblador/runtime y el contenido de las lecciones siguen en español** también en modo inglés — decisión de alcance (el español es el material didáctico de la tesis), no un olvido.
 - **Estética «Cálido»**: interfaz de paneles-tarjeta con aire, esquinas redondeadas y sombras suaves; tipografía de UI **IBM Plex Sans** (self-hosted, OFL) mientras el código y los datos de máquina siguen en JetBrains Mono; acento violeta en el tema por defecto; wordmark bi-tono en la barra que recolorea con el tema. Microinteracciones sutiles (foco con anillo de acento, destello único al cambiar un registro, caret de consola en acento, pista de breakpoint al pasar el mouse).
@@ -208,6 +209,10 @@ emurv-cli asm ejemplos/01-hola-mundo.asm -o hola.elf
 # Variante reubicable (código PC-relativo, ET_DYN): el mismo programa pero
 # preparado para cargarse en otra dirección, no atado a 0x00400000.
 emurv-cli asm --reubicable ejemplos/01-hola-mundo.asm -o hola-pic.elf
+
+# Repertorio RV64IM (instrucciones de 64 bits: ld/sd, addiw, addw…):
+emurv-cli asm --rv64 ejemplos/15-rv64.asm -o rv64.elf
+emurv-cli run --rv64 ejemplos/15-rv64.asm   # → "addiw (W, 32 bits) = 93"
 
 # Ensamblar y ejecutar, con la consola del programa en stdin/stdout:
 echo "8

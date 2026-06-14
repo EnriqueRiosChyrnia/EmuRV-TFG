@@ -18,20 +18,22 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const USO: &str = "\
-emurv-cli — EmuRV sin interfaz gráfica (RV32IM, syscalls estilo RARS)
+emurv-cli — EmuRV sin interfaz gráfica (RV32IM/RV64IM, syscalls estilo RARS)
 
 USO:
-  emurv-cli asm <entrada.s> [-o <salida.elf>] [--reubicable]
-      Ensambla el fuente y exporta un ELF32 RISC-V estándar.
+  emurv-cli asm <entrada.s> [-o <salida.elf>] [--reubicable] [--rv64]
+      Ensambla el fuente y exporta un ELF RISC-V estándar.
       Sin -o, la salida es la entrada con extensión .elf.
       --reubicable: código PC-relativo (auipc/%pcrel) y ET_DYN, para
       cargarlo en otra dirección; el modo normal es absoluto (ET_EXEC).
+      --rv64: repertorio RV64IM (W-instructions, ld/sd). No se combina
+      con --reubicable (que es RV32).
 
-  emurv-cli run <entrada.s> [--max-instr N] [--timeout-s S]
+  emurv-cli run <entrada.s> [--max-instr N] [--timeout-s S] [--rv64]
       Ensambla y ejecuta. La consola del programa usa stdin/stdout:
       stdout lleva SOLO la salida del programa; los diagnósticos van
       por stderr. --max-instr y --timeout-s acotan la corrida
-      (al agotarse: código de salida 124).
+      (al agotarse: código de salida 124). --rv64: ejecuta como RV64.
 
   emurv-cli disasm <programa.elf|fuente.s>
       Desensambla el .text (de un ELF importado o de un fuente
@@ -85,6 +87,7 @@ fn subcomando_asm(args: &[String]) -> u8 {
     let mut entrada: Option<PathBuf> = None;
     let mut salida: Option<PathBuf> = None;
     let mut reubicable = false;
+    let mut rv64 = false;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -98,6 +101,8 @@ fn subcomando_asm(args: &[String]) -> u8 {
             // RP29: ELF reubicable (código PC-relativo, ET_DYN) en vez del
             // ejecutable absoluto por defecto.
             "--reubicable" => reubicable = true,
+            // RP32: habilita el repertorio RV64 (W-instructions, ld/sd).
+            "--rv64" => rv64 = true,
             _ if entrada.is_none() => entrada = Some(PathBuf::from(a)),
             otro => {
                 eprintln!("emurv-cli asm: argumento inesperado «{otro}»\n\n{USO}");
@@ -109,9 +114,18 @@ fn subcomando_asm(args: &[String]) -> u8 {
         eprintln!("emurv-cli asm: falta el archivo de entrada\n\n{USO}");
         return 3;
     };
+    if reubicable && rv64 {
+        eprintln!("emurv-cli asm: --reubicable es RV32 (RP29) y no se combina con --rv64\n\n{USO}");
+        return 3;
+    }
     let salida = salida.unwrap_or_else(|| entrada.with_extension("elf"));
 
-    let programa = match ensamblar_archivo(&entrada, reubicable) {
+    let xlen = if rv64 {
+        emurv_lib::core::Xlen::Rv64
+    } else {
+        emurv_lib::core::Xlen::Rv32
+    };
+    let programa = match ensamblar_archivo(&entrada, reubicable, xlen) {
         Ok(p) => p,
         Err(code) => return code,
     };
@@ -149,6 +163,7 @@ fn subcomando_run(args: &[String]) -> u8 {
     let mut entrada: Option<PathBuf> = None;
     let mut max_instr: Option<u64> = None;
     let mut timeout_s: Option<u64> = None;
+    let mut rv64 = false;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -166,6 +181,8 @@ fn subcomando_run(args: &[String]) -> u8 {
                     return 3;
                 }
             },
+            // RP32: ensambla y ejecuta como RV64 (el fuente debe ser RV64).
+            "--rv64" => rv64 = true,
             _ if entrada.is_none() => entrada = Some(PathBuf::from(a)),
             otro => {
                 eprintln!("emurv-cli run: argumento inesperado «{otro}»\n\n{USO}");
@@ -178,9 +195,18 @@ fn subcomando_run(args: &[String]) -> u8 {
         return 3;
     };
 
-    let programa = match cargar_programa(&entrada) {
-        Ok(p) => p,
-        Err(code) => return code,
+    // Con --rv64 se ensambla el fuente como RV64 (un ELF importado siempre es
+    // RV32); sin el flag, detección por magic (ELF o fuente RV32) como antes.
+    let programa = if rv64 {
+        match ensamblar_archivo(&entrada, false, emurv_lib::core::Xlen::Rv64) {
+            Ok(p) => p,
+            Err(code) => return code,
+        }
+    } else {
+        match cargar_programa(&entrada) {
+            Ok(p) => p,
+            Err(code) => return code,
+        }
     };
 
     use emurv_lib::core::machine::{Machine, StopReason};
@@ -504,16 +530,21 @@ fn cargar_programa(ruta: &Path) -> Result<emurv_lib::core::assembler::Program, u
             2u8
         });
     }
-    ensamblar_archivo(ruta, false)
+    // ELF importado o fuente RV32: el RV64 entra por `run --rv64` (que ensambla
+    // el fuente directamente) y por `asm --rv64`.
+    ensamblar_archivo(ruta, false, emurv_lib::core::Xlen::Rv32)
 }
 
 /// Lee y ensambla un fuente. Errores de E/S → exit 1; de ensamblado → 2,
 /// con el formato didáctico en español intacto (uno por línea, a stderr).
 /// `reubicable` (RP29): codifica las referencias a símbolos PC-relativo
 /// (solo lo usa `asm --reubicable`; `run`/`disasm` siempre absoluto).
+/// `xlen` (RP32): `Rv64` habilita el repertorio de 64 bits; `--reubicable` es
+/// RV32 (PC-relativo de RP29), así que no se combinan.
 fn ensamblar_archivo(
     ruta: &Path,
     reubicable: bool,
+    xlen: emurv_lib::core::Xlen,
 ) -> Result<emurv_lib::core::assembler::Program, u8> {
     let fuente = std::fs::read_to_string(ruta).map_err(|e| {
         eprintln!("emurv-cli: no se pudo leer «{}»: {e}", ruta.display());
@@ -528,7 +559,7 @@ fn ensamblar_archivo(
     let resultado = if reubicable {
         emurv_lib::core::assembler::assemble_with_includes_reubicable(&fuente, base, &nombre)
     } else {
-        emurv_lib::core::assembler::assemble_with_includes(&fuente, base, &nombre)
+        emurv_lib::core::assembler::assemble_with_includes_xlen(&fuente, base, &nombre, xlen)
     };
     resultado.map_err(|errores| {
         for err in &errores {
