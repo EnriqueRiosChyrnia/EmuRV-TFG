@@ -83,8 +83,13 @@ if (which === "memoria") {
     }
   };
   void cargarDisasm();
-  // Al detenerse (pausa/paso/breakpoint/fin) se relee la zona visible.
-  void events.onStopped(() => void mem.refrescar());
+  // Al detenerse (pausa/paso/breakpoint/fin) se RE-SINCRONIZA el programa y se
+  // relee la zona visible. Antes solo refrescaba: si la ventana se abría sin un
+  // programa ensamblado (o se ensamblaba uno nuevo después), `this.programa`
+  // quedaba null y refrescar() dejaba la memoria en blanco para siempre
+  // (cargarDisasm —que setea el programa— solo corría al abrir). cargarDisasm()
+  // re-pide el disasm/programa vigente y refresca. (Fix post-RP22.)
+  void events.onStopped(() => void cargarDisasm());
 }
 
 if (which === "depuracion") {
