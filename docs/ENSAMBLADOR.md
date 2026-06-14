@@ -169,6 +169,64 @@ Es la ventaja diferencial frente a un ensamblador genérico, y la razón por la 
 
 Este nivel de control sobre el mensaje de error es imposible de obtener delegando en un ensamblador externo, y constituye uno de los argumentos de la herramienta frente a alternativas.
 
+### 4.6. Export reubicable: PC-relativo (RP29, 2026-06-14)
+
+Por defecto el ensamblador codifica las referencias a símbolos de las
+pseudo-instrucciones de forma **absoluta**: `la rd, sym` y las cargas/
+almacenamientos con etiqueta expanden a `lui rd, %hi(sym)` + `addi/lw/sw rd,
+%lo(sym)`, con la dirección fija del mapa de EmuRV (`.text` en `0x00400000`,
+`.data` en `0x10010000`). El ELF exportado es `ET_EXEC` y asume cargarse en
+esas direcciones.
+
+El **modo reubicable** (CLI: `emurv-cli asm --reubicable`) emite en cambio el
+par **PC-relativo** estándar de RISC-V:
+
+```
+la a0, msj      →   auipc a0, %pcrel_hi(msj)   ; a0 = pc + ((msj-pc) alto)
+                    addi  a0, a0, %pcrel_lo(.)  ; a0 = msj  (relativo al auipc)
+lw a1, msj      →   auipc a1, %pcrel_hi(msj)   ; lw a1, %pcrel_lo(.)(a1)
+```
+
+La matemática es la **misma** que la del par absoluto: `%pcrel_hi`/`%pcrel_lo`
+parten `sym − pc` con los mismos helpers `hi20`/`lo12` (ajuste de acarreo
+`+0x800` y signo del `%lo`) que `lui`/`%hi`+`%lo` aplican sobre `sym`. El único
+cambio es codificar el **desplazamiento al `pc`** en lugar de la dirección
+absoluta, y usar el opcode de `auipc` (`0x17`) en vez de `lui` (`0x37`). Por
+eso el binario resultante no depende de la dirección de carga: mientras `.text`
+y `.data` se desplacen **juntos** (misma delta, conservando su distancia),
+`sym − pc` no cambia y el código funciona en cualquier base. El ELF se marca
+`ET_DYN` (PIE) para declararlo.
+
+**Cuándo usarlo.** Solo si se necesita un artefacto independiente de la
+dirección de carga (llevarlo a un linker con otra base, a un cargador PIE). El
+export normal (absoluto, `ET_EXEC`) sigue siendo el recomendado para
+inspeccionar en Ripes/objdump con el mapa de EmuRV, y es lo que produce la app
+con «Exportar ELF». La conducta del programa dentro de EmuRV no cambia: el modo
+reubicable solo afecta los bytes del **artefacto exportado** bajo el flag.
+
+**Límites** (acotados a propósito):
+
+- Convierte las **pseudo-instrucciones** con etiqueta (`la`/`lla`, cargas y
+  almacenamientos enteros y de coma flotante con etiqueta). Las formas
+  **manuales** `lui rd, %hi(sym)` / `%lo(sym)(base)` que el usuario escribe a
+  mano siguen absolutas (son una elección explícita; el ensamblador no las
+  re-aparea a `%pcrel`). Para reubicabilidad total, usar `la`/cargas con
+  etiqueta. Los saltos (`j`/`call`/`b*`/`jal`) y las comprimidas (`c.j`/
+  `c.beqz`) ya eran PC-relativos: no cambian.
+- No es un PIE con **relocations dinámicas** completas: «reubicable» significa
+  desplazar la imagen como **unidad**, no relocar segmentos por separado.
+- EmuRV **importa** solo `ET_EXEC` absoluto (su mapa de memoria es fijo por
+  diseño): el ELF reubicable es para **otras herramientas**, no para recargarlo
+  en la propia app. Reabrirlo en EmuRV da un mensaje didáctico (`elf_import`).
+
+**Verificación** (oráculo GNU, `tests/spike_reubicable.rs` y
+`tests/rp29_reubicable.rs`): nuestro `.text` reubicable es **byte a byte** el
+par `auipc/%pcrel` que `riscv64-elf-as`/`ld` resuelven para el mapa de EmuRV;
+el mismo objeto enlazado en dos bases distintas (desplazando ambos segmentos)
+da un `.text` **idéntico** (reubicable de verdad), mientras que el par absoluto
+`lui/%hi` cambia; y el export normal sigue siendo, byte a byte, el par
+absoluto de GNU (regresión). Si la toolchain no está, esos tests se saltean.
+
 ## 5. Verificación
 
 Las codificaciones de RV32IM+Zicsr se validaron contra la especificación
