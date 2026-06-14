@@ -11,6 +11,8 @@ function stubDom() {
       setAttribute: (k: string, v: string) => void attrs.set(k, v),
       removeAttribute: (k: string) => void attrs.delete(k),
       getAttribute: (k: string) => attrs.get(k) ?? null,
+      // RP28: aplicarTema limpia/pinta vars inline del tema «usuario».
+      style: { setProperty: () => {}, removeProperty: () => {} },
     },
   } as unknown as Document;
   return attrs;
@@ -34,12 +36,20 @@ test("esTema valida", () => {
   assert.ok(esTema("pergamino"));
   assert.ok(esTema("kawaii"));
   assert.ok(esTema("disquete"));
+  assert.ok(esTema("usuario"));
   assert.ok(!esTema("rosa"));
   assert.ok(!esTema(null));
 });
 
-test("hay 5 temas, educativo primero (orden del selector)", () => {
-  assert.deepEqual(TEMAS, ["educativo", "retro", "pergamino", "kawaii", "disquete"]);
+test("hay 6 temas, educativo primero y usuario último (orden del selector)", () => {
+  assert.deepEqual(TEMAS, [
+    "educativo",
+    "retro",
+    "pergamino",
+    "kawaii",
+    "disquete",
+    "usuario",
+  ]);
 });
 
 test("aplicarTema: educativo quita el atributo, retro lo pone", () => {
