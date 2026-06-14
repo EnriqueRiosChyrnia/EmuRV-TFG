@@ -2974,3 +2974,37 @@ varios temas: ⧉ abre cada uno en su ventana (sale del lateral, que se
 recompone); la ventana se ve con el tema/idioma activos; correr/paso/detener
 la refresca; editar funciona; Depuración sincroniza breakpoints con el
 editor; al cerrar, el panel vuelve al lateral con lo editado.
+
+## 2026-06-13 — RP23-F1: cerrar ventanas hijas al cerrar la principal
+
+[Seguro] Bug: al cerrar la ventana PRINCIPAL (la X), las ventanas hijas
+desacopladas (panel-registros/memoria/depuracion, pantalla) quedaban
+HUÉRFANAS abiertas. Fix FRONTEND (como todo RP-22):
+`getCurrentWindow().onCloseRequested(...)` toma el control —
+`evento.preventDefault()`—, cierra las hijas por su label conocida
+(`WebviewWindow.getByLabel(label).close()`) y luego `principal.destroy()`.
+Se usa `destroy()` (no `close()`) en la principal a propósito: NO re-dispara
+`onCloseRequested`, así que no hay bucle de cierre.
+
+[Seguro] Por LABELS conocidas (panel-* + pantalla) en vez de
+`getAllWebviewWindows()`: `getByLabel` ya se usa en la app (desacople.ts) y
+no agrega preguntas de permisos; el set de labels es fijo y chico. Modo
+MOVER (RP-22): al cerrar las hijas por este camino se dispara su
+`tauri://destroyed` → el `restaurar` de desacople pone visible la sección en
+el lateral, pero da igual: la app entera se está cerrando (el plan lo
+contempla).
+
+[Seguro] Capability: la principal necesita cerrar/destruir ventanas →
+`core:window:allow-close` y `core:window:allow-destroy` agregados a
+capabilities/default.json (validados por build.rs; cargo test/clippy verdes).
+
+[Seguro] tsc estricto y vite build limpios, UI 62. Sin tocar Rust (solo la
+capability JSON). Sin claves i18n nuevas. Sin romper Pantalla (su cierre por
+el botón sigue igual; este camino es adicional, al cerrar la principal).
+
+[PENDIENTE HUMANO] Verificación manual: desacoplar un panel (o la pantalla) y
+cerrar la ventana principal con la X → la hija se cierra también (no queda
+huérfana) y la app sale limpia.
+
+Compuerta F1: cerrar la principal cierra las hijas (frontend, sin bloquear
+el cierre) · tsc/build · Rust intacto.

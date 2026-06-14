@@ -2,6 +2,8 @@
 // Conecta toolbar, editor, consola y (en F3) los paneles de estado con
 // los comandos y eventos del backend.
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { EditorView } from "@codemirror/view";
 import {
   api,
@@ -148,6 +150,7 @@ class App {
     });
     this.ejemplos = new Ejemplos(EJEMPLOS, (i) => this.cargarEjemplo(i));
     this.configurarDesacople();
+    this.configurarCierreVentanas();
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
       this.setModo("corriendo", t("estado.corriendo"));
@@ -336,6 +339,24 @@ class App {
     });
     void depSync.onConds((conds) => {
       for (const c of conds) this.depuracion.setCondicionExterna(c.linea, c.cond);
+    });
+  }
+
+  /** Cierra las ventanas HIJAS al cerrar la principal (RP23-F1): los paneles
+   *  desacoplados (panel-*) y la pantalla quedaban huérfanos. Se toma el
+   *  control del cierre (preventDefault), se cierran las hijas por su label
+   *  conocida y se destruye la principal — `destroy()` NO re-dispara este
+   *  handler, así que no hay bucle. Todo frontend (RP-22 también lo fue). */
+  private configurarCierreVentanas(): void {
+    const principal = getCurrentWindow();
+    const hijas = ["panel-registros", "panel-memoria", "panel-depuracion", "pantalla"];
+    void principal.onCloseRequested(async (evento) => {
+      evento.preventDefault();
+      for (const label of hijas) {
+        const w = await WebviewWindow.getByLabel(label);
+        if (w) await w.close().catch(() => {});
+      }
+      await principal.destroy();
     });
   }
 
