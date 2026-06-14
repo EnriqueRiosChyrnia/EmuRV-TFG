@@ -548,6 +548,48 @@ input:focus-visible { border-color: var(--acento); }
   font-size: 12.5px;
 }
 
+/* Búsqueda en memoria (RP26): fila de controles bajo los de dirección. */
+.memoria-busqueda {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--borde);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.memoria-busqueda input {
+  flex: 1 1 90px;
+  min-width: 80px;
+  background: var(--fondo-claro);
+  border: 1px solid var(--borde);
+  border-radius: 5px;
+  color: var(--texto);
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+
+.memoria-busqueda select,
+.memoria-busqueda button {
+  background: var(--fondo-claro);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.memoria-busqueda button:hover,
+.memoria-busqueda select:hover { border-color: var(--acento); }
+
+/* Coincidencia de búsqueda resaltada en el volcado (RP26). */
+.memoria-dump .memoria-coincidencia {
+  background: var(--acento);
+  color: var(--texto-sobre-acento);
+  border-radius: 2px;
+}
+
 /* ---------- depuración (RP7-F4) ---------- */
 #panel-depuracion .panel-cuerpo { max-height: 260px; }
 
