@@ -158,6 +158,7 @@ export class Ayuda {
             <tr><td><span class="ay-addr">0x7FFFFFF0</span></td><td>${t("ayuda.memoria.sp")}</td></tr>
           </tbody>
         </table>
+        <p>${t("ayuda.memoria.buscar")}</p>
       </section>
 
       <section id="ay-teclado">

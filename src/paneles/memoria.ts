@@ -3,6 +3,17 @@
 // palabra del dump la edita en vivo (RP7, 4 bytes little-endian).
 import { api, type AssembleOk } from "../api";
 import { t } from "../i18n";
+import {
+  buscarAdelante,
+  buscarAtras,
+  parsearPatron,
+  type TipoBusqueda,
+} from "./memoria-buscar";
+
+// Región de datos mapeada (espejo del backend src-tauri/core/mod.rs:
+// DATA_REGION_BASE/SIZE): la búsqueda escanea aquí — .data, .bss y el heap.
+const DATA_REGION_BASE = 0x1000_0000;
+const DATA_REGION_FIN = DATA_REGION_BASE + 0x0040_0000; // 4 MiB
 
 const FILAS = 16;
 const BYTES_POR_FILA = 16;
@@ -29,6 +40,15 @@ export class Memoria {
   /** dirección → instrucción decodificada (RP11); null = sin listado. */
   private disasm: Record<string, number | string> | null = null;
   private aviso: HTMLElement;
+  // Búsqueda en memoria (RP26).
+  private busqInput: HTMLInputElement;
+  private tipoSelect: HTMLSelectElement;
+  /** Rango [ini, fin) de la coincidencia actual a resaltar; null = sin marca. */
+  private coincidencia: { ini: number; fin: number } | null = null;
+  /** Dirección de la última coincidencia (ancla de siguiente/anterior). */
+  private ultimaCoincidencia: number | null = null;
+  /** Evita relanzar un escaneo mientras hay otro en curso. */
+  private buscando = false;
 
   constructor(root: HTMLElement) {
     root.innerHTML = `
@@ -40,11 +60,26 @@ export class Memoria {
         <button data-rol="data">${t("memoria.datos")}</button>
         <button data-rol="pila">${t("memoria.pila")}</button>
       </div>
+      <div class="memoria-busqueda">
+        <input type="text" class="mono" data-rol="buscar" spellcheck="false"
+               placeholder="${t("memoria.busqueda.placeholder")}"
+               aria-label="${t("memoria.busqueda.placeholder")}" />
+        <select data-rol="tipo" aria-label="${t("memoria.busqueda.tipoAria")}">
+          <option value="byte">${t("memoria.busqueda.tipoByte")}</option>
+          <option value="word">${t("memoria.busqueda.tipoWord")}</option>
+          <option value="ascii">${t("memoria.busqueda.tipoAscii")}</option>
+        </select>
+        <button data-rol="buscar-btn">${t("memoria.busqueda.buscar")}</button>
+        <button data-rol="buscar-prev" aria-label="${t("memoria.busqueda.anteriorAria")}">‹</button>
+        <button data-rol="buscar-next" aria-label="${t("memoria.busqueda.siguienteAria")}">›</button>
+      </div>
       <div class="memoria-aviso" hidden></div>
       <pre class="memoria-dump mono" data-rol="dump"></pre>`;
     this.dump = root.querySelector("[data-rol=dump]")!;
     this.aviso = root.querySelector(".memoria-aviso")!;
     this.inputDir = root.querySelector("[data-rol=dir]")!;
+    this.busqInput = root.querySelector("[data-rol=buscar]")!;
+    this.tipoSelect = root.querySelector("[data-rol=tipo]")!;
     this.inputDir.value = hex32(this.direccion);
 
     const irA = (addr: number) => void this.irA(addr);
@@ -58,6 +93,24 @@ export class Memoria {
       irA(((this.programa?.sp_init ?? 0x7fff_fff0) - 0x40) >>> 0);
     this.inputDir.addEventListener("keydown", (e) => {
       if (e.key === "Enter") irA(this.parsearDir());
+    });
+    // Búsqueda en memoria (RP26): Buscar/Enter arranca desde el inicio del
+    // rango; ‹/› recorren coincidencias; editar el patrón reinicia el ancla.
+    root.querySelector<HTMLButtonElement>("[data-rol=buscar-btn]")!.onclick = () =>
+      void this.buscarPrimera();
+    root.querySelector<HTMLButtonElement>("[data-rol=buscar-next]")!.onclick = () =>
+      void this.buscarSiguiente();
+    root.querySelector<HTMLButtonElement>("[data-rol=buscar-prev]")!.onclick = () =>
+      void this.buscarAnterior();
+    this.busqInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void (e.shiftKey ? this.buscarAnterior() : this.buscarSiguiente());
+    });
+    this.busqInput.addEventListener("input", () => {
+      this.ultimaCoincidencia = null; // patrón nuevo → siguiente empieza de cero
+      this.aviso.hidden = true;
+    });
+    this.tipoSelect.addEventListener("change", () => {
+      this.ultimaCoincidencia = null;
     });
     // Edición en vivo (RP7): doble click sobre una palabra del dump.
     this.dump.addEventListener("dblclick", (e) => {
@@ -84,7 +137,14 @@ export class Memoria {
   }
 
   async irA(addr: number): Promise<void> {
-    // alinear la fila inicial a 16 bytes
+    // Navegación manual (botones/Enter/eventos): limpia la marca de búsqueda.
+    this.coincidencia = null;
+    await this.saltar(addr);
+  }
+
+  /** Posiciona el volcado en `addr` (fila alineada a 16) y lo redibuja, sin
+   *  tocar la marca de coincidencia (la búsqueda la fija antes de saltar). */
+  private async saltar(addr: number): Promise<void> {
     this.direccion = (addr - (addr % BYTES_POR_FILA)) >>> 0;
     this.inputDir.value = hex32(this.direccion);
     await this.refrescar();
@@ -131,6 +191,12 @@ export class Memoria {
           const bs = document.createElement("span");
           bs.textContent = b.toString(16).padStart(2, "0");
           if (b === 0) bs.className = "cero";
+          // Resaltado de la coincidencia de búsqueda (RP26): por byte, así
+          // funciona aunque el patrón cruce palabras o filas.
+          const baddr = (base + off + i) >>> 0;
+          if (this.coincidencia && baddr >= this.coincidencia.ini && baddr < this.coincidencia.fin) {
+            bs.classList.add("memoria-coincidencia");
+          }
           palabra.appendChild(bs);
           if (i < 3) palabra.append(" ");
         });
@@ -162,6 +228,67 @@ export class Memoria {
         }
       }
       this.dump.append("\n");
+    }
+  }
+
+  // ----- búsqueda en memoria (RP26) -----
+
+  /** Rango [ini, fin) que escanea la búsqueda: la región de datos mapeada
+   *  (.data/.bss/heap). Acotado a propósito para no recorrer toda la memoria
+   *  ni cruzar el hueco hasta la pila (ver BITACORA RP26). */
+  private rangoBusqueda(): [number, number] {
+    return [this.programa?.data_base ?? 0x1001_0000, DATA_REGION_FIN];
+  }
+
+  /** Buscar desde el principio del rango (botón Buscar). */
+  private buscarPrimera(): Promise<void> {
+    this.ultimaCoincidencia = null;
+    return this.escanear(this.rangoBusqueda()[0], false);
+  }
+
+  /** Siguiente coincidencia tras la última (o desde el inicio si no hay). */
+  private buscarSiguiente(): Promise<void> {
+    const ini = this.rangoBusqueda()[0];
+    const ancla = this.ultimaCoincidencia === null ? ini : this.ultimaCoincidencia + 1;
+    return this.escanear(ancla, false);
+  }
+
+  /** Coincidencia anterior a la última (o la última del rango si no hay). */
+  private buscarAnterior(): Promise<void> {
+    const ancla = this.ultimaCoincidencia ?? this.rangoBusqueda()[1];
+    return this.escanear(ancla, true);
+  }
+
+  /** Núcleo: parsea el patrón, escanea (adelante/atrás), salta y resalta.
+   *  Sin coincidencia (o patrón inválido / sin programa) muestra un aviso. */
+  private async escanear(ancla: number, haciaAtras: boolean): Promise<void> {
+    if (this.buscando) return;
+    if (!this.programa) {
+      this.mostrarAviso(t("memoria.busqueda.sinPrograma"));
+      return;
+    }
+    const tipo = this.tipoSelect.value as TipoBusqueda;
+    const patron = parsearPatron(this.busqInput.value, tipo);
+    if (patron === null) {
+      this.mostrarAviso(t("memoria.busqueda.invalido"));
+      return;
+    }
+    const [ini, fin] = this.rangoBusqueda();
+    this.buscando = true;
+    try {
+      const dir = haciaAtras
+        ? await buscarAtras(api.readMem, ini, fin, patron, ancla)
+        : await buscarAdelante(api.readMem, ini, fin, patron, ancla);
+      if (dir === null) {
+        this.coincidencia = null;
+        this.mostrarAviso(t("memoria.busqueda.noEncontrado", { patron: this.busqInput.value.trim() }));
+        return;
+      }
+      this.ultimaCoincidencia = dir;
+      this.coincidencia = { ini: dir, fin: (dir + patron.length) >>> 0 };
+      await this.saltar(dir); // saltar (no irA) conserva la marca
+    } finally {
+      this.buscando = false;
     }
   }
 
