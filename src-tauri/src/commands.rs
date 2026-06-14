@@ -15,7 +15,7 @@ use crate::core::keyboard::KeyboardShared;
 use crate::core::machine::{BreakpointSpec, Machine, StopReason, Watchpoint};
 use crate::core::syscalls::{ConsoleEvent, InputMsg};
 use crate::core::video::VideoShared;
-use crate::core::{DATA_BASE, SP_INIT, TEXT_BASE};
+use crate::core::{Xlen, DATA_BASE, SP_INIT, TEXT_BASE};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -140,13 +140,16 @@ pub struct AssembleOk {
 /// Estado de la máquina para las vistas (RF-05).
 #[derive(Serialize, Clone)]
 pub struct MachineState {
-    /// Valores de registro en `u64` (RP32): en RV64 caben los 64 bits. En RV32
-    /// vienen acotados a 32 por el motor. OJO (F4): un `u64` > 2^53 pierde
-    /// precisión como `number` de JS; el panel de 64 bits cruzará los valores
-    /// grandes como string hex. En F2 la GUI solo crea programas RV32.
-    pub registers: [u64; 32],
+    /// Valores de registro como hex de 16 dígitos (u64), igual que `get_fregs`
+    /// (RP12): un `u64` > 2^53 perdería precisión como `number` de JS, así que
+    /// los 64 bits cruzan como string. La UI muestra 16 dígitos en RV64 y los
+    /// 8 bajos en RV32, según `xlen`.
+    pub registers: Vec<String>,
     pub pc: u32,
     pub line: Option<u32>,
+    /// Ancho de la máquina en ejecución (RP32): la UI formatea los registros
+    /// según esto (16 dígitos hex en RV64, 8 en RV32).
+    pub xlen: Xlen,
 }
 
 /// Evento `emu://detenido`: la ejecución devolvió el control.
@@ -171,9 +174,10 @@ struct ConsoleOut {
 fn machine_state(m: &Machine) -> Result<MachineState, String> {
     let pc = m.pc()?;
     Ok(MachineState {
-        registers: m.registers()?,
+        registers: m.registers()?.iter().map(|v| format!("{v:016x}")).collect(),
         pc,
         line: m.program().source_map.line_for_addr(pc),
+        xlen: m.program().xlen,
     })
 }
 
@@ -191,9 +195,10 @@ fn emit_stopped(app: &AppHandle, m: &Machine, reason: StopReason) {
                 StoppedEvent {
                     reason: StopReason::RuntimeError { message },
                     state: MachineState {
-                        registers: [0u64; 32],
+                        registers: vec![String::from("0000000000000000"); 32],
                         pc: 0,
                         line: None,
+                        xlen: Xlen::Rv32,
                     },
                 },
             );
@@ -434,9 +439,13 @@ fn console_thread(
 pub fn assemble(
     source: String,
     ruta: Option<String>,
+    xlen: Option<Xlen>,
     app: AppHandle,
     manager: State<'_, EmuManager>,
 ) -> Result<AssembleOk, Vec<AsmError>> {
+    // RP32: el ancho lo elige el usuario en la toolbar (RV32 por defecto si la
+    // UI no lo manda). Habilita el repertorio de 64 bits y el Mode del motor.
+    let xlen = xlen.unwrap_or_default();
     // RP5: si el buffer tiene archivo en disco, su carpeta es la base de
     // resolución de .include; sin ruta (buffer nunca guardado), .include
     // produce el error didáctico del preprocesador.
@@ -447,9 +456,9 @@ pub fn assemble(
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "programa.s".to_string());
-            assembler::assemble_with_includes(&source, path.parent(), &nombre)?
+            assembler::assemble_with_includes_xlen(&source, path.parent(), &nombre, xlen)?
         }
-        None => assembler::assemble(&source)?,
+        None => assembler::assemble_with_xlen(&source, xlen)?,
     };
     crear_sesion(program, app, &manager).map_err(|e| asm_internal_error(&e))
 }

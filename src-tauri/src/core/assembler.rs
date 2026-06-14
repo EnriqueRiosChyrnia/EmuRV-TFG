@@ -652,6 +652,18 @@ pub fn assemble_with_xlen(source: &str, xlen: Xlen) -> Result<Program, Vec<AsmEr
     assemble_impl(source, None, "programa.s", false, xlen)
 }
 
+/// Como [`assemble_with_includes`] pero para un ancho concreto (RP32): la
+/// GUI/CLI la usa cuando el buffer tiene archivo en disco (resuelve includes)
+/// y el usuario eligió RV64.
+pub fn assemble_with_includes_xlen(
+    source: &str,
+    base_dir: Option<&std::path::Path>,
+    main_name: &str,
+    xlen: Xlen,
+) -> Result<Program, Vec<AsmError>> {
+    assemble_impl(source, base_dir, main_name, false, xlen)
+}
+
 /// Como [`assemble`] pero en modo REUBICABLE (RP29): las referencias a
 /// símbolos se codifican PC-relativo. Atajo para tests/usos sin includes.
 pub fn assemble_reubicable(source: &str) -> Result<Program, Vec<AsmError>> {
