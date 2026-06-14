@@ -23,7 +23,6 @@
   "tema.disquete": "Floppy 90s",
   "toolbar.lecciones": "Lessons",
   "toolbar.video": "Screen",
-
   "panel.registros": "Registers",
   "panel.memoria": "Memory",
   "panel.consola": "Console",
@@ -32,10 +31,8 @@
   "video.ventana": "EmuRV — Screen",
   "desacople.titulo": "Open this panel in a separate window",
   "video.tecladoCapturado": "Keyboard captured — click outside to release",
-
   "panel.depuracion": "Debug",
   "panel.depuracion.nota": "advanced",
-
   "registros.nombre": "Reg",
   "registros.hex": "Hexadecimal",
   "registros.dec": "Decimal",
@@ -53,9 +50,7 @@
   "registros.rol.argumento": "Function argument or return value",
   "registros.rol.otro": "General-purpose register",
   "edicion.valorFInvalido": "Invalid value: use decimal with a point (1.5, -0.25, NaN) or raw bits in hexadecimal (0x3fc00000…).",
-
   "edicion.valorInvalido": "Invalid value: use decimal (42, -7) or hexadecimal (0x2a).",
-
   "depuracion.breakpoints": "Breakpoints",
   "depuracion.watchpoints": "Watchpoints",
   "depuracion.watchpointsAyuda": "What's this? A watchpoint pauses the program when a memory address is read or written — handy for catching whatever touches a piece of data. (Advanced: leave it for later.)",
@@ -73,20 +68,16 @@
   "depuracion.sinBreakpoints": "No breakpoints: click the editor gutter to add one.",
   "depuracion.sinWatchpoints": "No watchpoints: add a data address to watch.",
   "depuracion.direccionInvalida": "Invalid address: enter a hexadecimal value (e.g. 0x10010000).",
-
   "memoria.direccion": "Address",
   "memoria.ir": "Go",
   "memoria.texto": ".text",
   "memoria.datos": ".data",
   "memoria.pila": "stack (sp)",
   "memoria.error": "Could not read that memory region",
-
   "consola.placeholder": "The program is waiting for a line of input…",
   "consola.limpiar": "Clear",
   "consola.limpiar.titulo": "Clear the console text (the program is not affected)",
-
   "breakpoint.lineaSinCodigo": "Line {linea} has no executable code; the breakpoint was not set.",
-
   "estado.sin_programa": "Write your program and press «Assemble»",
   "estado.ensamblado": "Program assembled: {n} bytes of code. Ready to run.",
   "estado.errores": "The program has {n} error(s). Check the marked lines.",
@@ -109,7 +100,6 @@
   "estado.pausado": "Execution paused",
   "estado.error_ejecucion": "Runtime error: {message}",
   "estado.reiniciado": "Machine reset to its initial state",
-
   "ejemplo.hola": "Hello world",
   "ejemplo.suma": "Interactive sum",
   "ejemplo.contador": "Counter",
@@ -138,9 +128,7 @@
   "lecciones.progresoSub": "{hechas} of {total} completed",
   "lecciones.tuProgreso": "Your progress",
   "lecciones.enCurso": "in progress",
-
   "error.posicion": "line {line}, col {col}: {msg}",
-
   "archivo.tituloAbrir": "Open assembly program",
   "archivo.tituloGuardar": "Save assembly program",
   "binario.banner": "Imported binary: no source code — disassembled listing (read-only). Run, Step and breakpoints work on the listing.",
@@ -166,11 +154,9 @@
   "leccion.elegirCarpeta": "Choose a folder to save the lesson files",
   "leccion.multiarchivoListo": "Lesson saved to {carpeta}. Open main.s; «Assemble» now resolves the .include files.",
   "leccion.multiarchivoCancelado": "This lesson uses .include, which needs the files saved in a folder. Open it again and choose a folder to continue.",
-
   "exportar.titulo": "Save ELF",
   "exportar.ok": "ELF exported to {path}",
   "exportar.error": "Could not export: {message}",
-
   "ayuda.titulo": "EmuRV Help",
   "ayuda.subtitulo": "reference",
   "ayuda.cerrar": "Close",
@@ -225,7 +211,7 @@
   "ayuda.ejemplos.titulo": "Examples",
   "ayuda.ejemplos.texto": "The «Examples» menu loads commented programs: hello world, interactive sum, counter, fibonacci, stack/functions (recursive factorial), color stripes and graphical Tetris (a port of an 8086 Tetris, drawn on the 320×240 screen), keyboard echo and real-time Tetris (MMIO keyboard), exception handler (CSRs/traps) and floating point (grade average with F/D). They are a good starting point for your own code.",
   "ayuda.editor.titulo": "Editor",
-  "ayuda.editor.texto": "The editor helps you as you write: autocompletion of mnemonics, registers and labels (appears as you type, or with Ctrl-Space); hovering over an instruction shows its syntax and what it does; Cmd/Ctrl-click on a label jumps to its definition, and placing the cursor on a label highlights all its uses. Press Cmd/Ctrl+F to open find and replace (it highlights matches; in binary mode it only searches). Errors still show up when you «Assemble» (the editor does not re-assemble while you type).",
+  "ayuda.editor.texto": "The editor helps you as you write: autocompletion of mnemonics, registers and labels (appears as you type, or with Ctrl-Space); hovering over an instruction shows its syntax and what it does; Cmd/Ctrl-click on a label jumps to its definition, and placing the cursor on a label highlights all its uses. Errors still show up when you «Assemble» (the editor does not re-assemble while you type).",
   "ayuda.breakpoints.titulo": "Breakpoints",
   "ayuda.depuracion.texto": "The «Debug» panel starts collapsed (it's for later) and opens on its own once you set your first breakpoint. There you can add a condition to each one (e.g. «t0 == 5»: stops only when it holds) and, in the collapsible «Watchpoints» sub-section (with a short help note when you open it), watch data regions (they stop when the program reads or writes them). With the machine paused, double-click a register or a memory word to edit it live. Details: docs/DEPURACION.md.",
   "ayuda.breakpoints.texto": "Click the editor's left gutter (to the left of the line number) to add or remove a red dot. «Run» stops when it reaches that line, before executing it; the line is highlighted and you can inspect registers and memory, continue with «Step» or resume with «Run».",
@@ -245,5 +231,17 @@
   "editor.buscar.replacedOnLine": "replaced match on line $",
   "editor.buscar.onLine": "on line",
   "editor.buscar.gotoLine": "Go to line",
-  "editor.buscar.go": "go"
+  "editor.buscar.go": "go",
+  "memoria.busqueda.placeholder": "Search memory…",
+  "memoria.busqueda.tipoAria": "Search type",
+  "memoria.busqueda.tipoByte": "byte (hex)",
+  "memoria.busqueda.tipoWord": "word (hex)",
+  "memoria.busqueda.tipoAscii": "text (ASCII)",
+  "memoria.busqueda.buscar": "Search",
+  "memoria.busqueda.anteriorAria": "Previous match",
+  "memoria.busqueda.siguienteAria": "Next match",
+  "memoria.busqueda.invalido": "Search value invalid for the chosen type",
+  "memoria.busqueda.sinPrograma": "Assemble a program first to search memory",
+  "memoria.busqueda.noEncontrado": "«{patron}» not found in the data region",
+  "ayuda.memoria.buscar": "To find a value, use the Memory panel's search box: pick the type (hex byte, hex word or ASCII text), type the value and «Search». A word is searched exactly as stored in memory (little-endian: the word 0x0000002A is located as the bytes 2A 00 00 00). The ‹ and › buttons jump to the previous and next match (also with Enter and Shift+Enter). The search scans the data region (.data, .bss and the heap)."
 }

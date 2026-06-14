@@ -23,7 +23,6 @@
   "tema.disquete": "Disquete 90s",
   "toolbar.lecciones": "Lecciones",
   "toolbar.video": "Pantalla",
-
   "panel.registros": "Registros",
   "panel.memoria": "Memoria",
   "panel.consola": "Consola",
@@ -32,10 +31,8 @@
   "video.ventana": "EmuRV — Pantalla",
   "desacople.titulo": "Abrir este panel en una ventana aparte",
   "video.tecladoCapturado": "Teclado capturado — clic afuera para soltar",
-
   "panel.depuracion": "Depuración",
   "panel.depuracion.nota": "avanzado",
-
   "registros.nombre": "Reg",
   "registros.hex": "Hexadecimal",
   "registros.dec": "Decimal",
@@ -53,9 +50,7 @@
   "registros.rol.argumento": "Argumento o valor de retorno de una función",
   "registros.rol.otro": "Registro de propósito general",
   "edicion.valorFInvalido": "Valor inválido: usá decimal con punto (1.5, -0.25, NaN) o bits crudos en hexadecimal (0x3fc00000…).",
-
   "edicion.valorInvalido": "Valor inválido: usá decimal (42, -7) o hexadecimal (0x2a).",
-
   "depuracion.breakpoints": "Breakpoints",
   "depuracion.watchpoints": "Watchpoints",
   "depuracion.watchpointsAyuda": "¿Qué es esto? Un watchpoint frena el programa cuando una dirección de memoria se lee o se escribe — sirve para cazar quién toca un dato. (Avanzado: dejalo para más adelante.)",
@@ -73,20 +68,16 @@
   "depuracion.sinBreakpoints": "Sin breakpoints: click en el margen del editor para agregar uno.",
   "depuracion.sinWatchpoints": "Sin watchpoints: agregá una dirección de datos para vigilar.",
   "depuracion.direccionInvalida": "Dirección inválida: ingresá un valor hexadecimal (p. ej. 0x10010000).",
-
   "memoria.direccion": "Dirección",
   "memoria.ir": "Ir",
   "memoria.texto": ".text",
   "memoria.datos": ".data",
   "memoria.pila": "pila (sp)",
   "memoria.error": "No se pudo leer esa zona de memoria",
-
   "consola.placeholder": "El programa espera una línea de entrada…",
   "consola.limpiar": "Limpiar",
   "consola.limpiar.titulo": "Borrar el texto de la consola (el programa no se entera)",
-
   "breakpoint.lineaSinCodigo": "La línea {linea} no tiene código ejecutable; el breakpoint no se aplicó.",
-
   "estado.sin_programa": "Escribí tu programa y presioná «Ensamblar»",
   "estado.ensamblado": "Programa ensamblado: {n} bytes de código. Listo para ejecutar.",
   "estado.errores": "El programa tiene {n} error(es). Revisá las líneas marcadas.",
@@ -109,7 +100,6 @@
   "estado.pausado": "Ejecución pausada",
   "estado.error_ejecucion": "Error de ejecución: {message}",
   "estado.reiniciado": "Máquina reiniciada al estado inicial",
-
   "ejemplo.hola": "Hola mundo",
   "ejemplo.suma": "Suma interactiva",
   "ejemplo.contador": "Contador",
@@ -138,9 +128,7 @@
   "lecciones.progresoSub": "{hechas} de {total} completadas",
   "lecciones.tuProgreso": "Tu progreso",
   "lecciones.enCurso": "en curso",
-
   "error.posicion": "línea {line}, col {col}: {msg}",
-
   "archivo.tituloAbrir": "Abrir programa ensamblador",
   "archivo.tituloGuardar": "Guardar programa ensamblador",
   "binario.banner": "Binario importado: sin código fuente — listado desensamblado (solo lectura). Ejecutar, Paso y breakpoints funcionan sobre el listado.",
@@ -166,11 +154,9 @@
   "leccion.elegirCarpeta": "Elegí una carpeta para guardar los archivos de la lección",
   "leccion.multiarchivoListo": "Lección guardada en {carpeta}. Abrí main.s; «Ensamblar» ya resuelve los .include.",
   "leccion.multiarchivoCancelado": "Esta lección usa .include, que necesita los archivos guardados en una carpeta. Volvé a abrirla y elegí una carpeta para continuar.",
-
   "exportar.titulo": "Guardar ELF",
   "exportar.ok": "ELF exportado en {path}",
   "exportar.error": "No se pudo exportar: {message}",
-
   "ayuda.titulo": "Ayuda de EmuRV",
   "ayuda.subtitulo": "referencia",
   "ayuda.cerrar": "Cerrar",
@@ -225,7 +211,7 @@
   "ayuda.ejemplos.titulo": "Ejemplos",
   "ayuda.ejemplos.texto": "El menú «Ejemplos» carga programas comentados: hola mundo, suma interactiva, contador, fibonacci, pila/funciones (factorial recursivo), franjas de color y Tetris gráfico (port de un Tetris 8086, dibujado en la pantalla de 320×240), eco de teclado y Tetris en tiempo real (teclado MMIO), manejador de excepciones (CSRs/traps) y coma flotante (promedio de notas con F/D). Son un buen punto de partida para tu propio código.",
   "ayuda.editor.titulo": "Editor",
-  "ayuda.editor.texto": "El editor te ayuda mientras escribís: autocompletado de mnemónicos, registros y etiquetas (aparece solo al tipear, o con Ctrl-Espacio); al pasar el mouse sobre una instrucción se muestra su sintaxis y qué hace; Cmd/Ctrl-click sobre una etiqueta salta a su definición, y al poner el cursor sobre una etiqueta se resaltan todos sus usos. Con Cmd/Ctrl+F se abre buscar y reemplazar (resalta las coincidencias; en modo binario solo busca). Los errores se siguen viendo al «Ensamblar» (el editor no re-ensambla mientras tipeás).",
+  "ayuda.editor.texto": "El editor te ayuda mientras escribís: autocompletado de mnemónicos, registros y etiquetas (aparece solo al tipear, o con Ctrl-Espacio); al pasar el mouse sobre una instrucción se muestra su sintaxis y qué hace; Cmd/Ctrl-click sobre una etiqueta salta a su definición, y al poner el cursor sobre una etiqueta se resaltan todos sus usos. Los errores se siguen viendo al «Ensamblar» (el editor no re-ensambla mientras tipeás).",
   "ayuda.breakpoints.titulo": "Breakpoints",
   "ayuda.depuracion.texto": "El panel «Depuración» arranca plegado (es para más adelante) y se abre solo cuando ponés tu primer breakpoint. Ahí podés sumarle una condición a cada uno (ej.: «t0 == 5»: frena solo cuando se cumple) y, en la sub-sección plegable «Watchpoints» (con una mini-ayuda al abrirla), vigilar zonas de datos (frenan cuando el programa las lee o escribe). Con la máquina pausada, doble clic sobre un registro o una palabra de memoria los edita en vivo. Detalle: docs/DEPURACION.md.",
   "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar».",
@@ -245,5 +231,17 @@
   "editor.buscar.replacedOnLine": "se reemplazó la coincidencia en la línea $",
   "editor.buscar.onLine": "en la línea",
   "editor.buscar.gotoLine": "Ir a la línea",
-  "editor.buscar.go": "ir"
+  "editor.buscar.go": "ir",
+  "memoria.busqueda.placeholder": "Buscar en memoria…",
+  "memoria.busqueda.tipoAria": "Tipo de búsqueda",
+  "memoria.busqueda.tipoByte": "byte (hex)",
+  "memoria.busqueda.tipoWord": "word (hex)",
+  "memoria.busqueda.tipoAscii": "texto (ASCII)",
+  "memoria.busqueda.buscar": "Buscar",
+  "memoria.busqueda.anteriorAria": "Coincidencia anterior",
+  "memoria.busqueda.siguienteAria": "Coincidencia siguiente",
+  "memoria.busqueda.invalido": "Valor de búsqueda inválido para el tipo elegido",
+  "memoria.busqueda.sinPrograma": "Primero ensamblá un programa para poder buscar en memoria",
+  "memoria.busqueda.noEncontrado": "No se encontró «{patron}» en la región de datos",
+  "ayuda.memoria.buscar": "Para encontrar un dato, usá el buscador del panel de Memoria: elegí el tipo (byte hex, word hex o texto ASCII), escribí el valor y «Buscar». El word se busca tal como se guarda en memoria (little-endian: el word 0x0000002A se localiza como los bytes 2A 00 00 00). Los botones ‹ y › saltan a la coincidencia anterior y siguiente (también con Enter y Shift+Enter). La búsqueda recorre la región de datos (.data, .bss y el heap)."
 }
