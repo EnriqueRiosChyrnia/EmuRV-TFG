@@ -228,5 +228,22 @@
   "ayuda.editor.texto": "El editor te ayuda mientras escribís: autocompletado de mnemónicos, registros y etiquetas (aparece solo al tipear, o con Ctrl-Espacio); al pasar el mouse sobre una instrucción se muestra su sintaxis y qué hace; Cmd/Ctrl-click sobre una etiqueta salta a su definición, y al poner el cursor sobre una etiqueta se resaltan todos sus usos. Los errores se siguen viendo al «Ensamblar» (el editor no re-ensambla mientras tipeás).",
   "ayuda.breakpoints.titulo": "Breakpoints",
   "ayuda.depuracion.texto": "El panel «Depuración» arranca plegado (es para más adelante) y se abre solo cuando ponés tu primer breakpoint. Ahí podés sumarle una condición a cada uno (ej.: «t0 == 5»: frena solo cuando se cumple) y, en la sub-sección plegable «Watchpoints» (con una mini-ayuda al abrirla), vigilar zonas de datos (frenan cuando el programa las lee o escribe). Con la máquina pausada, doble clic sobre un registro o una palabra de memoria los edita en vivo. Detalle: docs/DEPURACION.md.",
-  "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar»."
+  "ayuda.breakpoints.texto": "Click en el margen izquierdo del editor (a la izquierda del número de línea) para poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de ejecutarla; la línea queda resaltada y podés inspeccionar registros y memoria, seguir con «Paso» o continuar con «Ejecutar».",
+  "editor.buscar.find": "Buscar",
+  "editor.buscar.replace": "Reemplazar",
+  "editor.buscar.next": "siguiente",
+  "editor.buscar.previous": "anterior",
+  "editor.buscar.all": "todas",
+  "editor.buscar.matchCase": "distinguir May/min",
+  "editor.buscar.byWord": "palabra completa",
+  "editor.buscar.regexp": "regexp",
+  "editor.buscar.replaceBtn": "reemplazar",
+  "editor.buscar.replaceAll": "reemplazar todo",
+  "editor.buscar.close": "cerrar",
+  "editor.buscar.currentMatch": "coincidencia actual",
+  "editor.buscar.replacedMatches": "se reemplazaron $ coincidencias",
+  "editor.buscar.replacedOnLine": "se reemplazó la coincidencia en la línea $",
+  "editor.buscar.onLine": "en la línea",
+  "editor.buscar.gotoLine": "Ir a la línea",
+  "editor.buscar.go": "ir"
 }
