@@ -21,9 +21,11 @@ const USO: &str = "\
 emurv-cli — EmuRV sin interfaz gráfica (RV32IM, syscalls estilo RARS)
 
 USO:
-  emurv-cli asm <entrada.s> [-o <salida.elf>]
+  emurv-cli asm <entrada.s> [-o <salida.elf>] [--reubicable]
       Ensambla el fuente y exporta un ELF32 RISC-V estándar.
       Sin -o, la salida es la entrada con extensión .elf.
+      --reubicable: código PC-relativo (auipc/%pcrel) y ET_DYN, para
+      cargarlo en otra dirección; el modo normal es absoluto (ET_EXEC).
 
   emurv-cli run <entrada.s> [--max-instr N] [--timeout-s S]
       Ensambla y ejecuta. La consola del programa usa stdin/stdout:
@@ -82,6 +84,7 @@ fn ejecutar_cli(args: &[String]) -> u8 {
 fn subcomando_asm(args: &[String]) -> u8 {
     let mut entrada: Option<PathBuf> = None;
     let mut salida: Option<PathBuf> = None;
+    let mut reubicable = false;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -92,6 +95,9 @@ fn subcomando_asm(args: &[String]) -> u8 {
                     return 3;
                 }
             },
+            // RP29: ELF reubicable (código PC-relativo, ET_DYN) en vez del
+            // ejecutable absoluto por defecto.
+            "--reubicable" => reubicable = true,
             _ if entrada.is_none() => entrada = Some(PathBuf::from(a)),
             otro => {
                 eprintln!("emurv-cli asm: argumento inesperado «{otro}»\n\n{USO}");
@@ -105,7 +111,7 @@ fn subcomando_asm(args: &[String]) -> u8 {
     };
     let salida = salida.unwrap_or_else(|| entrada.with_extension("elf"));
 
-    let programa = match ensamblar_archivo(&entrada) {
+    let programa = match ensamblar_archivo(&entrada, reubicable) {
         Ok(p) => p,
         Err(code) => return code,
     };
@@ -498,12 +504,17 @@ fn cargar_programa(ruta: &Path) -> Result<emurv_lib::core::assembler::Program, u
             2u8
         });
     }
-    ensamblar_archivo(ruta)
+    ensamblar_archivo(ruta, false)
 }
 
 /// Lee y ensambla un fuente. Errores de E/S → exit 1; de ensamblado → 2,
 /// con el formato didáctico en español intacto (uno por línea, a stderr).
-fn ensamblar_archivo(ruta: &Path) -> Result<emurv_lib::core::assembler::Program, u8> {
+/// `reubicable` (RP29): codifica las referencias a símbolos PC-relativo
+/// (solo lo usa `asm --reubicable`; `run`/`disasm` siempre absoluto).
+fn ensamblar_archivo(
+    ruta: &Path,
+    reubicable: bool,
+) -> Result<emurv_lib::core::assembler::Program, u8> {
     let fuente = std::fs::read_to_string(ruta).map_err(|e| {
         eprintln!("emurv-cli: no se pudo leer «{}»: {e}", ruta.display());
         1u8
@@ -514,7 +525,12 @@ fn ensamblar_archivo(ruta: &Path) -> Result<emurv_lib::core::assembler::Program,
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "programa.s".to_string());
-    emurv_lib::core::assembler::assemble_with_includes(&fuente, base, &nombre).map_err(|errores| {
+    let resultado = if reubicable {
+        emurv_lib::core::assembler::assemble_with_includes_reubicable(&fuente, base, &nombre)
+    } else {
+        emurv_lib::core::assembler::assemble_with_includes(&fuente, base, &nombre)
+    };
+    resultado.map_err(|errores| {
         for err in &errores {
             eprintln!("{err}");
         }

@@ -134,6 +134,9 @@ pub fn import_elf(bytes: &[u8]) -> Result<Program, String> {
         files: Vec::new(),
         entry,
         from_binary: true,
+        // Solo aceptamos ET_EXEC absoluto al importar (ver más abajo): un
+        // binario importado nunca es «reubicable» para EmuRV.
+        reubicable: false,
     })
 }
 
