@@ -3008,3 +3008,53 @@ huérfana) y la app sale limpia.
 
 Compuerta F1: cerrar la principal cierra las hijas (frontend, sin bloquear
 el cierre) · tsc/build · Rust intacto.
+
+## 2026-06-13 — RP23-F2: Nuevo / Guardar como / Guardar inteligente + reagrupar
+
+[Seguro] «Guardar» INTELIGENTE (`guardarArchivo`): antes SIEMPRE abría el
+diálogo (se comportaba como «Guardar como», ignorando `rutaArchivo`). Ahora,
+si `rutaArchivo != null`, guarda DIRECTO ahí sin re-preguntar (como un IDE);
+si es null, cae en «Guardar como». La lógica común se extrajo a
+`escribirArchivo(path)` (escribe + actualiza ruta + marca limpio + estado).
+
+[Seguro] «Guardar como» (`guardarComo`): SIEMPRE pide ruta; `defaultPath` =
+la ruta actual o «programa.asm». Botón propio en la toolbar.
+
+[Seguro] «Nuevo» (`nuevoArchivo`): si hay cambios sin guardar, `confirm()`
+didáctico antes de descartar; luego sale de modo binario, carga una PLANTILLA
+mínima runnable (comentario + `.text`/`main:` + `li a7,10`/`ecall` que
+termina limpio — decisión: una plantilla guía mejor que un buffer en blanco
+para el principiante), resetea `programa`/`rutaArchivo`, limpia errores y
+consola, estado «programa nuevo».
+
+[Seguro — detección de «sucio»] Snapshot `docLimpio` = contenido del editor
+en la última CARGA o GUARDADO; sucio = `getDoc() !== docLimpio` (y nunca en
+modo binario, que es solo lectura). Para mantenerlo exacto se canalizaron las
+5 cargas programáticas (ejemplo, lección, lección multi-archivo, abrir
+archivo, listado binario) por un helper `setDocLimpio(contenido)` (setDoc +
+docLimpio); el inicial = «Hola mundo». Robusto y barato; sin flags que se
+desincronicen.
+
+[Seguro] Toolbar reagrupada (RP23): sección de archivo `Nuevo · Abrir ·
+Guardar · Guardar como` entre separadores; «Exportar ELF» queda APARTE
+(produce binario, no guarda fuente). Todos `.deemph` (coherente con la
+estética). Iconos Lucide nuevos sin dep npm (patrón RP-17/19): `nuevo` =
+file-plus, `guardarComo` = save-all, mapeados en `icono(id)`.
+
+[Seguro] i18n: +4 claves en es Y en (`toolbar.nuevo`, `toolbar.guardarComo`,
+`archivo.descartarConfirm`, `archivo.nuevo`; anti-drift verde). NO se rompe
+modo binario (rutaArchivo/lectura), ejemplos/lecciones (rutaArchivo=null), ni
+el base_dir de `.include` (RP-5: escribirArchivo sigue actualizando
+`rutaArchivo`). tsc estricto y vite build limpios, UI 62. Sin tocar Rust.
+
+[Opcional NO incluido] Título de ventana con el archivo actual: requería el
+permiso `core:window:allow-set-title`; se dejó fuera para no sumar permisos
+por un extra menor (el plan lo marcaba opcional «si es barato»).
+
+[PENDIENTE HUMANO] Verificación manual: Nuevo (con confirm si editaste),
+Guardar como (pide ruta), Guardar (NO re-pregunta si ya hay ruta; sí la pide
+la 1ª vez), Abrir; nada se rompe con ejemplos/lecciones/binario.
+
+Compuerta F2: Nuevo (+confirm) · Guardar como · Guardar inteligente (no
+re-pregunta con ruta) · sección de archivo agrupada · i18n anti-drift · sin
+romper binario/ejemplos/lecciones/.include · tsc/build · Rust intacto.

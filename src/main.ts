@@ -94,6 +94,9 @@ class App {
   /** Ruta en disco del buffer (RP5): base de resolución de .include.
    *  null = buffer nunca guardado (ejemplos embebidos incluidos). */
   private rutaArchivo: string | null = null;
+  /** Contenido del editor en el último guardado/carga (RP23): el buffer está
+   *  «sucio» si difiere del actual. Lo usa «Nuevo» para confirmar descartar. */
+  private docLimpio = "";
   private reinicioPedido = false;
   /** Modo binario (RP11): el editor muestra el listado desensamblado de
    *  un ELF importado, solo lectura; Ensamblar queda deshabilitado. */
@@ -118,6 +121,7 @@ class App {
         this.programaDesactualizado = true;
       },
     );
+    this.docLimpio = ejHola; // el editor arranca con el ejemplo «Hola mundo»
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
@@ -209,8 +213,14 @@ class App {
     const btnLecciones = boton("lecciones", "toolbar.lecciones", "deemph");
     btnLecciones.onclick = () => this.lecciones.abrir(btnLecciones);
     boton("video", "toolbar.video", "deemph").onclick = () => this.video.alternar();
+    bar.appendChild(this.sep());
+    // Sección de archivo agrupada (RP23): Nuevo · Abrir · Guardar · Guardar como.
+    boton("nuevo", "toolbar.nuevo", "deemph").onclick = () => this.nuevoArchivo();
     boton("abrir", "toolbar.abrir", "deemph").onclick = () => void this.abrirArchivo();
     boton("guardar", "toolbar.guardar", "deemph").onclick = () => void this.guardarArchivo();
+    boton("guardarComo", "toolbar.guardarComo", "deemph").onclick = () => void this.guardarComo();
+    bar.appendChild(this.sep());
+    // Exportar ELF queda aparte: produce un binario, no guarda el fuente.
     boton("exportar", "toolbar.exportar", "deemph").onclick = () => void this.exportarElf();
     const btnAyuda = boton("ayuda", "toolbar.ayuda", "deemph");
     btnAyuda.onclick = () => this.ayuda.abrir(btnAyuda);
@@ -630,7 +640,7 @@ class App {
    *  La marca como completada al abrirla (progreso persistido, RP15). */
   private abrirLeccion(l: Leccion): void {
     this.salirModoBinario();
-    setDoc(this.editor, l.codigo);
+    this.setDocLimpio(l.codigo);
     this.programa = null;
     this.rutaArchivo = null; // lección embebida: sin base de .include
     this.setModo("sin_programa", t("leccion.abierta", { titulo: l.titulo }));
@@ -663,7 +673,7 @@ class App {
         if (nombre === "main.s") mainPath = ruta;
       }
       this.salirModoBinario();
-      setDoc(this.editor, archivos["main.s"]);
+      this.setDocLimpio(archivos["main.s"]);
       this.programa = null;
       this.rutaArchivo = mainPath; // base_dir para .include (RP5)
       this.setModo("sin_programa", t("leccion.multiarchivoListo", { carpeta }));
@@ -687,7 +697,7 @@ class App {
       const apertura = await api.abrirPrograma(path);
       if (apertura.tipo === "fuente") {
         this.salirModoBinario();
-        setDoc(this.editor, apertura.contenido);
+        this.setDocLimpio(apertura.contenido);
         this.programa = null;
         this.rutaArchivo = path; // base para .include (RP5)
         this.setModo("sin_programa", t("archivo.abierto", { path }));
@@ -705,7 +715,7 @@ class App {
    *  resaltado de línea funcionan igual: cada línea del listado es una
    *  dirección (line_to_addr viene armado del listado). */
   private async entrarModoBinario(ok: AssembleOk, listado: string, path: string): Promise<void> {
-    setDoc(this.editor, listado);
+    this.setDocLimpio(listado);
     setReadOnly(this.editor, true);
     this.modoBinario = true;
     this.programa = ok;
@@ -748,10 +758,46 @@ class App {
    *  Ejemplos). Misma lógica que el viejo <select> de la toolbar. */
   private cargarEjemplo(i: number): void {
     this.salirModoBinario();
-    setDoc(this.editor, EJEMPLOS[i].codigo);
+    this.setDocLimpio(EJEMPLOS[i].codigo);
     this.programa = null;
     this.rutaArchivo = null; // ejemplo embebido: sin base de .include
     this.setModo("sin_programa", t("estado.sin_programa"));
+  }
+
+  /** Carga `contenido` al editor y lo marca como «limpio» (base de la
+   *  detección de cambios sin guardar de RP23). */
+  private setDocLimpio(contenido: string): void {
+    setDoc(this.editor, contenido);
+    this.docLimpio = contenido;
+  }
+
+  /** ¿El buffer tiene cambios sin guardar? (RP23) En modo binario nunca:
+   *  el listado desensamblado es solo lectura. */
+  private hayCambiosSinGuardar(): boolean {
+    return !this.modoBinario && getDoc(this.editor) !== this.docLimpio;
+  }
+
+  /** Plantilla mínima de un programa nuevo (RP23): un esqueleto runnable
+   *  que termina limpio, para que el principiante tenga de dónde partir. */
+  private static readonly PLANTILLA_NUEVA =
+    "# Programa nuevo en RISC-V (RV32)\n" +
+    "        .text\n" +
+    "main:\n" +
+    "        li   a7, 10      # servicio 10: terminar\n" +
+    "        ecall\n";
+
+  /** «Nuevo» (RP23): empieza un programa en blanco (plantilla mínima). Si hay
+   *  cambios sin guardar, confirma antes de descartarlos. Resetea ruta,
+   *  programa, consola y errores; sale de modo binario. */
+  private nuevoArchivo(): void {
+    if (this.hayCambiosSinGuardar() && !confirm(t("archivo.descartarConfirm"))) return;
+    this.salirModoBinario();
+    this.setDocLimpio(App.PLANTILLA_NUEVA);
+    this.programa = null;
+    this.rutaArchivo = null; // buffer nuevo: sin base de .include
+    setErrors(this.editor, []);
+    this.consola.clear();
+    this.setModo("sin_programa", t("archivo.nuevo"));
   }
 
   /** Columna de instrucción del panel Memoria (RP11): vale para fuentes
@@ -764,18 +810,34 @@ class App {
     }
   }
 
-  /** Guarda el contenido actual del editor como archivo .asm. */
+  /** «Guardar» INTELIGENTE (RP23): si ya hay una ruta conocida, guarda ahí
+   *  directo (sin re-preguntar, como un IDE); si no, se comporta como
+   *  «Guardar como». */
   private async guardarArchivo(): Promise<void> {
+    if (this.rutaArchivo) await this.escribirArchivo(this.rutaArchivo);
+    else await this.guardarComo();
+  }
+
+  /** «Guardar como» (RP23): SIEMPRE pide la ruta con el diálogo; al confirmar
+   *  guarda y actualiza la ruta actual (base de .include). */
+  private async guardarComo(): Promise<void> {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const path = await save({
       title: t("archivo.tituloGuardar"),
-      defaultPath: "programa.asm",
+      defaultPath: this.rutaArchivo ?? "programa.asm",
       filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s"] }],
     });
     if (!path) return;
+    await this.escribirArchivo(path);
+  }
+
+  /** Escribe el buffer en `path`: actualiza la ruta actual (base de .include,
+   *  RP5), marca el buffer como «limpio» y avisa en la barra de estado. */
+  private async escribirArchivo(path: string): Promise<void> {
     try {
       await api.guardarArchivo(path, getDoc(this.editor));
-      this.rutaArchivo = path; // base para .include (RP5)
+      this.rutaArchivo = path;
+      this.docLimpio = getDoc(this.editor); // recién guardado: limpio
       this.estadoEl.textContent = t("archivo.guardado", { path });
       this.estadoEl.className = "ok";
     } catch (e) {
