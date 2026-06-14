@@ -79,6 +79,46 @@ html, body {
 
 #toolbar button:hover:not(:disabled) { border-color: var(--acento); }
 #toolbar button:disabled { opacity: 0.45; cursor: default; }
+/* caret del botón con menú desplegable (Archivo, RP23) */
+#toolbar button .caret { font-size: 10px; opacity: 0.7; margin-left: 1px; }
+
+/* Menú desplegable de la toolbar (Archivo, RP23): popover anclado al botón,
+   posicionado por JS (position: fixed + getBoundingClientRect). Estética
+   Cálido: tarjeta redondeada con sombra; tipografía de UI. */
+.menu-toolbar {
+  position: fixed;
+  z-index: 200;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  background: var(--fondo-panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-panel, 10px);
+  box-shadow: var(--sombra-panel, 0 6px 18px rgba(0, 0, 0, 0.3));
+  font-family: var(--fuente-ui, inherit);
+}
+.menu-toolbar .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--texto);
+  font-size: 13px;
+  cursor: pointer;
+}
+.menu-toolbar .menu-item:hover,
+.menu-toolbar .menu-item:focus-visible {
+  background: color-mix(in srgb, var(--acento) 12%, transparent);
+  outline: none;
+}
+.menu-toolbar .menu-item .ico { width: 15px; height: 15px; flex: none; }
 /* Cálido (RP19): primario realzado con una sombra suave del acento. */
 #toolbar button.principal {
   background: var(--acento);
