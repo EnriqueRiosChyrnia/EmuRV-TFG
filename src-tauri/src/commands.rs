@@ -140,7 +140,11 @@ pub struct AssembleOk {
 /// Estado de la máquina para las vistas (RF-05).
 #[derive(Serialize, Clone)]
 pub struct MachineState {
-    pub registers: [u32; 32],
+    /// Valores de registro en `u64` (RP32): en RV64 caben los 64 bits. En RV32
+    /// vienen acotados a 32 por el motor. OJO (F4): un `u64` > 2^53 pierde
+    /// precisión como `number` de JS; el panel de 64 bits cruzará los valores
+    /// grandes como string hex. En F2 la GUI solo crea programas RV32.
+    pub registers: [u64; 32],
     pub pc: u32,
     pub line: Option<u32>,
 }
@@ -187,7 +191,7 @@ fn emit_stopped(app: &AppHandle, m: &Machine, reason: StopReason) {
                 StoppedEvent {
                     reason: StopReason::RuntimeError { message },
                     state: MachineState {
-                        registers: [0u32; 32],
+                        registers: [0u64; 32],
                         pc: 0,
                         line: None,
                     },

@@ -15,6 +15,34 @@ pub mod preprocess;
 pub mod syscalls;
 pub mod video;
 
+/// Ancho de palabra de la arquitectura (RP32): RV32 (32 bits, default
+/// histórico) o RV64 (64 bits). Es CONMUTABLE — viaja con el [`Program`]
+/// (lo fija el ensamblado) y con la [`machine::Machine`], que elige
+/// `Mode::RISCV32`/`Mode::RISCV64` según este valor. El mapa de memoria
+/// educativo es el MISMO en ambos: cabe en 32 bits y por ende en 64. El
+/// spike RP32-F1 confirmó que en `Mode::RISCV32` Unicorn acota los registros
+/// a 32 bits por sí mismo, así que operar internamente en `u64` no altera la
+/// semántica de RV32.
+///
+/// [`Program`]: assembler::Program
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Xlen {
+    #[default]
+    Rv32,
+    Rv64,
+}
+
+impl Xlen {
+    /// Cantidad de bits del ancho (32 o 64). Útil para la UI y los mensajes.
+    pub fn bits(self) -> u32 {
+        match self {
+            Xlen::Rv32 => 32,
+            Xlen::Rv64 => 64,
+        }
+    }
+}
+
 /// Palabra de la instrucción `ebreak` (RV32I). La comparten el hook de
 /// traps y el rescate de pausa por software en `Machine::interpret()`
 /// (Unicorn 2.1.5 no entrega el trap de ebreak al hook INTR — BITACORA RP1).

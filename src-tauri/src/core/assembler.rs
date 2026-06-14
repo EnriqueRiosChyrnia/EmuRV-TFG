@@ -12,7 +12,7 @@
 //! Todos los mensajes de error están en español y llevan línea y columna
 //! (RF-02): son parte del valor didáctico de la herramienta.
 
-use super::{DATA_BASE, TEXT_BASE};
+use super::{Xlen, DATA_BASE, TEXT_BASE};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 
@@ -94,6 +94,12 @@ pub struct Program {
     /// absoluto (`lui`+`%hi/%lo`). El `export_elf` lo marca ET_DYN. El modo
     /// por defecto (`false`) no cambia: sigue absoluto/ET_EXEC.
     pub reubicable: bool,
+    /// Ancho de la arquitectura para la que se ensambló (RP32). `Rv32` por
+    /// defecto (el repertorio histórico); `Rv64` habilita las instrucciones de
+    /// 64 bits (W-instructions, ld/sd). La `Machine` lo lee para elegir
+    /// `Mode::RISCV32`/`RISCV64`. El ensamblador lo fija según el modo pedido
+    /// (la parametrización del repertorio es de la Fase 3).
+    pub xlen: Xlen,
 }
 
 impl Program {
@@ -787,6 +793,9 @@ fn assemble_impl(
             entry: TEXT_BASE,
             from_binary: false,
             reubicable,
+            // F2: el ensamblado produce RV32 (el repertorio sigue siendo el
+            // histórico). La Fase 3 parametriza esto por el modo pedido.
+            xlen: Xlen::Rv32,
         })
     } else {
         p.errors.sort_by_key(|e| (e.file.clone(), e.line, e.col));
