@@ -3140,3 +3140,66 @@ OPCIÓN del artefacto exportado.
 Compuerta F1: viabilidad demostrada + decisión fundada (Vía 1) con evidencia
 del oráculo GNU · suite src-tauri intacta (incl. los 2 tests del spike) ·
 clippy --all-targets -D warnings limpio.
+
+## 2026-06-14 — RP29-F2: export ELF reubicable verificado contra GNU
+
+[Seguro] IMPLEMENTACIÓN (Vía 1, decidida en F1). Modo reubicable en el
+ensamblador: las pseudo-instrucciones con etiqueta —`la`/`lla`, cargas
+(`lw`/`lh`/…/`flw`/`fld`) y almacenamientos (`sw`/…/`fsw`/`fsd`) con etiqueta—
+expanden a `auipc rd, %pcrel_hi(sym)` + `op rd, %pcrel_lo` (codifican
+`sym - pc`) en vez del par absoluto `lui rd, %hi(sym)` + `op rd, %lo`. La
+matemática es la misma (`hi20`/`lo12`); el cambio es alimentar `c.pcrel(addr)
+= addr - ins.addr` y usar el opcode de `auipc` (0x17) en lugar de `lui`
+(0x37). Las direcciones de pasada 1 y el `source_map` NO cambian: el modo solo
+afecta los BYTES emitidos en pasada 2.
+
+[Seguro] API y alcance del cambio (respetando el área core + CLI):
+- `Program` gana `reubicable: bool`; `export_elf` lo lee y marca el ELF
+  `ET_DYN` (PIE) cuando es true, `ET_EXEC` (absoluto) cuando es false. NO
+  cambió la firma de `export_elf` → `commands.rs`/GUI intactos (la GUI nunca
+  ensambla reubicable; su `Program.reubicable` es siempre false).
+- Nuevas entradas públicas `assemble_reubicable` y
+  `assemble_with_includes_reubicable`; las existentes (`assemble`,
+  `assemble_with_includes`) delegan en un `assemble_impl(.., reubicable)`
+  con `false`, sin cambiar su firma.
+- CLI: `emurv-cli asm --reubicable` (flag opcional; el parser a mano sigue sin
+  `clap`). `run`/`disasm`/`debug` siguen absolutos.
+
+[Seguro] VERIFICACIÓN — oráculo GNU as/ld/objcopy 2.46.1, `tests/
+rp29_reubicable.rs` (5 tests; los que linkan se saltean sin toolchain):
+- `reubicable_igual_al_pcrel_de_gnu`: nuestro `.text` reubicable de un
+  programa con `la`+`lw`+`sw` es BYTE A BYTE el par auipc/%pcrel que GNU
+  resuelve en el mapa de EmuRV (.text 0x00400000, .data 0x10010000). P.ej.
+  `la a0, msj` → `0fc10517 00050513` (auipc a0,0xfc10 ; addi a0,a0,0).
+- `pcrel_no_cambia_al_reubicar`: el MISMO objeto pcrel, enlazado en
+  0x00400000 y en 0x20400000/0x30010000 (delta +0x20000000 a ambos
+  segmentos), da un `.text` IDÉNTICO, y coincide con el nuestro → reubicable:
+  misma conducta cargado en otra dirección.
+- `export_normal_sigue_absoluto`: el `.text` del modo normal sigue siendo el
+  par `lui/%hi` de GNU, byte a byte (regresión: la Vía 1 no tocó el camino
+  absoluto).
+- `reubicable_usa_auipc_y_el_normal_lui` y `elf_reubicable_es_et_dyn_y_normal_
+  et_exec`: chequeos sin toolchain (opcode 0x17 vs 0x37; e_type 3 vs 2).
+- Humo CLI: `emurv-cli asm --reubicable` → readelf Type=DYN y objdump muestra
+  `auipc` resolviendo a `msj` (0x10010000); el normal → Type=EXEC y `lui`.
+
+[Seguro] LIMITACIONES (documentadas, dentro del alcance del plan):
+- El modo reubicable convierte las PSEUDO-instrucciones con etiqueta. Las
+  formas MANUALES `lui rd, %hi(sym)` / `%lo(sym)(base)` que el usuario escribe
+  a mano siguen absolutas (el par %hi/%lo es elección explícita del autor; el
+  ensamblador no las re-aparea a %pcrel). Para reubicabilidad total: usar
+  `la`/cargas-con-etiqueta. Los saltos (`j`/`call`/`b*`/`jal`) y las
+  comprimidas (`c.j`/`c.beqz`) YA eran PC-relativos: no cambian.
+- «Reubicable» = la imagen se desplaza como UNIDAD (`.text` y `.data` por la
+  misma delta), conservando su distancia relativa; es lo que hace `ld -Ttext`
+  y los cargadores de PIE. NO es PIE con relocations dinámicas (fuera de
+  alcance por diseño).
+- EmuRV solo IMPORTA `ET_EXEC` absoluto (elf_import.rs rechaza ET_DYN con
+  mensaje didáctico): el artefacto reubicable es para OTRAS herramientas, no
+  para recargar en la propia app. El mapa de memoria y la ejecución de la app
+  no cambian.
+
+Compuerta F2: reubicable verificado contra GNU (byte a byte + invariancia al
+reubicar) · export normal absoluto intacto (regresión) · CLI `--reubicable` ·
+suites verdes y clippy -D warnings limpio en AMBOS crates (src-tauri 219
+tests, emurv-cli verde).
