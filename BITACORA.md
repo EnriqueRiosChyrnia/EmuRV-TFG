@@ -3089,3 +3089,54 @@ Sin tocar código Rust, sin renombrar ids, sin reordenar registros.
 panel o la pantalla y cerrar la principal → la hija se cierra; (b) Nuevo /
 Guardar / Guardar como / Abrir andan y «Guardar» no re-pregunta cuando ya hay
 ruta (sí la pide la primera vez).
+
+## 2026-06-14 — RP29-F1: spike de viabilidad del ELF reubicable
+
+Objetivo del punto RP-29 (Cap. VI §6.2.3): poder exportar un ELF cuyo CÓDIGO no
+dependa de cargarse en una dirección fija. Hoy `export_elf` arma un ET_EXEC con
+direcciones ABSOLUTAS del mapa RARS (.text 0x00400000, .data 0x10010000) y el
+ensamblador codifica `la`/cargas con etiqueta como `lui rd, %hi(abs)` +
+`addi rd, rd, %lo(abs)`: el binario asume cargarse en esas direcciones.
+
+[Seguro] DECISIÓN — vía elegida: **Vía 1 (PC-relativo directo)**. En el modo
+reubicable el ensamblador emitirá las referencias a símbolos como
+`auipc rd, %pcrel_hi(sym)` + `addi rd, rd, %pcrel_lo` (estándar RISC-V),
+codificando `sym - pc` en lugar de la dirección absoluta. Se descarta la Vía 2
+(emitir relocations R_RISCV_PCREL_HI20/LO12 y delegar en un linker externo):
+produciría un .o, no un ejecutable, exigiría un `ld` en runtime y rompería el
+flujo educativo autocontenido. La Vía 1 es la más didáctica y la más barata
+(ver costo abajo).
+
+[Seguro] EVIDENCIA — `src-tauri/tests/spike_reubicable.rs` (oráculo GNU
+riscv64-elf-as/ld/objcopy 2.46.1, sin relax para obtener el par canónico):
+- `pcrel_es_reubicable_y_el_absoluto_no`: el MISMO objeto pcrel, enlazado en
+  bases 0x00010000 y 0x80000000 (conservando el hueco .text↔.data), da un
+  `.text` IDÉNTICO byte a byte (`00001517 00050513`); el par absoluto `lui/%hi`
+  cambia (`00011537` vs `80011537`). → PC-relativo es independiente de la
+  posición; el absoluto no. Demostración directa de la reubicabilidad.
+- `nuestro_auipc_addi_reproduce_el_pcrel_de_gnu`: para huecos 0x1000/0x2234/
+  0x1800/0x2ffc (cubre %lo=0, positivo+acarreo, negativo, negativo+acarreo)
+  nuestro `auipc a0, hi` + `addi a0, a0, lo` con `hi=hi20(off)`,`lo=lo12(off)`
+  da EXACTAMENTE las dos palabras que GNU resuelve para `%pcrel_hi/%pcrel_lo`.
+
+[Seguro] COSTO / viabilidad: la matemática de `%pcrel_hi`/`%pcrel_lo` ES la de
+los helpers `hi20`/`lo12` que ya usa el par `lui+addi` absoluto (compensación
+de acarreo +0x800 y signo del %lo). La codificación de `auipc` (opcode 0x17) ya
+existe en el ensamblador. Por lo tanto el modo reubicable es, en esencia,
+alimentar `sym - pc` en vez de `sym` y cambiar el opcode de `lui` (0x37) por
+`auipc` (0x17) en la expansión de `la`/cargas/almacenamientos con etiqueta. Es
+una vía PROPORCIONADA: no requiere infraestructura nueva (sin relocations, sin
+linker, sin tabla de fixups extra). No se aplica la regla de conflictos del
+ROADMAP (frenar por desproporción): el spike sale en verde.
+
+[Suposición → a confirmar en F2] Alcance de «reubicable» para EmuRV: el par
+pcrel preserva `sym - pc`, así que el artefacto es reubicable mientras .text y
+.data se desplacen JUNTOS (misma delta), conservando su distancia relativa —
+que es el caso de `ld -Ttext`/cargadores que mueven la imagen como unidad. NO
+es PIE con relocations dinámicas (fuera de alcance por diseño). El export
+normal (absoluto) y la ejecución en la app NO cambian: el reubicable es una
+OPCIÓN del artefacto exportado.
+
+Compuerta F1: viabilidad demostrada + decisión fundada (Vía 1) con evidencia
+del oráculo GNU · suite src-tauri intacta (incl. los 2 tests del spike) ·
+clippy --all-targets -D warnings limpio.
