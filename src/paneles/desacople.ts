@@ -15,6 +15,9 @@ export interface PanelDesacoplable {
   titulo: string;
   width: number;
   height: number;
+  /** Al DESACOPLAR (ventana creada): p. ej. marcar un flag de delegación
+   *  (Depuración). Opcional. */
+  alDesacoplar?: () => void;
   /** Al REACOPLAR (ventana cerrada): refrescar el panel embebido con el
    *  estado vivo, así recoge ediciones hechas en la ventana (write_* no
    *  emiten evento). Opcional. */
@@ -49,6 +52,7 @@ export async function desacoplarPanel(p: PanelDesacoplable): Promise<void> {
   }
   const seccion = document.getElementById(p.seccionId);
   if (seccion) seccion.hidden = true;
+  p.alDesacoplar?.();
 
   const w = new WebviewWindow(label, {
     url: `panel.html?panel=${p.id}`,

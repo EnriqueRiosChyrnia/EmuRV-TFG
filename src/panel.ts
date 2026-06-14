@@ -13,6 +13,8 @@ import { t } from "./i18n";
 import { api, events, type MachineState, type AssembleOk } from "./api";
 import { Registros } from "./paneles/registros";
 import { Memoria } from "./paneles/memoria";
+import { Depuracion } from "./paneles/depuracion";
+import { depSync, type FilaConCond } from "./paneles/dep-sync";
 
 inicializarTema(); // data-tema desde localStorage (emurv.tema.v1)
 
@@ -83,6 +85,40 @@ if (which === "memoria") {
   void cargarDisasm();
   // Al detenerse (pausa/paso/breakpoint/fin) se relee la zona visible.
   void events.onStopped(() => void mem.refrescar());
+}
+
+if (which === "depuracion") {
+  // El delicado (RP22-F3). Los breakpoints se CREAN en el gutter del editor
+  // (ventana principal); acá vive la LISTA. main manda las filas por evento
+  // (app://dep-filas); esta ventana, que tiene las condiciones, es la que
+  // ENVÍA set_breakpoints (así no se pisan). Quitar y condiciones vuelven a
+  // main por eventos. Los watchpoints los maneja la clase (set_watchpoints).
+  let filas: FilaConCond[] = [];
+  let dep: Depuracion;
+  const enviar = (): void => {
+    const bps = filas
+      .filter((f) => f.addr !== null)
+      .map((f) => ({ addr: f.addr as number, cond: dep.condicionDe(f.linea) }));
+    api
+      .setBreakpoints(bps)
+      .then(() => dep.limpiarError())
+      .catch((e: unknown) => dep.mostrarError(String(e)));
+  };
+  dep = new Depuracion(cuerpo, {
+    onCondicionCambiada: () => {
+      enviar(); // aplicar al backend con las condiciones de ESTA ventana
+      // y reportarlas a main para que las absorba (no se pierden al reacoplar)
+      depSync.emitConds(filas.map((f) => ({ linea: f.linea, cond: dep.condicionDe(f.linea) ?? "" })));
+    },
+    onQuitarBreakpoint: (linea) => depSync.quitar(linea), // main lo saca del editor
+  });
+  void depSync.onFilas((nuevas) => {
+    filas = nuevas;
+    dep.setFilasBreakpoints(nuevas.map((f) => ({ linea: f.linea, addr: f.addr })));
+    for (const f of nuevas) dep.setCondicionExterna(f.linea, f.cond);
+    enviar(); // un breakpoint nuevo del editor (estando desacoplado) se aplica
+  });
+  depSync.pedir(); // handshake: pedir a main el estado actual al abrir
 }
 
 // Propagación en vivo de tema/idioma (best-effort, mismo origen): si la

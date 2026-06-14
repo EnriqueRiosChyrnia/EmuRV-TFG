@@ -26,6 +26,11 @@
         box-shadow: none;
         min-height: 0;
       }
+      /* La ventana ES el panel: el plegado del título (que la clase
+         Depuración cablea al <h2>) no debe ocultar el contenido acá. */
+      #panel-host > .panel.colapsado .panel-cuerpo {
+        display: block;
+      }
     </style>
     <script type="module" src="/src/panel.ts" defer></script>
   </head>
