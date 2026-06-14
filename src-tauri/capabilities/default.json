@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window and the detached screen window",
+  "description": "Capability for the main window, the detached screen and the detached panels (RP22)",
   "windows": [
     "main",
-    "pantalla"
+    "pantalla",
+    "panel-*"
   ],
   "permissions": [
     "core:default",

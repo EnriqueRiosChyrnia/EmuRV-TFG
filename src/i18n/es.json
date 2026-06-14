@@ -25,6 +25,7 @@
   "panel.video": "Pantalla (320×240)",
   "video.desacoplar": "Abrir la pantalla en una ventana aparte",
   "video.ventana": "EmuRV — Pantalla",
+  "desacople.titulo": "Abrir este panel en una ventana aparte",
   "video.tecladoCapturado": "Teclado capturado — clic afuera para soltar",
 
   "panel.depuracion": "Depuración",

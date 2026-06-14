@@ -10,12 +10,14 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // multipágina: la ventana de pantalla desacoplada tiene su propio HTML
+  // multipágina: las ventanas desacopladas tienen su propio HTML —
+  // pantalla (canvas) y panel (host genérico de Registros/Memoria/Depuración).
   build: {
     rollupOptions: {
       input: {
         main: "index.html",
         pantalla: "pantalla.html",
+        panel: "panel.html",
       },
     },
   },

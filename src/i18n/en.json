@@ -25,6 +25,7 @@
   "panel.video": "Screen (320×240)",
   "video.desacoplar": "Open the screen in a separate window",
   "video.ventana": "EmuRV — Screen",
+  "desacople.titulo": "Open this panel in a separate window",
   "video.tecladoCapturado": "Keyboard captured — click outside to release",
 
   "panel.depuracion": "Debug",
