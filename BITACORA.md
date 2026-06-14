@@ -2933,3 +2933,44 @@ bien.
 Compuerta F3: Depuración desacoplable y sincronizada con el editor (bp
 editor→ventana y quitar ventana→editor; condición y watchpoint desde la
 ventana) · tsc/build · Rust intacto.
+
+## 2026-06-13 — RP22-F4: docs desacople de paneles (cierre)
+
+[Seguro] Docs: README estrena un punto «Paneles desacoplables» (botón ⧉ en
+la cabecera de Registros/Memoria/Depuración → ventana propia, modo mover,
+con tema/idioma y sincronizada). Ayuda integrada: `ayuda.ciclo.texto` (es/en)
+suma la frase del ⧉ (anti-drift verde, sin claves nuevas). ROADMAP-PRO y Cap.
+VI: NO tocados.
+
+[Seguro] CIERRE RP-22 — criterios de aceptación:
+- Registros, Memoria y Depuración desacoplables a ventana, modo MOVER (se van
+  del lateral, vuelven al cerrar) ✓ F1-F3
+- Ventanas 2das sincronizadas por eventos (broadcast de Tauri); edición desde
+  la ventana funciona (write_reg/write_mem; set_breakpoints/set_watchpoints) ✓
+- Tema + idioma aplicados en las ventanas (localStorage al abrir + storage en
+  vivo best-effort) ✓ F1
+- Mecanismo GENÉRICO (un host `panel.html?panel=…` + `desacople.ts`, no 3
+  ad-hoc); Pantalla NO se rompe (mecanismo paralelo) ✓ F1
+- 5 temas AA (las ventanas reusan pares ya cubiertos por contraste.test),
+  ids/registros/Rust intactos, bundle ≤30 ✓ todas
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0
+ambos · UI 62 con node:test), tsc estricto limpio, ci-local.sh completo
+verde, tauri build ok (capability `panel-*` validada), bundle 22 MB ≤ 30.
+
+[Seguro] DEJADO COMO FUTURO (registrado): persistir posición/tamaño de las
+ventanas entre sesiones; modo DUPLICAR (en vez de mover); multi-instancia del
+mismo panel; reflejar en el panel embebido, al reacoplar, los watchpoints
+agregados en la ventana de Depuración (hoy quedan en el backend pero no en la
+lista de main); propagación de tema/idioma en vivo garantizada (hoy
+best-effort por `storage`, siempre correcta al abrir).
+
+[Seguro] Sin tocar Rust en TODO RP-22: el backend ya tenía los comandos y los
+eventos; la sincronización y la coherencia se resolvieron en el frontend
+(eventos de app + refresco al reacoplar). El único cambio fuera de TS fue la
+capability (`panel-*`) y el input multipágina de vite.
+
+[PENDIENTE HUMANO] Verificación visual de los 3 paneles desacoplados en
+varios temas: ⧉ abre cada uno en su ventana (sale del lateral, que se
+recompone); la ventana se ve con el tema/idioma activos; correr/paso/detener
+la refresca; editar funciona; Depuración sincroniza breakpoints con el
+editor; al cerrar, el panel vuelve al lateral con lo editado.
