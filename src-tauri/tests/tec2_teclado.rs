@@ -54,7 +54,7 @@ fn tecla_inyectada_flujo_lw() {
     assert_eq!(m.run(0), StopReason::Exited { code: 0 });
     let r = m.registers().expect("registros");
     assert_eq!(r[5], 1, "1.ª lectura de CONTROL debía dar 1 (dato listo)");
-    assert_eq!(r[7], u32::from(b'h'), "lectura de DATA debía dar 'h'");
+    assert_eq!(r[7], u64::from(b'h'), "lectura de DATA debía dar 'h'");
     assert_eq!(r[28], 0, "2.ª lectura de CONTROL debía dar 0 (consumido)");
 }
 
@@ -73,7 +73,7 @@ ecall";
     assert_eq!(m.run(0), StopReason::Exited { code: 0 });
     let r = m.registers().expect("registros");
     assert_eq!(r[5], 1, "CONTROL debía dar 1 con una tecla en cola");
-    assert_eq!(r[7], u32::from(b'k'), "lb sobre DATA debía dar 'k'");
+    assert_eq!(r[7], u64::from(b'k'), "lb sobre DATA debía dar 'k'");
     assert_eq!(r[28], 0, "CONTROL debía dar 0 tras consumir con lb");
 }
 

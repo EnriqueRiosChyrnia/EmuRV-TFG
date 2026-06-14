@@ -3595,3 +3595,51 @@ Spike verde (5/5) · arquitectura decidida y fundada (esta entrada) · suite
 actual INTACTA: `cargo test` de src-tauri da **224 passed, 0 failed** = 219
 previos + 5 del spike (los 219 sin tocar). `cargo clippy --test spike_rv64 -- -D
 warnings` limpio. Commit `rp32-fase-1: spike RV64 (Unicorn + arquitectura xlen)`.
+
+## 2026-06-14 — RP32-F2: núcleo conmutable RV32/RV64 (valores u64, RV32 intacto)
+
+Implementación de la arquitectura decidida en F1: la `Machine` es CONMUTABLE.
+El cambio es el ACOTADO que predijo el spike — reusa todas las primitivas
+(mismo `Arch`, mismo binding, mismo mapa, mismos hooks); solo cambia el `Mode`
+elegido y el ancho de los VALORES.
+
+[Seguro] CAMBIOS DEL NÚCLEO:
+- `core::Xlen { Rv32 (default), Rv64 }` (Serialize/Deserialize, `bits()`):
+  viaja con el `Program` (`assembler::Program.xlen`) y la `Machine` lo lee.
+- `Machine::new_with_video` elige `Mode::RISCV32`/`RISCV64` con `mode_for(xlen)`
+  (única línea conmutada del setup; mapa, hooks y carga IDÉNTICOS).
+- `Machine::registers()` pasa a `[u64; 32]`. En RV32 el motor ya acota a 32
+  bits (P5 del spike), así que el rango observado es el mismo de antes; se
+  borró el `as u32` redundante. Las DIRECCIONES (`pc()`, `StopReason.addr/pc`)
+  siguen `u32`: el mapa educativo es bajo por diseño.
+- `StopReason::Watchpoint.value` y el `hit_watchpoint` interno pasan a `u64`;
+  `atender_watch` lee hasta 8 bytes (`u64::from_le_bytes`), así un `sd` de RV64
+  reporta el doubleword completo. Un acceso de 4 bytes da el mismo valor que
+  antes (el alto sin leer queda en cero).
+- `commands::MachineState.registers` → `[u64; 32]` (serde). En RV32 los valores
+  caben holgados en `number` de JS; el panel de 64 bits (F4) cruzará los
+  valores grandes como string hex (un `u64` > 2^53 pierde precisión como
+  `number`). La GUI en F2 solo crea programas RV32.
+- `assembler` y `elf_import` fijan `xlen: Rv32` (el ensamblador RV64 es F3; el
+  importador usa `ElfFile32`, es RV32 por construcción).
+
+[Seguro] REGRESIÓN — REGLA DURA CUMPLIDA: los ~219 tests previos siguen verdes.
+El único toque a tests existentes fue MECÁNICO por el ensanche `u32→u64` de
+`registers()` (sin cambiar ninguna aserción de comportamiento):
+`u64::from(SP_INIT/GP_INIT/HEAP_BASE)` en las comparaciones contra constantes
+del mapa (integracion_ejemplos, rp10_syscalls, machine.rs), `u64::from(b'…')`
+en tec2_teclado, tipos de los helpers `run_program`/`Observado`/`par_a_u64`
+(tec3, rp1_ebreak). Ninguna lógica de test cambió.
+
+[Seguro] TESTS NUEVOS (`tests/rp32_rv64_maquina.rs`, 4 verdes): construyen el
+`Program` con palabras RV64 a mano (el ensamblador aún no las produce) y
+prueban — (1) round-trip de 64 bits: `slli 40` → 2^40 y `addiw -1` →
+`0xFFFF…FFFF`; (2) `ld`/`sd` mueven 8 bytes a `.data` (parte alta 0x100 que un
+`sw`/`lw` perdería); (3) CONMUTACIÓN real: el MISMO `addiw` corre en `Rv64` y
+es ilegal en `Rv32`; (4) regresión: un programa ensamblado (RV32 por defecto)
+corre y da `t2 = 42`, con `program.xlen == Rv32`.
+
+[Seguro] Compuerta F2 — VERDE: `cargo test` src-tauri **228 passed, 0 failed**
+(224 + 4 nuevos) · `emurv-cli` verde · `cargo clippy --all-targets -- -D
+warnings` limpio en AMBOS crates. Commit `rp32-fase-2: núcleo conmutable
+RV32/RV64`.

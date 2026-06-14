@@ -23,7 +23,7 @@ use super::{
     DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE, FRAMEBUFFER_SIZE,
     GP_INIT, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
     RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
-    VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE,
+    VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE, Xlen,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -39,6 +39,16 @@ fn xreg(n: u8) -> i32 {
 }
 const PC: RegisterRISCV = RegisterRISCV::PC;
 
+/// `Mode` de Unicorn para un ancho (RP32). El binding de registros es el
+/// MISMO en ambos (`xN = id N+1`); solo cambia el repertorio que el motor
+/// acepta y el ancho efectivo de los registros (verificado en spike RP32-F1).
+fn mode_for(xlen: Xlen) -> Mode {
+    match xlen {
+        Xlen::Rv32 => Mode::RISCV32,
+        Xlen::Rv64 => Mode::RISCV64,
+    }
+}
+
 /// Motivo por el que la ejecución devolvió el control.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -52,11 +62,13 @@ pub enum StopReason {
     Breakpoint { addr: u32 },
     /// Un watchpoint disparó: el programa leyó/escribió la zona vigilada.
     /// `addr`/`value` son del ACCESO real (no del watch); `pc` es la
-    /// instrucción que accedió (la UI resuelve la línea vía source_map).
+    /// instrucción que accedió (la UI resuelve la línea vía source_map). El
+    /// `value` es `u64` (RP32): en RV64 un `sd` mueve 8 bytes; las direcciones
+    /// (`addr`/`pc`) siguen en `u32` porque el mapa educativo cabe en 32 bits.
     Watchpoint {
         addr: u32,
         access: WatchKind,
-        value: u32,
+        value: u64,
         pc: u32,
     },
     /// Pausa por software: el programa ejecutó `ebreak` en `addr`
@@ -123,7 +135,8 @@ pub struct MachData {
     /// es más barata que cualquier estructura para <10 entradas.
     pub watchpoints: Vec<Watchpoint>,
     /// Disparo de watchpoint pendiente: (addr, tipo de acceso, valor, pc).
-    pub hit_watchpoint: Option<(u32, WatchKind, u32, u32)>,
+    /// El valor es `u64` (RP32): un acceso de 64 bits cabe entero.
+    pub hit_watchpoint: Option<(u32, WatchKind, u64, u32)>,
     /// Supresión de UN disparo al reanudar (espejo de `suppress_bp`): el
     /// emu_stop del hook ABORTA la instrucción que accedía; al reanudar,
     /// esa instrucción se re-ejecuta y volvería a disparar el mismo
@@ -224,7 +237,11 @@ impl Machine<'_> {
             stop_request: Arc::default(),
             heap_next: HEAP_BASE,
         };
-        let mut uc = Unicorn::new_with_data(Arch::RISCV, Mode::RISCV32, data)
+        // RP32: el modo del motor sale del `xlen` del programa (RV32 por
+        // defecto). Todo el resto del setup (mapa, hooks, carga) es idéntico:
+        // el mapa educativo cabe en 32 bits y por ende en 64.
+        let mode = mode_for(program.xlen);
+        let mut uc = Unicorn::new_with_data(Arch::RISCV, mode, data)
             .map_err(|e| format!("no se pudo iniciar el emulador: {e:?}"))?;
 
         uc.mem_map(TEXT_BASE as u64, TEXT_SIZE as u64, Prot::READ | Prot::EXEC)
@@ -519,15 +536,16 @@ impl Machine<'_> {
     }
 
     /// x0..x31 (x0 siempre 0). Si algún registro no se puede leer, el error
-    /// se propaga en vez de reportar "el registro vale 0".
-    pub fn registers(&self) -> Result<[u32; 32], String> {
-        let mut regs = [0u32; 32];
+    /// se propaga en vez de reportar "el registro vale 0". Valores `u64`
+    /// (RP32): en RV64 caben los 64 bits; en RV32 el motor ya los acota a 32
+    /// (spike RP32-F1), así que el rango es idéntico al anterior sin truncar.
+    pub fn registers(&self) -> Result<[u64; 32], String> {
+        let mut regs = [0u64; 32];
         for (n, r) in regs.iter_mut().enumerate().skip(1) {
             *r = self
                 .uc
                 .reg_read(xreg(n as u8))
-                .map_err(|e| format!("no se pudo leer el registro x{n}: {e:?}"))?
-                as u32;
+                .map_err(|e| format!("no se pudo leer el registro x{n}: {e:?}"))?;
         }
         Ok(regs)
     }
@@ -842,7 +860,7 @@ impl Machine<'_> {
                 let escritura = self
                     .uc
                     .add_mem_hook(HookType::MEM_WRITE, 1, 0, |uc, _t, addr, size, valor| {
-                        atender_watch(uc, addr, size, valor as u32, true);
+                        atender_watch(uc, addr, size, valor as u64, true);
                         true
                     })
                     .map_err(|e| format!("no se pudo instalar el hook de escritura: {e:?}"))?;
@@ -1130,7 +1148,7 @@ fn atender_watch(
     uc: &mut Unicorn<'_, MachData>,
     addr: u64,
     size: usize,
-    valor_escrito: u32,
+    valor_escrito: u64,
     es_escritura: bool,
 ) {
     let ini = addr as u32;
@@ -1152,15 +1170,17 @@ fn atender_watch(
         solapa && tipo_ok
     });
     let Some(_w) = disparo else { return };
-    let valor = if es_escritura {
+    let valor: u64 = if es_escritura {
         valor_escrito
     } else {
-        let mut buf = [0u8; 4];
-        let n = size.min(4);
+        // Hasta 8 bytes (RP32): un `ld` de RV64 accede 8. El alto sin leer
+        // queda en cero, así un acceso de 4 bytes da el mismo valor que antes.
+        let mut buf = [0u8; 8];
+        let n = size.min(8);
         if uc.mem_read(addr, &mut buf[..n]).is_err() {
             0
         } else {
-            u32::from_le_bytes(buf)
+            u64::from_le_bytes(buf)
         }
     };
     let pc = uc.reg_read(PC).unwrap_or(0) as u32;
@@ -1262,8 +1282,9 @@ mod tests {
         let (m, _o, _i) = machine_for("nop");
         assert_eq!(m.pc().unwrap(), TEXT_BASE);
         let r = m.registers().unwrap();
-        assert_eq!(r[2], SP_INIT); // sp
-        assert_eq!(r[3], GP_INIT); // gp
+        // RP32: registers() es u64; las constantes del mapa son u32.
+        assert_eq!(r[2], u64::from(SP_INIT)); // sp
+        assert_eq!(r[3], u64::from(GP_INIT)); // gp
         assert_eq!(r[0], 0);
     }
 

@@ -77,8 +77,9 @@ ecall";
     });
     assert_eq!(reason, StopReason::Exited { code: 0 });
     // s0 = x8, s1 = x9, s2 = x18, s3 = x19.
-    let t1 = par_a_u64(regs[9], regs[8]);
-    let t2 = par_a_u64(regs[19], regs[18]);
+    // RP32: registers() es u64; estas mitades son de 32 bits (RV32).
+    let t1 = par_a_u64(regs[9] as u32, regs[8] as u32);
+    let t2 = par_a_u64(regs[19] as u32, regs[18] as u32);
     assert!(
         t1 > 1_700_000_000_000,
         "el tiempo debe ser posterior a 2023 (≈1.7e12 ms), dio {t1}"
@@ -115,8 +116,9 @@ ecall";
         (reason, m.registers().expect("registros"))
     });
     assert_eq!(reason, StopReason::Exited { code: 0 });
-    let t1 = par_a_u64(regs[9], regs[8]);
-    let t2 = par_a_u64(regs[19], regs[18]);
+    // RP32: registers() es u64; estas mitades son de 32 bits (RV32).
+    let t1 = par_a_u64(regs[9] as u32, regs[8] as u32);
+    let t2 = par_a_u64(regs[19] as u32, regs[18] as u32);
     assert!(t2 >= t1, "el reloj anclado no puede decrecer");
     let delta = t2 - t1;
     assert!(

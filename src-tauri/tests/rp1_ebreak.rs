@@ -64,11 +64,12 @@ const DIR_EBREAK: u32 = TEXT_BASE + 4;
 struct Observado {
     razon_pausa: StopReason,
     pc_en_pausa: u32,
-    t0_en_pausa: u32,
-    t1_en_pausa: u32,
+    // RP32: valores de registro en u64 (registers() es u64). El pc sigue u32.
+    t0_en_pausa: u64,
+    t1_en_pausa: u64,
     razon_final: StopReason,
-    t1_final: u32,
-    t2_final: u32,
+    t1_final: u64,
+    t2_final: u64,
 }
 
 #[test]

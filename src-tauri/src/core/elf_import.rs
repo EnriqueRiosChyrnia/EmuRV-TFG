@@ -137,6 +137,9 @@ pub fn import_elf(bytes: &[u8]) -> Result<Program, String> {
         // Solo aceptamos ET_EXEC absoluto al importar (ver más abajo): un
         // binario importado nunca es «reubicable» para EmuRV.
         reubicable: false,
+        // El importador usa `ElfFile32` (direcciones `as u32`): solo importa
+        // binarios RV32. La detección de RV64 al importar queda fuera de RP32.
+        xlen: super::Xlen::Rv32,
     })
 }
 

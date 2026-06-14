@@ -224,9 +224,10 @@ fn sbrk_reservas_sucesivas_alineadas() {
     let mut m = machine_con_entrada(src).0;
     assert!(matches!(correr(&mut m), StopReason::Exited { code: 0 }));
     let regs = m.registers().expect("regs");
-    assert_eq!(regs[8], HEAP_BASE, "primera reserva = HEAP_BASE");
-    assert_eq!(regs[9], HEAP_BASE + 8, "5 bytes redondean a 8");
-    assert_eq!(regs[18], HEAP_BASE + 12, "3 bytes redondean a 4");
+    // RP32: registers() es u64; HEAP_BASE es u32 (el mapa cabe en 32 bits).
+    assert_eq!(regs[8], u64::from(HEAP_BASE), "primera reserva = HEAP_BASE");
+    assert_eq!(regs[9], u64::from(HEAP_BASE) + 8, "5 bytes redondean a 8");
+    assert_eq!(regs[18], u64::from(HEAP_BASE) + 12, "3 bytes redondean a 4");
 }
 
 /// Agotamiento: error didáctico con lo pedido y lo libre (apartamiento de
@@ -251,12 +252,12 @@ fn sbrk_reset_limpia_el_puntero() {
     let src = ".text\n  li a0, 64\n  li a7, 9\n  ecall\n  mv s0, a0\n  li a7, 10\n  ecall\n";
     let mut m = machine_con_entrada(src).0;
     assert!(matches!(correr(&mut m), StopReason::Exited { code: 0 }));
-    assert_eq!(m.registers().expect("regs")[8], HEAP_BASE);
+    assert_eq!(m.registers().expect("regs")[8], u64::from(HEAP_BASE));
     m.reset().expect("reset");
     assert!(matches!(correr(&mut m), StopReason::Exited { code: 0 }));
     assert_eq!(
         m.registers().expect("regs")[8],
-        HEAP_BASE,
+        u64::from(HEAP_BASE),
         "tras reset, sbrk vuelve a repartir desde HEAP_BASE"
     );
 }

@@ -10,7 +10,7 @@ use std::sync::mpsc::channel;
 
 /// Ensambla y ejecuta un ejemplo completo, alimentando `inputs` a las
 /// syscalls de lectura. Devuelve (salida de consola, registros, motivo).
-fn run_program(src: &str, inputs: &[&str]) -> (String, [u32; 32], StopReason) {
+fn run_program(src: &str, inputs: &[&str]) -> (String, [u64; 32], StopReason) {
     let program = assemble(src).unwrap_or_else(|errs| {
         panic!(
             "el ejemplo debe ensamblar sin errores; hubo:\n{}",
@@ -94,5 +94,5 @@ fn ejemplo_05_pila_funciones() {
         run_program(include_str!("../../ejemplos/05-pila-funciones.asm"), &[]);
     assert_eq!(reason, StopReason::Exited { code: 0 });
     assert_eq!(out, "5! = 120\n"); // 120 impreso desde a0
-    assert_eq!(regs[2], SP_INIT); // sp balanceado: la pila quedó limpia
+    assert_eq!(regs[2], u64::from(SP_INIT)); // sp balanceado: la pila quedó limpia
 }
