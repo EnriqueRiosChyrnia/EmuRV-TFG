@@ -239,5 +239,6 @@
   "memoria.busqueda.siguienteAria": "Coincidencia siguiente",
   "memoria.busqueda.invalido": "Valor de búsqueda inválido para el tipo elegido",
   "memoria.busqueda.sinPrograma": "Primero ensamblá un programa para poder buscar en memoria",
-  "memoria.busqueda.noEncontrado": "No se encontró «{patron}» en la región de datos"
+  "memoria.busqueda.noEncontrado": "No se encontró «{patron}» en la región de datos",
+  "ayuda.memoria.buscar": "Para encontrar un dato, usá el buscador del panel de Memoria: elegí el tipo (byte hex, word hex o texto ASCII), escribí el valor y «Buscar». El word se busca tal como se guarda en memoria (little-endian: el word 0x0000002A se localiza como los bytes 2A 00 00 00). Los botones ‹ y › saltan a la coincidencia anterior y siguiente (también con Enter y Shift+Enter). La búsqueda recorre la región de datos (.data, .bss y el heap)."
 }

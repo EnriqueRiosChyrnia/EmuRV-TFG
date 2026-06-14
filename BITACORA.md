@@ -3089,3 +3089,84 @@ Sin tocar código Rust, sin renombrar ids, sin reordenar registros.
 panel o la pantalla y cerrar la principal → la hija se cierra; (b) Nuevo /
 Guardar / Guardar como / Abrir andan y «Guardar» no re-pregunta cuando ya hay
 ruta (sí la pide la primera vez).
+
+## 2026-06-14 — RP26-F1: búsqueda en el panel de memoria
+
+[Seguro] Lógica de búsqueda AISLADA en un módulo puro `src/paneles/
+memoria-buscar.ts` (sin DOM ni dependencias de Tauri): `parsearPatron`,
+`buscarPatron` y el escaneo por bloques `buscarAdelante`/`buscarAtras` sobre
+un lector inyectable (`LectorMem`). Motivo: poder testear los bordes con
+`node:test` sin montar el DOM ni el puente Tauri (mismo criterio anti-drift
+que `scroll-spy.ts`/`i18n`). Alternativa descartada: meter todo en
+`memoria.ts` y mockear `api.readMem` — habría arrastrado el import de
+`@tauri-apps/api` al test. El panel (`memoria.ts`) solo orquesta UI.
+
+[Seguro] Endianness — el word de 32 bits se busca LITTLE-ENDIAN, tal como se
+almacena en RV32: `parsearPatron("0000002A", "word")` → bytes `2A 00 00 00`.
+Es la forma natural de localizar un dato en memoria (coincide con lo que
+muestra el volcado). Documentado en la Ayuda (`ayuda.memoria.buscar`).
+
+[Probable] Rango escaneado = la REGIÓN DE DATOS mapeada
+`[data_base, 0x10400000)` — espejo de `DATA_REGION_BASE`/`DATA_REGION_SIZE`
+del backend (`src-tauri/src/core/mod.rs`: base 0x10000000, tamaño 4 MiB).
+Cubre `.data`, `.bss` y el heap (la zona donde vive el dato del usuario).
+Acotado a propósito: NO incluye la pila, que está 8 MiB por debajo de
+0x80000000 con un hueco NO mapeado de ~1,8 GB en medio; escanear ese hueco
+dispararía errores de `read_mem` («dirección no mapeada») y/o colgaría la UI.
+Limitación consciente (buscar en la pila queda fuera de alcance de RP-26).
+
+[Seguro] Escaneo POR BLOQUES de 16 KiB (`BLOQUE`) con solape de
+`patron.length-1` bytes entre bloques, para no perder una coincidencia
+partida entre dos lecturas. Async (un `await api.readMem` por bloque) → no
+congela la UI; corta en la 1ª coincidencia. 16 KiB equilibra nº de
+round-trips IPC (≈240 para recorrer los 4 MiB en el peor caso) y tamaño del
+payload JSON de cada lectura. «Anterior» reusa `buscarAdelante` recolectando
+la última coincidencia con dirección < ancla (rango acotado, sin lógica de
+escaneo inverso duplicada).
+
+[Seguro] NO se agregó ningún comando Rust nuevo: la búsqueda reusa
+`api.readMem` (comando `read_mem` ya existente). Todo RP-26 es FRONTEND
+(`memoria.ts`, `memoria-buscar.ts`, `styles.css`, i18n, `ayuda.ts`, README).
+Sin tocar `src/editor/`, `src/temas/`, `src-tauri/core` ni `main.ts`.
+
+[Seguro] UI: fila de controles bajo los de dirección (input + selector
+byte/word/ASCII + Buscar + ‹/›). Resaltado de la coincidencia POR BYTE en el
+volcado (clase `.memoria-coincidencia`), así funciona aunque el patrón cruce
+palabras o filas. `irA` (navegación manual) limpia la marca; la búsqueda usa
+un `saltar` interno que la conserva. Avisos didácticos: patrón inválido para
+el tipo, sin programa ensamblado, o no encontrado (con el patrón citado).
+
+## 2026-06-14 — RP26-F2: docs y cierre
+
+[Seguro] Docs: README estrena la búsqueda en la viñeta de la vista de
+memoria; Ayuda integrada suma `ayuda.memoria.buscar` (es/en) en la sección
+«Mapa de memoria» (tipo de patrón, endianness del word, ‹/›, rango = región
+de datos). Claves i18n nuevas AL FINAL de `es.json` y `en.json` (es/en con
+las mismas claves: test `idiomas` verde). ROADMAP-PRO y Cap. VI: NO tocados.
+
+[Seguro] FLAKE PREEXISTENTE detectado en el cierre (NO es de RP-26): la suite
+`emurv-cli/tests/rp6_debug.rs` (servidor GDB RSP) falla de forma
+intermitente bajo ejecución PARALELA con «Connection reset by peer» (race de
+socket entre tests que abren cada uno su puerto RSP). Verificado: 7/7 verdes
+con `--test-threads=1` y cada test verde al reintentarlo aislado. RP-26 es
+frontend puro: no toca Rust, así que no puede ser la causa. Queda registrado
+como deuda del harness del CLI (fuera del área de RP-26).
+
+[Seguro] CIERRE RP-26 — criterios de aceptación:
+- Buscar byte/word/ASCII en memoria, saltar a la dirección y resaltar ✓ F1
+- Siguiente/anterior coincidencia (‹/›, Enter/Shift+Enter) ✓ F1
+- Sin congelar la UI: escaneo async por bloques de 16 KiB / rango acotado ✓ F1
+- Lógica de búsqueda testeada (función pura, bordes) ✓ F1
+- Docs README + Ayuda + i18n es/en ✓ F2
+Compuerta final verde: `cargo test` + `cargo clippy --all-targets -D warnings`
+verdes en AMBOS crates (src-tauri y emurv-cli), `tsc --noEmit` limpio,
+`ci-local.sh --skip-bundle` verde (con el flake paralelo de rp6_debug
+verificado verde en serie), `cargo tauri build` ok (EmuRV.app y .dmg), bundle
+EmuRV.app 22 MB ≤ 30 (RNF-04). UI 75 tests con node:test (62 previos + 13 de
+`memoria-buscar`).
+
+[PENDIENTE HUMANO] Verificación manual: ensamblar un programa con datos
+conocidos (p. ej. `.word 0x0000002A` o una cadena `.asciz "Hola"`), buscar
+`2A` (byte), `0000002A` (word) y `Hola` (ASCII) → salta y resalta; ‹/›
+recorren; un valor ausente avisa «no encontrado»; un patrón inválido para el
+tipo avisa.
