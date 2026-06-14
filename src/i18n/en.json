@@ -239,5 +239,6 @@
   "memoria.busqueda.siguienteAria": "Next match",
   "memoria.busqueda.invalido": "Search value invalid for the chosen type",
   "memoria.busqueda.sinPrograma": "Assemble a program first to search memory",
-  "memoria.busqueda.noEncontrado": "«{patron}» not found in the data region"
+  "memoria.busqueda.noEncontrado": "«{patron}» not found in the data region",
+  "ayuda.memoria.buscar": "To find a value, use the Memory panel's search box: pick the type (hex byte, hex word or ASCII text), type the value and «Search». A word is searched exactly as stored in memory (little-endian: the word 0x0000002A is located as the bytes 2A 00 00 00). The ‹ and › buttons jump to the previous and next match (also with Enter and Shift+Enter). The search scans the data region (.data, .bss and the heap)."
 }
