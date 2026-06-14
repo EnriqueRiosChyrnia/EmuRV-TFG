@@ -121,6 +121,9 @@ class App {
     // RP18-F3: Memoria plegable (abierta por defecto; el alumno la cierra si
     // necesita espacio). Depuración ya se autogestiona (arranca .colapsado
     // en index.html y se expande sola al primer breakpoint, ver abajo).
+    // Registros plegable también (pedido del autor): abierto por defecto, el
+    // alumno lo cierra si quiere. Sigue siendo el prioritario en el flex.
+    this.hacerPanelPlegable("panel-registros");
     this.hacerPanelPlegable("panel-memoria");
     this.depuracion = new Depuracion(document.getElementById("depuracion")!, {
       // Condición editada: re-mandar el juego completo (el rechazo del
