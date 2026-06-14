@@ -131,6 +131,10 @@ pub fn known_mnemonics() -> Vec<&'static str> {
         "and", "fence", "ecall", "ebreak",
         // RV32M
         "mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu",
+        // RV64IM (RP32) — solo válidas si el programa es RV64 (el ensamblador
+        // las rechaza en RV32 con un error didáctico).
+        "ld", "lwu", "sd", "addiw", "slliw", "srliw", "sraiw", "addw", "subw", "sllw", "srlw",
+        "sraw", "mulw", "divw", "divuw", "remw", "remuw",
         // Zicsr (RP8)
         "csrrw", "csrrs", "csrrc", "csrrwi", "csrrsi", "csrrci", "mret",
         // RV32F (RP12)
@@ -628,6 +632,9 @@ struct Pass1 {
     /// de parsear cada PpLine; evita enhebrar 3 valores por cada firma).
     cur_file: u16,
     cur_main_line: u32,
+    /// Ancho de la arquitectura (RP32): habilita el repertorio RV64 y el
+    /// shamt de 6 bits. `instr_size`/`check_shape` lo consultan en pasada 1.
+    xlen: Xlen,
 }
 
 /// Ensambla un fuente SIN resolución de archivos (`.include` da error
@@ -637,10 +644,18 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
     assemble_with_includes(source, None, "programa.s")
 }
 
+/// Ensambla para un ancho concreto (RP32). `Xlen::Rv32` produce exactamente
+/// lo mismo que [`assemble`]; `Xlen::Rv64` habilita el repertorio de 64 bits
+/// (W-instructions, ld/sd, shamt de 6 bits). Sin includes ni modo reubicable
+/// (la GUI/CLI pasan el ancho elegido por acá).
+pub fn assemble_with_xlen(source: &str, xlen: Xlen) -> Result<Program, Vec<AsmError>> {
+    assemble_impl(source, None, "programa.s", false, xlen)
+}
+
 /// Como [`assemble`] pero en modo REUBICABLE (RP29): las referencias a
 /// símbolos se codifican PC-relativo. Atajo para tests/usos sin includes.
 pub fn assemble_reubicable(source: &str) -> Result<Program, Vec<AsmError>> {
-    assemble_impl(source, None, "programa.s", true)
+    assemble_impl(source, None, "programa.s", true, Xlen::Rv32)
 }
 
 /// Ensambla el fuente completo, resolviendo `.include` relativo a
@@ -651,7 +666,7 @@ pub fn assemble_with_includes(
     base_dir: Option<&std::path::Path>,
     main_name: &str,
 ) -> Result<Program, Vec<AsmError>> {
-    assemble_impl(source, base_dir, main_name, false)
+    assemble_impl(source, base_dir, main_name, false, Xlen::Rv32)
 }
 
 /// Igual que [`assemble_with_includes`] pero en modo REUBICABLE (RP29).
@@ -661,7 +676,7 @@ pub fn assemble_with_includes_reubicable(
     base_dir: Option<&std::path::Path>,
     main_name: &str,
 ) -> Result<Program, Vec<AsmError>> {
-    assemble_impl(source, base_dir, main_name, true)
+    assemble_impl(source, base_dir, main_name, true, Xlen::Rv32)
 }
 
 /// Cuerpo común del ensamblado. `reubicable` solo afecta la pasada 2: la
@@ -672,6 +687,7 @@ fn assemble_impl(
     base_dir: Option<&std::path::Path>,
     main_name: &str,
     reubicable: bool,
+    xlen: Xlen,
 ) -> Result<Program, Vec<AsmError>> {
     let pp = super::preprocess::preprocess(source, base_dir, main_name)?;
     let files = pp.files;
@@ -696,6 +712,7 @@ fn assemble_impl(
         errors: Vec::new(),
         cur_file: 0,
         cur_main_line: 0,
+        xlen,
     };
 
     for pl in &pp.lines {
@@ -749,7 +766,7 @@ fn assemble_impl(
             }
             continue;
         }
-        match encode_instr(ins, &p.symbols, reubicable) {
+        match encode_instr(ins, &p.symbols, reubicable, xlen) {
             Ok(words) => {
                 debug_assert_eq!(words.len() as u32 * 4, ins.size);
                 for (k, w) in words.iter().enumerate() {
@@ -793,9 +810,7 @@ fn assemble_impl(
             entry: TEXT_BASE,
             from_binary: false,
             reubicable,
-            // F2: el ensamblado produce RV32 (el repertorio sigue siendo el
-            // histórico). La Fase 3 parametriza esto por el modo pedido.
-            xlen: Xlen::Rv32,
+            xlen,
         })
     } else {
         p.errors.sort_by_key(|e| (e.file.clone(), e.line, e.col));
@@ -1192,7 +1207,7 @@ fn parse_instruction(
     for arg in split_args(rest) {
         ops.push(parse_operand(arg, line, &p.consts)?);
     }
-    let size = instr_size(&mnem, &ops, line, col)?;
+    let size = instr_size(&mnem, &ops, line, col, p.xlen)?;
     let addr = TEXT_BASE + p.text_off;
     p.text_off += size;
     p.instrs.push(PInstr {
@@ -1450,23 +1465,49 @@ fn fits12(v: i64) -> bool {
     (-2048..=2047).contains(&v)
 }
 
+/// Mnemónicos EXCLUSIVOS de RV64 (RP32): no existen en RV32. Las base
+/// compartidas que solo cambian el ANCHO del shamt (slli/srli/srai) NO entran
+/// acá: se aceptan en ambos modos y el rango del shamt se valida según xlen.
+fn rv64_only(mnem: &str) -> bool {
+    matches!(
+        mnem,
+        "ld" | "lwu"
+            | "sd"
+            | "addiw"
+            | "slliw"
+            | "srliw"
+            | "sraiw"
+            | "addw"
+            | "subw"
+            | "sllw"
+            | "srlw"
+            | "sraw"
+            | "mulw"
+            | "divw"
+            | "divuw"
+            | "remw"
+            | "remuw"
+    )
+}
+
 /// Mnemónicos reales de 4 bytes con su validación de forma en
 /// `check_shape`. Las pseudo-instrucciones que expanden a 2 palabras se
 /// listan aparte.
-fn instr_size(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<u32, AsmError> {
-    check_shape(mnem, ops, line, col)?;
+fn instr_size(mnem: &str, ops: &[POp], line: u32, col: u32, xlen: Xlen) -> Result<u32, AsmError> {
+    check_shape(mnem, ops, line, col, xlen)?;
     let size = match mnem {
         "li" => match &ops[1].kind {
             OpKind::Imm(v) if fits12(*v) => 4,
             _ => 8,
         },
         "la" | "lla" => 8,
-        // cargas/almacenamientos con etiqueta expanden a lui+op
-        "lb" | "lh" | "lw" | "lbu" | "lhu" => match &ops[1].kind {
+        // cargas/almacenamientos con etiqueta expanden a lui+op (RP32: ld/lwu
+        // y sd siguen el mismo patrón que lw/sw).
+        "lb" | "lh" | "lw" | "lbu" | "lhu" | "ld" | "lwu" => match &ops[1].kind {
             OpKind::Sym(_) | OpKind::Imm(_) => 8,
             _ => 4,
         },
-        "sb" | "sh" | "sw" => match &ops[1].kind {
+        "sb" | "sh" | "sw" | "sd" => match &ops[1].kind {
             OpKind::Sym(_) | OpKind::Imm(_) => 8,
             _ => 4,
         },
@@ -1485,10 +1526,18 @@ fn instr_size(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<u32, AsmEr
 
 /// Valida cantidad y forma de operandos en la pasada 1, para que la
 /// pasada 2 solo pueda fallar por símbolos o rangos.
-fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmError> {
+fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32, xlen: Xlen) -> Result<(), AsmError> {
     use OpKind::*;
     let err = |msg: String| Err(AsmError::new(line, col, msg));
     let n = ops.len();
+    // RP32: una instrucción RV64 en un programa RV32 es un error didáctico (no
+    // «instrucción desconocida»: el mnemónico existe, pero no en este ancho).
+    if xlen == Xlen::Rv32 && rv64_only(mnem) {
+        return err(format!(
+            "«{mnem}» es una instrucción de RV64; este programa es RV32. \
+             Cambiá la arquitectura a RV64 para usar el repertorio de 64 bits."
+        ));
+    }
     let want = |k: usize, forma: &str| -> Result<(), AsmError> {
         if n != k {
             return Err(AsmError::new(
@@ -1609,9 +1658,10 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
     };
 
     match mnem {
-        // R: rd, rs1, rs2
+        // R: rd, rs1, rs2 (RV64IM agrega las W: addw/subw/…/mulw/…/remuw)
         "add" | "sub" | "sll" | "slt" | "sltu" | "xor" | "srl" | "sra" | "or" | "and" | "mul"
-        | "mulh" | "mulhsu" | "mulhu" | "div" | "divu" | "rem" | "remu" => {
+        | "mulh" | "mulhsu" | "mulhu" | "div" | "divu" | "rem" | "remu" | "addw" | "subw"
+        | "sllw" | "srlw" | "sraw" | "mulw" | "divw" | "divuw" | "remw" | "remuw" => {
             want(3, "registro, registro, registro")?;
             if !(is_reg(0) && is_reg(1) && is_reg(2)) {
                 return err(format!(
@@ -1628,7 +1678,9 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 ));
             }
         }
-        "slti" | "sltiu" | "xori" | "andi" | "slli" | "srli" | "srai" => {
+        // I aritmética/shift (RV64: addiw + slliw/srliw/sraiw, mismo molde)
+        "slti" | "sltiu" | "xori" | "andi" | "slli" | "srli" | "srai" | "addiw" | "slliw"
+        | "srliw" | "sraiw" => {
             want(3, "registro, registro, inmediato")?;
             if !(is_reg(0) && is_reg(1) && is_imm(2)) {
                 return err(format!(
@@ -1636,8 +1688,9 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 ));
             }
         }
-        // cargas: rd, off(base) | rd, etiqueta | rd, constante (dirección)
-        "lb" | "lh" | "lw" | "lbu" | "lhu" => {
+        // cargas: rd, off(base) | rd, etiqueta | rd, constante (dirección).
+        // RV64 agrega ld (doubleword) y lwu (word sin signo).
+        "lb" | "lh" | "lw" | "lbu" | "lhu" | "ld" | "lwu" => {
             want(2, "registro, desplazamiento(base) o etiqueta")?;
             if !is_reg(0) || !(is_mem(1) || is_sym(1) || is_imm(1)) {
                 return err(format!(
@@ -1646,8 +1699,9 @@ fn check_shape(mnem: &str, ops: &[POp], line: u32, col: u32) -> Result<(), AsmEr
                 ));
             }
         }
-        // almacenamientos: rs2, off(base) | rs2, etiqueta, reg_tmp
-        "sb" | "sh" | "sw" => {
+        // almacenamientos: rs2, off(base) | rs2, etiqueta, reg_tmp.
+        // RV64 agrega sd (doubleword), mismo molde que sw.
+        "sb" | "sh" | "sw" | "sd" => {
             if n == 2 {
                 if !is_reg(0) || !is_mem(1) {
                     return err(format!(
@@ -2029,9 +2083,21 @@ struct Ctx<'a> {
     symbols: &'a BTreeMap<String, u32>,
     /// Modo reubicable (RP29): la expansión con etiqueta usa PC-relativo.
     reubicable: bool,
+    /// Ancho de la arquitectura (RP32): fija el shamt máximo de slli/srli/srai.
+    xlen: Xlen,
 }
 
 impl Ctx<'_> {
+    /// Shamt máximo de slli/srli/srai según el ancho: 5 bits en RV32 (0..31),
+    /// 6 bits en RV64 (0..63). El encoding es el mismo (el bit extra cae en el
+    /// shamt de 6 bits, donde RV32 tendría funct7); solo cambia el rango.
+    fn shift_max(&self) -> i64 {
+        if self.xlen == Xlen::Rv64 {
+            63
+        } else {
+            31
+        }
+    }
     /// Error interno: la pasada 2 encontró una forma que la pasada 1 no
     /// debió dejar pasar. Antes era un `unreachable!` que tiraba la app.
     fn internal_err(&self, i: usize, expected: &str) -> AsmError {
@@ -2212,13 +2278,13 @@ impl Ctx<'_> {
         }
         Ok(off)
     }
-    fn shamt(&self, i: usize) -> Result<u8, AsmError> {
+    fn shamt(&self, i: usize, max: i64) -> Result<u8, AsmError> {
         let v = self.imm(i)?;
-        if !(0..=31).contains(&v) {
+        if !(0..=max).contains(&v) {
             return Err(AsmError::new(
                 self.ins.line,
                 self.ins.ops[i].col,
-                format!("el desplazamiento de bits debe estar entre 0 y 31 (hay {v})"),
+                format!("el desplazamiento de bits debe estar entre 0 y {max} (hay {v})"),
             ));
         }
         Ok(v as u8)
@@ -2229,11 +2295,13 @@ fn encode_instr(
     ins: &PInstr,
     symbols: &BTreeMap<String, u32>,
     reubicable: bool,
+    xlen: Xlen,
 ) -> Result<Vec<u32>, AsmError> {
     let c = Ctx {
         ins,
         symbols,
         reubicable,
+        xlen,
     };
     let m = ins.mnem.as_str();
     let w = match m {
@@ -2264,9 +2332,26 @@ fn encode_instr(
         "xori" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 4, c.reg(0)?, 0x13),
         "ori" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 6, c.reg(0)?, 0x13),
         "andi" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 7, c.reg(0)?, 0x13),
-        "slli" => enc_i(c.shamt(2)? as i32, c.reg(1)?, 1, c.reg(0)?, 0x13),
-        "srli" => enc_i(c.shamt(2)? as i32, c.reg(1)?, 5, c.reg(0)?, 0x13),
-        "srai" => enc_i((c.shamt(2)? as i32) | 0x400, c.reg(1)?, 5, c.reg(0)?, 0x13),
+        "slli" => enc_i(c.shamt(2, c.shift_max())? as i32, c.reg(1)?, 1, c.reg(0)?, 0x13),
+        "srli" => enc_i(c.shamt(2, c.shift_max())? as i32, c.reg(1)?, 5, c.reg(0)?, 0x13),
+        "srai" => enc_i((c.shamt(2, c.shift_max())? as i32) | 0x400, c.reg(1)?, 5, c.reg(0)?, 0x13),
+        // ---- RV64IM (RP32): OP-32 0x3B (W de 32 bits sign-extendidas) y
+        // OP-IMM-32 0x1B. addiw acepta inmediato de 12 bits; los shift W usan
+        // shamt de 5 bits (operan sobre 32 bits).
+        "addw" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 0, c.reg(0)?, 0x3B),
+        "subw" => enc_r(0x20, c.reg(2)?, c.reg(1)?, 0, c.reg(0)?, 0x3B),
+        "sllw" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 1, c.reg(0)?, 0x3B),
+        "srlw" => enc_r(0x00, c.reg(2)?, c.reg(1)?, 5, c.reg(0)?, 0x3B),
+        "sraw" => enc_r(0x20, c.reg(2)?, c.reg(1)?, 5, c.reg(0)?, 0x3B),
+        "mulw" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 0, c.reg(0)?, 0x3B),
+        "divw" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 4, c.reg(0)?, 0x3B),
+        "divuw" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 5, c.reg(0)?, 0x3B),
+        "remw" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 6, c.reg(0)?, 0x3B),
+        "remuw" => enc_r(0x01, c.reg(2)?, c.reg(1)?, 7, c.reg(0)?, 0x3B),
+        "addiw" => enc_i(c.check_imm12(2, c.imm(2)?)?, c.reg(1)?, 0, c.reg(0)?, 0x1B),
+        "slliw" => enc_i(c.shamt(2, 31)? as i32, c.reg(1)?, 1, c.reg(0)?, 0x1B),
+        "srliw" => enc_i(c.shamt(2, 31)? as i32, c.reg(1)?, 5, c.reg(0)?, 0x1B),
+        "sraiw" => enc_i((c.shamt(2, 31)? as i32) | 0x400, c.reg(1)?, 5, c.reg(0)?, 0x1B),
         // ---- U / J ----
         "lui" | "auipc" => {
             let v = c.imm(1)?;
@@ -2409,8 +2494,9 @@ fn encode_instr(
         "flw" | "fld" => return encode_fload(&c, m),
         "fsw" | "fsd" => return encode_fstore(&c, m),
         // ---- cargas / almacenamientos / li / la: pueden expandir a 2 words
-        "lb" | "lh" | "lw" | "lbu" | "lhu" => return encode_load(&c, m),
-        "sb" | "sh" | "sw" => return encode_store(&c, m),
+        // (RV64: ld/lwu y sd siguen el mismo camino que lw/sw).
+        "lb" | "lh" | "lw" | "lbu" | "lhu" | "ld" | "lwu" => return encode_load(&c, m),
+        "sb" | "sh" | "sw" | "sd" => return encode_store(&c, m),
         "li" => return encode_li(&c),
         "la" | "lla" => {
             let addr = c.target(1)?;
@@ -2472,9 +2558,13 @@ fn load_f3(c: &Ctx, m: &str) -> Result<u32, AsmError> {
         "lw" => Ok(2),
         "lbu" => Ok(4),
         "lhu" => Ok(5),
+        // RV64 (RP32): ld doubleword (f3=3), lwu word sin signo (f3=6).
+        "ld" => Ok(3),
+        "lwu" => Ok(6),
         "sb" => Ok(0),
         "sh" => Ok(1),
         "sw" => Ok(2),
+        "sd" => Ok(3),
         _ => Err(AsmError::new(
             c.ins.line,
             1,
@@ -2645,10 +2735,13 @@ fn encode_fstore(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
 fn encode_compressed(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<u16, AsmError> {
     // Las comprimidas con salto (c.j/c.beqz/c.bnez) ya son PC-relativas, así
     // que el modo reubicable no las afecta: `reubicable: false` es correcto.
+    // El ancho no afecta a estas comprimidas (ninguna usa el shamt de
+    // slli/srli/srai): `Xlen::Rv32` es indiferente acá.
     let c = Ctx {
         ins,
         symbols,
         reubicable: false,
+        xlen: Xlen::Rv32,
     };
     let m = ins.mnem.as_str();
     let err = |col: u32, msg: String| AsmError::new(ins.line, col, msg);

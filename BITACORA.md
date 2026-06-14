@@ -3643,3 +3643,53 @@ corre y da `t2 = 42`, con `program.xlen == Rv32`.
 (224 + 4 nuevos) · `emurv-cli` verde · `cargo clippy --all-targets -- -D
 warnings` limpio en AMBOS crates. Commit `rp32-fase-2: núcleo conmutable
 RV32/RV64`.
+
+## 2026-06-14 — RP32-F3: ensamblador RV64 verificado palabra a palabra contra GNU
+
+El ensamblador queda parametrizado por `Xlen`. En `Rv64` acepta el repertorio
+de 64 bits; en `Rv32` lo rechaza con error didáctico. Los encodings se
+verifican UNA A UNA contra `riscv64-elf-as -march=rv64im -mabi=lp64`.
+
+[Seguro] REPERTORIO RV64IM AGREGADO (sobre RV32IM):
+- RV64I: `ld` (doubleword, f3=3), `lwu` (word sin signo, f3=6), `sd`
+  (doubleword, f3=3); las W de OP-IMM-32 (0x1B) `addiw`/`slliw`/`srliw`/`sraiw`
+  y las de OP-32 (0x3B) `addw`/`subw`/`sllw`/`srlw`/`sraw`.
+- RV64M (OP-32 0x3B, funct7=0x01): `mulw`/`divw`/`divuw`/`remw`/`remuw`.
+- `slli`/`srli`/`srai`: en RV64 el shamt es de 6 bits (0..63). HALLAZGO: el
+  encoding es el MISMO que en RV32 — el bit extra del shamt cae justo donde
+  RV32 tiene el LSB de funct7 (que vale 0), y `srai`/`sraiw` reusan el truco
+  `| 0x400` (funct6=010000). Solo cambia el RANGO validado (`shift_max()`:
+  31 en RV32, 63 en RV64). Por eso no hubo que duplicar codificación.
+
+[Seguro] ARQUITECTURA DEL CAMBIO: `Xlen` viaja en `Pass1` y se enhebra a
+`check_shape`/`instr_size` (pasada 1) y a `Ctx`/`encode_instr` (pasada 2).
+Nueva entrada pública `assemble_with_xlen(src, xlen)` (la usará la GUI/CLI en
+F4); las entradas históricas (`assemble`, `assemble_with_includes`,
+`assemble_reubicable`) pasan `Xlen::Rv32` → comportamiento idéntico. El
+gating vive en `check_shape`: `rv64_only(mnem) && xlen==Rv32` ⇒ «"{mnem}" es
+una instrucción de RV64; este programa es RV32…» (NO «instrucción
+desconocida»: el mnemónico existe, no en este ancho).
+
+[Seguro] ANTI-DRIFT (RP14): los 17 mnemónicos RV64 entran en
+`known_mnemonics()` y en `src/editor/isa.ts` (MNEMONICS). El test
+`isa_ts_iguala_known_mnemonics` sigue verde (lista canónica == editor). El
+editor los resalta siempre; el assembler decide por ancho.
+
+[Seguro] FUERA DE ALCANCE (registrado): `li` de 64 bits (constante > 32 bits
+con la expansión multi-`lui`/`slli`/`addi` de GNU) NO se implementa — el plan
+solo pide W-instructions + ld/sd. `li` sigue cubriendo el rango de 32 bits en
+ambos modos. RV64C (`c.ld`/`c.sd`) tampoco entra (las C actuales bastan y sus
+encodings no dependen del ancho).
+
+[Seguro] CRITERIO DE LA COMPUERTA — oráculo GNU: `tests/rp32_rv64_oracle.rs`
+ensambla 31 instrucciones RV64 (W, ld/lwu/sd, shifts de 6 bits + un par RV32I
+de control) con `assemble_with_xlen(.., Rv64)` y con `riscv64-elf-as
+-march=rv64im -mabi=lp64`; comparación byte a byte: TODAS coinciden. Más, sin
+toolchain: `rv64_only` rechazada en RV32 / aceptada en RV64, shamt de 6 bits
+según ancho, y RV32 ensambla IDÉNTICO con y sin el parámetro (regresión).
+
+[Seguro] Compuerta F3 — VERDE: `cargo test` src-tauri **233 passed, 0 failed**
+(228 + 5 nuevos) con el oráculo RV64 corriendo contra la toolchain · RV32
+intacto · `emurv-cli` verde · `cargo clippy --all-targets -- -D warnings`
+limpio en AMBOS crates · `tsc --noEmit` limpio (cambio en isa.ts). Commit
+`rp32-fase-3: ensamblador RV64 verificado contra GNU`.
