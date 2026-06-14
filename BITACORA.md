@@ -2752,3 +2752,36 @@ la barra de progreso y los checks reflejan el progreso real.
 Compuerta F1: detalle con objetivos+paneles · abrir y sig/ant andando ·
 progreso real intacto · contraste AA 5 temas · anti-drift i18n (sin claves
 nuevas) · tsc/build limpios · Rust/ids intactos.
+
+## 2026-06-13 — RP21-F2: docs vista de objetivos de lecciones (cierre)
+
+[Seguro] Docs del flujo recuperado: README revierte el texto que RP-20-F4
+había puesto («se carga directo») y vuelve a describir el modal de Lecciones
+de DOS columnas (lista + objetivos/paneles a la derecha, anterior/siguiente,
+«Abrir lección»); el bullet de modales aclara que Ejemplos es lista y
+Lecciones es 2-col. Ayuda integrada: `ayuda.lecciones` (es/en) reescrita en
+el mismo sentido (anti-drift verde, sin claves nuevas). ROADMAP-PRO y Cap.
+VI: NO tocados.
+
+[Seguro] CIERRE RP-21 — criterios de aceptación:
+- Al elegir una lección se ven sus OBJETIVOS y QUÉ PANELES mirar ANTES de
+  abrir (feature de RP-15 recuperada) ✓ F1
+- Navegación siguiente/anterior funcionando (vecina, bordes deshabilitados) ✓ F1
+- Lógica y progreso de RP-15 intactos (src/lecciones/ sin tocar); barra real ✓ F1
+- Estética coherente con el rediseño (2 columnas como la Ayuda); contraste
+  AA en los 5 temas ✓ F1
+- i18n es/en de los rótulos: REUSADOS los de RP-15 (cero claves nuevas),
+  anti-drift verde ✓ F1
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0
+ambos · UI 62 con node:test), tsc estricto limpio, ci-local.sh completo
+verde, tauri build ok, bundle EmuRV.app 22 MB ≤ 30 (RNF-04).
+
+[Seguro] La regresión que RP-20 había dejado marcada queda CERRADA: la
+vista de objetivos de RP-15 está de vuelta, ahora con la estética del
+rediseño. Decisión del autor registrada: acá la fidelidad al mock cede ante
+el valor pedagógico (el mock simplificó sin conocer la feature). Pendiente
+del roadmap: RP-22 (desacoplar paneles a ventanas) y el tema-de-usuario
+(futuro).
+
+[PENDIENTE HUMANO] Verificación visual del detalle en los 5 temas (objetivos
+y paneles legibles, botón Abrir destacado, sig/ant correcto).
