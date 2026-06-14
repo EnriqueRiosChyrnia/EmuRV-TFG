@@ -3058,3 +3058,34 @@ la 1ª vez), Abrir; nada se rompe con ejemplos/lecciones/binario.
 Compuerta F2: Nuevo (+confirm) · Guardar como · Guardar inteligente (no
 re-pregunta con ruta) · sección de archivo agrupada · i18n anti-drift · sin
 romper binario/ejemplos/lecciones/.include · tsc/build · Rust intacto.
+
+## 2026-06-13 — RP23-F3: docs gestión de archivos y cierre
+
+[Seguro] Docs: README estrena «Gestión de archivos tipo IDE» (Nuevo con
+confirm, Abrir, Guardar inteligente, Guardar como; Exportar ELF aparte; y el
+cierre de ventanas hijas al cerrar la principal). Ayuda integrada:
+`ayuda.ciclo.texto` (es/en) suma la frase de Nuevo/Abrir/Guardar/Guardar como
+(anti-drift verde, sin claves nuevas). ROADMAP-PRO y Cap. VI: NO tocados.
+
+[Seguro] CIERRE RP-23 — criterios de aceptación:
+- Cerrar la ventana principal cierra también las desacopladas ✓ F1
+- Botón Nuevo (con confirm si hay cambios) + Guardar como + Guardar
+  inteligente (no re-pregunta con ruta conocida) ✓ F2
+- Sección de archivo agrupada y coherente con la estética (deemph, iconos
+  Lucide, separadores) ✓ F2
+- i18n es/en de todo lo nuevo (anti-drift verde) ✓ F2
+- Sin romper modo binario, ejemplos/lecciones (rutaArchivo null), `.include`
+  (base_dir) ✓ F2
+Suites verdes (src-tauri y emurv-cli: cargo test + clippy -D warnings 0
+ambos · UI 62 con node:test), tsc estricto limpio, ci-local.sh completo
+verde, tauri build ok (capability con los permisos de cierre validada),
+bundle EmuRV.app 22 MB ≤ 30 (RNF-04).
+
+[Seguro] Todo RP-23 fue FRONTEND salvo la capability (permisos
+`core:window:allow-close/destroy` para que la principal cierre a las hijas).
+Sin tocar código Rust, sin renombrar ids, sin reordenar registros.
+
+[PENDIENTE HUMANO] Verificación manual (parte del cierre): (a) desacoplar un
+panel o la pantalla y cerrar la principal → la hija se cierra; (b) Nuevo /
+Guardar / Guardar como / Abrir andan y «Guardar» no re-pregunta cuando ya hay
+ruta (sí la pide la primera vez).
