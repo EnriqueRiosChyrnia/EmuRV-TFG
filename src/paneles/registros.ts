@@ -5,6 +5,7 @@
 import { api, type MachineState } from "../api";
 import { t } from "../i18n";
 import { ABI, GRUPOS_ABI, claveRol } from "./registros-meta";
+import { decReg, hexReg } from "./registros-fmt";
 
 // Colgroups (RP18-F2): anchos de columna fijos para que la tabla no salte.
 // Enteros/CSRs comparten nombre/hex/dec; la F da más ancho al «valor».
@@ -83,7 +84,9 @@ export class Registros {
   private celdas: { hex: HTMLElement; dec: HTMLElement; fila: HTMLElement }[] = [];
   private pcHex: HTMLElement;
   private pcDec: HTMLElement;
-  private anterior: number[] | null = null;
+  // RP32: los registros llegan como hex de 16 dígitos (string); el «anterior»
+  // para el resaltado de cambios compara esas cadenas.
+  private anterior: string[] | null = null;
   private pcAnterior: number | null = null;
   private errorEl: HTMLElement;
   private csrDetalles: HTMLDetailsElement;
@@ -216,11 +219,14 @@ export class Registros {
     const poner = (el: HTMLElement, texto: string) => {
       if (!el.querySelector("input")) el.textContent = texto;
     };
+    // RP32: el ancho viene en el estado; el panel muestra 16 dígitos hex y el
+    // decimal de 64 bits en RV64, 8 dígitos e i32 en RV32.
     const regs = estado.registers;
+    const xlen = estado.xlen;
     for (let i = 0; i < 32; i++) {
       const c = this.celdas[i];
-      poner(c.hex, hex(regs[i]));
-      poner(c.dec, dec(regs[i]));
+      poner(c.hex, hexReg(regs[i], xlen));
+      poner(c.dec, decReg(regs[i], xlen));
       const cambio = this.anterior !== null && this.anterior[i] !== regs[i];
       c.fila.classList.toggle("cambiado", cambio);
     }

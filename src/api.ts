@@ -22,9 +22,14 @@ export interface AssembleOk {
 }
 
 export interface MachineState {
-  registers: number[];
+  /** Registros como hex de 16 dígitos (u64): un u64 > 2^53 no entra exacto en
+   *  un `number` de JS, así que cruzan como string (igual que getFregs). El
+   *  panel muestra 16 dígitos en RV64 y los 8 bajos en RV32, según `xlen`. */
+  registers: string[];
   pc: number;
   line: number | null;
+  /** Ancho de la máquina en ejecución (RP32). */
+  xlen: "rv32" | "rv64";
 }
 
 /** Breakpoint como lo manda la UI (RP7): dirección + condición textual
@@ -62,9 +67,10 @@ export interface StoppedEvent {
 }
 
 export const api = {
-  /** Ensambla; rechaza con AsmError[] si el fuente tiene errores. */
-  assemble: (source: string, ruta: string | null = null) =>
-    invoke<AssembleOk>("assemble", { source, ruta }),
+  /** Ensambla; rechaza con AsmError[] si el fuente tiene errores. `xlen`
+   *  (RP32) elige el repertorio: "rv32" (default) o "rv64". */
+  assemble: (source: string, ruta: string | null = null, xlen: "rv32" | "rv64" = "rv32") =>
+    invoke<AssembleOk>("assemble", { source, ruta, xlen }),
   run: () => invoke<void>("run_program"),
   step: () => invoke<void>("step"),
   reset: () => invoke<void>("reset"),

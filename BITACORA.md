@@ -3693,3 +3693,60 @@ según ancho, y RV32 ensambla IDÉNTICO con y sin el parámetro (regresión).
 intacto · `emurv-cli` verde · `cargo clippy --all-targets -- -D warnings`
 limpio en AMBOS crates · `tsc --noEmit` limpio (cambio en isa.ts). Commit
 `rp32-fase-3: ensamblador RV64 verificado contra GNU`.
+
+## 2026-06-14 — RP32-F4: UI selector de arquitectura + registros de 64 bits
+
+La conmutación llega a la UI: el usuario elige RV32/RV64, el ancho viaja al
+ensamblado y el panel de registros muestra 64 bits en RV64.
+
+[Seguro] SELECTOR (toolbar). `src/arquitectura.ts`: módulo de persistencia
+(`leerXlen`/`setXlen`, clave `emurv.xlen.v1`), mismo patrón tolerante que el
+idioma y el tema. En `main.ts`, un `<select>` RV32/RV64 (patrón del selector de
+tema) que NO recarga ni reensambla: persiste y aplica al PRÓXIMO ensamblado, así
+el usuario cambia de ancho sin perder la sesión. `ensamblar()` pasa `leerXlen()`.
+
+[Seguro] PUENTE FRONTEND↔BACKEND. El comando `assemble` recibe `xlen:
+Option<Xlen>` (default Rv32 si la UI no lo manda) y usa `assemble_with_xlen` /
+la nueva `assemble_with_includes_xlen` (para el buffer con archivo en disco +
+includes). `api.assemble(source, ruta, xlen)`.
+
+[Seguro] REGISTROS DE 64 BITS — precisión. DECISIÓN [Seguro]: los valores de
+registro cruzan como STRING hex de 16 dígitos (igual que `get_fregs` de RP12),
+NO como `number` — un `u64` > 2^53 perdería precisión en JS. `MachineState`
+ahora lleva `registers: Vec<String>` (16 hex) y `xlen`. El panel
+(`registros-fmt.ts`, módulo PURO y testeable) formatea según el ancho: RV64 → 16
+dígitos hex + decimal i64 (BigInt, exacto); RV32 → los 8 dígitos bajos +
+decimal i32. La salida RENDERIZADA en RV32 es idéntica a la previa (regla dura:
+RV32 intacto). El `pc` y las direcciones siguen como `number` (≤ 32 bits).
+
+[Seguro] EJEMPLO + i18n. `ejemplos/15-rv64.asm` (slli a 2^40, sd/ld de
+doubleword, addiw) con su entrada en el menú. Claves i18n es/en:
+`toolbar.arquitectura`, `arquitectura.rv32/rv64`, `ejemplo.rv64(.desc)`.
+Ayuda de hover (`ayuda-isa.ts`) para los 17 mnemónicos RV64 (cobertura 100%
+exigida por `ayuda-isa.test.ts`).
+
+[Probable] LIMITACIÓN REGISTRADA: la EDICIÓN en vivo de registros sigue el
+camino de 32 bits (compartido con CSRs/pc, que son de 32). En RV64 se puede
+editar un registro a un valor de hasta 32 bits; un valor mayor da «valor
+inválido». La edición de 64 bits completa es trabajo futuro (no la pide el
+plan; el criterio de aceptación es la VISUALIZACIÓN de 64 bits). El `value` de
+`StopReason::Watchpoint` (u64) viaja como `number` a la UI: un watch de 64 bits
+> 2^53 perdería precisión en el evento (los watchpoints de la UI son de 1/2/4
+bytes; no se amplió a 8 en la UI).
+
+[Seguro] TESTS. UI: `registros-fmt.test.ts` (formato por ancho, incl. BigInt >
+2^53). Backend end-to-end: `ejemplo_15_rv64_end_to_end` ensambla el ejemplo con
+`assemble_with_xlen(Rv64)`, lo corre, verifica la salida «= 93» y los registros
+de 64 bits (t0 = 2^40+0x7B, t2 = round-trip por sd/ld); y
+`ejemplo_15_rv64_no_ensambla_en_rv32` confirma que el selector importa.
+
+[PENDIENTE HUMANO] Verificación visual de la GUI (no automatizable headless):
+elegir RV64 en la barra, cargar el ejemplo 15, ensamblar y ejecutar; confirmar
+que el panel de registros muestra 16 dígitos hex en t0/t2 y que al volver a RV32
+muestra 8. La capa de integración (assemble→run→registros u64) ya está cubierta
+por los tests.
+
+[Seguro] Compuerta F4 — VERDE: `cargo test` src-tauri **235 passed, 0 failed**
+(233 + 2 end-to-end) · `tsc --noEmit` limpio · `npm run test:ui` **90/90** ·
+`emurv-cli` verde · `cargo clippy --all-targets -- -D warnings` limpio en AMBOS
+crates. Commit `rp32-fase-4: UI selector de arquitectura y registros 64-bit`.

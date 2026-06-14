@@ -29,6 +29,7 @@ import { icono } from "./iconos";
 // se pintan con var(--acento)/var(--texto), así se adapta a cada tema.
 import wordmark from "./assets/emurv-wordmark.svg?raw";
 import { inicializarTema, leerTema, setTema, TEMAS, type Tema } from "./temas";
+import { leerXlen, setXlen } from "./arquitectura";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
@@ -55,6 +56,7 @@ import ejTetrisRt from "../ejemplos/10-tetris-tiempo-real.asm?raw";
 import ejTrap from "../ejemplos/12-trap-handler.asm?raw";
 import ejFlotantes from "../ejemplos/13-flotantes.asm?raw";
 import ejAtomicas from "../ejemplos/14-atomicas.asm?raw";
+import ejRv64 from "../ejemplos/15-rv64.asm?raw";
 
 const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.hola", codigo: ejHola },
@@ -69,6 +71,7 @@ const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.trap", codigo: ejTrap },
   { clave: "ejemplo.flotantes", codigo: ejFlotantes },
   { clave: "ejemplo.atomicas", codigo: ejAtomicas },
+  { clave: "ejemplo.rv64", codigo: ejRv64 },
 ];
 
 /** Estado de la UI respecto del programa. */
@@ -277,6 +280,24 @@ class App {
       setTema(tema.value as Tema);
     };
     bar.appendChild(tema);
+
+    // Selector de arquitectura RV32/RV64 (RP32): persiste y aplica al PRÓXIMO
+    // ensamblado (no recarga ni reensambla, así el usuario puede cambiarlo sin
+    // perder la sesión actual). RV32 (default histórico) va primero.
+    const arq = document.createElement("select");
+    arq.id = "arquitectura";
+    arq.title = t("toolbar.arquitectura");
+    for (const valor of ["rv32", "rv64"] as const) {
+      const o = document.createElement("option");
+      o.value = valor;
+      o.textContent = t(`arquitectura.${valor}`);
+      if (valor === leerXlen()) o.selected = true;
+      arq.appendChild(o);
+    }
+    arq.onchange = () => {
+      setXlen(arq.value === "rv64" ? "rv64" : "rv32");
+    };
+    bar.appendChild(arq);
 
     // Editor de tema de usuario (RP28): botón que abre el modal «Editar
     // tema». Guardar crea/actualiza el tema «Personalizado» y lo selecciona.
@@ -540,7 +561,7 @@ class App {
   private async ensamblar(): Promise<void> {
     if (this.modoBinario) return; // el botón está deshabilitado; cinturón
     try {
-      const ok = await api.assemble(getDoc(this.editor), this.rutaArchivo);
+      const ok = await api.assemble(getDoc(this.editor), this.rutaArchivo, leerXlen());
       this.programa = ok;
       this.programaDesactualizado = false;
       this.consola.clear();

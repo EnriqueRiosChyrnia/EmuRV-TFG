@@ -129,6 +129,45 @@ fn conmutacion_rv32_vs_rv64_misma_palabra() {
     }
 }
 
+/// END-TO-END (F4): el ejemplo `ejemplos/15-rv64.asm` ensambla en RV64 con
+/// `assemble_with_xlen`, corre, imprime el resultado de `addiw` y deja un valor
+/// > 2^32 en un registro (el panel lo mostraría con 16 dígitos hex).
+#[test]
+fn ejemplo_15_rv64_end_to_end() {
+    use emurv_lib::core::assembler::assemble_with_xlen;
+    let src = include_str!("../../ejemplos/15-rv64.asm");
+    let program = assemble_with_xlen(src, Xlen::Rv64).expect("el ejemplo ensambla en RV64");
+    assert_eq!(program.xlen, Xlen::Rv64);
+    let (out_tx, out_rx) = channel();
+    let (_in_tx, in_rx) = channel();
+    let mut m = Machine::new(program, out_tx, in_rx).expect("máquina RV64");
+    assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+    let mut salida = String::new();
+    while let Ok(ev) = out_rx.try_recv() {
+        if let ConsoleEvent::Output(t) = ev {
+            salida.push_str(&t);
+        }
+    }
+    assert!(salida.contains("= 93"), "addiw 100 + (-7) = 93; salida: {salida:?}");
+    let r = m.registers().expect("regs");
+    assert_eq!(r[5], 0x0000_0100_0000_007B, "t0 = 2^40 + 0x7B (no cabe en 32 bits)");
+    assert_eq!(r[7], 0x0000_0100_0000_007B, "t2 = round-trip por sd/ld de 8 bytes");
+    assert_eq!(r[28], 93, "t3 = addiw");
+}
+
+/// El MISMO ejemplo RV64 NO ensambla en RV32 (usa instrucciones de 64 bits):
+/// confirma que el selector importa y que el error es didáctico.
+#[test]
+fn ejemplo_15_rv64_no_ensambla_en_rv32() {
+    use emurv_lib::core::assembler::assemble_with_xlen;
+    let src = include_str!("../../ejemplos/15-rv64.asm");
+    let err = assemble_with_xlen(src, Xlen::Rv32).expect_err("debe rechazarse en RV32");
+    assert!(
+        err.iter().any(|e| e.msg.contains("RV64")),
+        "se esperaba un error didáctico de arquitectura: {err:?}"
+    );
+}
+
 /// Regresión explícita de la regla dura: un programa RV32 (xlen por defecto)
 /// se ejecuta exactamente como antes a través de la máquina conmutable.
 #[test]
