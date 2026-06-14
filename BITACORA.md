@@ -3089,3 +3089,93 @@ Sin tocar código Rust, sin renombrar ids, sin reordenar registros.
 panel o la pantalla y cerrar la principal → la hija se cierra; (b) Nuevo /
 Guardar / Guardar como / Abrir andan y «Guardar» no re-pregunta cuando ya hay
 ruta (sí la pide la primera vez).
+
+## 2026-06-14 — RP24-F1: find/replace en el editor
+
+[Seguro] Búsqueda/reemplazo del editor con `@codemirror/search` (v6.7.0, dep
+nueva; `^6.7.0` en package.json — única dependencia agregada). En `createEditor`
+(`src/editor/index.ts`) se SUMARON a las extensions: `search({ top: true })`,
+`keymap.of(searchKeymap)` y `highlightSelectionMatches()`. Cmd/Ctrl+F abre el
+panel ARRIBA (no tapa la consola de abajo), con buscar, reemplazar uno/todos,
+anterior/siguiente, distinguir mayúsculas, palabra completa y regexp. El resto
+del editor quedó INTACTO: gutter de breakpoints, línea de ejecución
+(`cm-linea-actual`), lint, autocompletado, hover e ir-a-definición — se
+agregaron extensions, no se tocó ninguna existente.
+
+[Seguro] Modo binario (read-only, RP11): el panel SOLO busca. CodeMirror oculta
+los controles de reemplazo cuando `state.readOnly` es true (no hubo que
+programarlo); el `Compartment` de read-only ya estaba y no se tocó.
+
+[Probable] DECISIÓN — traducir el panel (frases de CodeMirror). El panel de
+`@codemirror/search` resuelve cada etiqueta con `state.phrase(<frase fuente en
+inglés>)`. El plan permitía dejarlo en inglés si traducir era engorroso, pero el
+español es la lengua primaria de la tesis, así que se tradujo. Mecanismo: módulo
+nuevo `src/editor/buscar.ts` con `frasesBusqueda()`, que mapea las 17 frases
+fuente del panel (extraídas del `dist` del paquete: Find, Replace, next,
+previous, all, match case, by word, regexp, replace, replace all, close, current
+match, «replaced $ matches», «replaced match on line $», on line, Go to line,
+go) a claves i18n nuevas (`editor.buscar.*`, AL FINAL de es.json/en.json para
+minimizar conflicto de merge con los otros worktrees del lote). En las
+extensions: `EditorState.phrases.of(frasesBusqueda())`. Las frases con `$` son
+plantillas que CodeMirror sustituye con el conteo/línea: el `$` se conserva
+LITERAL en la traducción (no es un parámetro i18n `{...}`). Alternativas
+descartadas: (a) dejar el panel en inglés — rechazada por el principio de
+español primario; (b) hardcodear las cadenas en español dentro del módulo —
+rechazada por la regla 6 (nada de strings hardcodeados). Confianza [Probable] y
+no [Seguro] porque la lista de 17 frases se ató al `dist` de la v6.7.0: un
+cambio de copy en una futura versión de `@codemirror/search` dejaría esa
+etiqueta puntual en su default inglés (degradación benigna, no rotura) —
+`buscar.test.ts` fija la lista para detectarlo.
+
+[Seguro] Sin tocar main.ts: NO hay handler global de Cmd+F (verificado por
+grep), así que el `searchKeymap` dentro del editor alcanza; el atajo solo actúa
+con el editor enfocado. Sin tocar Rust, paneles, temas ni el núcleo.
+
+[Seguro] Tests: `src/editor/buscar.test.ts` (4 casos) cubre el mapa de frases —
+cobertura de las 17 frases fuente, traducción al español por defecto (sin
+localStorage), ningún valor vacío ni clave sin traducir (no cae al fallback) y
+conservación del `$` en las plantillas. El grueso de la verificación de UI es
+visual (abajo). Compuerta F1: tsc --noEmit verde; suite UI 66/66 verde (62
+previas + 4 nuevas); clippy src-tauri limpio. Commit `rp24-fase-1`.
+
+[PENDIENTE HUMANO] Verificación visual de F1: con la app corriendo —
+(a) Cmd/Ctrl+F abre el panel arriba, busca y resalta coincidencias;
+(b) reemplazar uno y reemplazar todos funcionan; (c) las etiquetas del panel
+salen en español (y en inglés al cambiar idioma y recargar); (d) con un
+breakpoint puesto, ejecutar hasta él con el panel de búsqueda abierto — el
+gutter y la línea de ejecución resaltada siguen correctos; (e) abrir un ELF
+(modo binario) — el panel solo busca, sin controles de reemplazo.
+
+## 2026-06-14 — RP24-F2: docs find/replace y cierre
+
+[Seguro] Docs: README estrena la mención de buscar/reemplazar (Cmd/Ctrl+F) en el
+punto «Editor profesional»; la Ayuda in-app (`ayuda.editor.texto` en es/en) y su
+espejo `docs/AYUDA-CONTENIDO.md` suman el atajo (resalta coincidencias; en modo
+binario solo busca). NO se tocó ROADMAP-PRO ni el Cap. VI.
+
+[Seguro] CIERRE RP-24 — criterios de aceptación:
+- Cmd/Ctrl+F: buscar + reemplazar + resaltar. ✓ (cableado y testeado en F1; la
+  verificación visual queda como [PENDIENTE HUMANO], arriba).
+- Editor existente intacto (breakpoints, exec-line, binario). ✓ (solo se
+  agregaron extensions; ninguna existente se modificó).
+- Bundle ≤30 MB. ✓ La .app pesa 22 MB (la dep nueva del ecosistema CM es
+  liviana: +~1 paquete, sin binarios).
+
+[Seguro] Compuerta F2 (vía `scripts/ci-local.sh`): tsc estricto verde; UI 66/66;
+vite build OK; `src-tauri` cargo test verde + clippy `-D warnings` limpio;
+`emurv-cli` cargo test verde + clippy `-D warnings` limpio; build release del
+CLI OK; `cargo tauri build` produce la `.app` (22 MB ≤ 30 MB, RNF-04 verde).
+
+[Suposición] El empaquetado del **.dmg** (paso `bundle_dmg.sh` / `create-dmg`,
+posterior a la `.app`) falló en esta sesión headless: `create-dmg` usa
+AppleScript/Finder para acomodar la ventana del DMG y necesita una sesión GUI
+con permiso de automatización que no existe en una corrida no interactiva. NO es
+una regresión de RP-24: el diff de esta rama (una dep JS, el cableado del editor,
+i18n y docs) no toca la config de bundling, los iconos ni el AppleScript del DMG;
+y el sujeto de RNF-04 es la `.app`, que sí se construyó y mide 22 MB. Confianza
+[Suposición] respecto a que basta re-correr `cargo tauri build` en una sesión de
+escritorio para obtener el `.dmg`.
+
+[PENDIENTE HUMANO] Re-correr `cargo tauri build` (o `scripts/ci-local.sh` sin
+`--skip-bundle`) en una sesión de escritorio macOS para generar el `.dmg` y
+confirmar que el único fallo era el entorno headless. Commit `rp24-fase-2`.

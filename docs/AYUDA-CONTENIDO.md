@@ -140,7 +140,9 @@ El editor te ayuda mientras escribís: autocompletado de mnemónicos, registros 
 etiquetas (aparece solo al tipear, o con Ctrl-Espacio); al pasar el mouse sobre
 una instrucción se muestra su sintaxis y qué hace; Cmd/Ctrl-click sobre una
 etiqueta salta a su definición, y al poner el cursor sobre una etiqueta se
-resaltan todos sus usos. Los errores se siguen viendo al «Ensamblar».
+resaltan todos sus usos. Con Cmd/Ctrl+F se abre el panel de búsqueda y
+reemplazo (resalta las coincidencias); en modo binario solo busca. Los errores
+se siguen viendo al «Ensamblar».
 
 ## Breakpoints
 Click en el margen izquierdo del editor (a la izquierda del número de línea) para
