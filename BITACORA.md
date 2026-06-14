@@ -2702,3 +2702,53 @@ notas, Acerca de con wordmark adaptable), Ejemplos (lista carga al click),
 Lecciones (barra de progreso real, check/número, abre al click). Escape
 cierra y el foco vuelve al disparador. CONFIRMAR la simplificación de
 Lecciones (sin la 2ª columna de objetivos del navegador viejo).
+
+## 2026-06-13 — RP21-F1: modal de lecciones a dos columnas con objetivos
+
+[Seguro] Fix de la regresión que RP-20 dejó marcada: el modal de Lecciones
+recupera la VISTA DE OBJETIVOS de RP-15. Pasó de «lista de un click» a DOS
+COLUMNAS (mismo lenguaje que la Ayuda 2-col, por coherencia): izquierda la
+lista (conservada — `.modal-item` con check/num + barra de progreso real),
+derecha el DETALLE de la lección elegida. Decisión del autor: acá la
+fidelidad al mock CEDE ante el valor pedagógico (el mock simplificó sin
+conocer la feature de RP-15).
+
+[Seguro] Cambio de interacción: elegir un item en la lista ahora MUESTRA su
+detalle (no abre). El detalle trae: título («Lección NN: …»), OBJETIVOS
+(lista de `l.objetivos`), QUÉ PANELES mirar (`l.paneles`), botón «Abrir
+lección» (`.principal`, carga al editor y cierra), y navegación
+«anterior/siguiente». El item seleccionado se marca `.activa` (como el
+`ay-nav .activo`). Primera apertura: el detalle muestra la lección «en
+curso» (primera no completada) o la 1ª.
+
+[Seguro — NO reescribir la lógica] La DATA ya estaba en el parser
+(`MetaLeccion.objetivos[]/paneles`); sig/ant usa `vecina(numero, ±1, total)`
+de RP-15 (ya testeada en progreso.test.ts) mapeando numero→índice; el
+progreso (barra, checks, «en curso») lee `leerProgreso()` real; el reset y
+`marcarCompletada` intactos. `src/lecciones/` (datos/parser/progreso) NO se
+tocó. El caso multiarchivo (lección 8) se dispara recién en «Abrir lección»,
+igual que hoy; en el detalle se muestra su nota informativa
+(`lecciones.multiarchivoNota`).
+
+[Seguro] i18n: CERO claves nuevas — los rótulos del detalle
+(lecciones.objetivos/paneles/abrir/anterior/siguiente/leccion/
+multiarchivoNota) YA existían (RP-15 los dejó; RP-20 los había dejado sin
+usar). Anti-drift es/en sigue verde sin tocar nada. Estética por tokens
+(`--radio`, `--fuente-ui`, `color-mix` del acento): `.lec-body` grid 260px/1fr,
+`.lec-detalle` con h3 (barra de acento como la Ayuda), h4, lista, botones.
+
+[Seguro] Contraste: el detalle reusa pares ya cubiertos por contraste.test
+(--texto/--texto-suave sobre --fondo-panel, --acento, texto-sobre-acento del
+botón principal); los 5 temas siguen verdes. tsc estricto y vite build
+limpios. UI 62 (la lógica testeable —vecina, parser— ya estaba cubierta; el
+resto es DOM/visual). API pública de Lecciones intacta (main.ts no cambia).
+Sin tocar ids ni Rust.
+
+[PENDIENTE HUMANO] Verificación visual en los 5 temas: elegir una lección
+muestra sus objetivos y paneles a la derecha; «Abrir lección» carga y cierra;
+anterior/siguiente recorre y respeta los bordes (deshabilitados en 1 y 10);
+la barra de progreso y los checks reflejan el progreso real.
+
+Compuerta F1: detalle con objetivos+paneles · abrir y sig/ant andando ·
+progreso real intacto · contraste AA 5 temas · anti-drift i18n (sin claves
+nuevas) · tsc/build limpios · Rust/ids intactos.

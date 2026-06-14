@@ -1,15 +1,14 @@
-// Navegador de lecciones (RP15) con la CARA del mock (RP20-F3): un modal
-// con barra de progreso + lista de .modal-item (check si está completada,
-// número si está pendiente). La LÓGICA y la PERSISTENCIA son las de RP-15
-// (src/lecciones/: datos, parser, progreso) — acá SOLO cambia la
-// presentación. Al elegir una lección se abre directo (un click), igual que
-// «Abrir lección» del navegador viejo, reusando los callbacks.
+// Navegador de lecciones (RP15) en un modal de DOS COLUMNAS (RP21): a la
+// izquierda la lista (con check/num + barra de progreso, de RP-20), a la
+// derecha el DETALLE de la lección elegida — objetivos, qué paneles mirar,
+// «Abrir lección» y navegación siguiente/anterior. RP-20 había perdido esa
+// vista previa (regresión de RP-15); RP-21 la recupera con la estética del
+// rediseño (mismo lenguaje que la Ayuda 2-col).
 //
-// Nota (RP20): la vista de detalle del navegador de RP-15 (objetivos +
-// «qué paneles mirar» en una 2ª columna) NO existe en el mock — el mock es
-// una lista de un click. Acá se respeta el mock: el primer objetivo de cada
-// lección va como descripción del item; abrir es directo. La persistencia
-// de progreso no cambia.
+// La DATA (objetivos[]/paneles) sale del parser; la LÓGICA y el PROGRESO son
+// los de RP-15 (src/lecciones/: vecina, progreso) — acá SOLO se presentan.
+// Elegir un item en la lista MUESTRA su detalle (no abre); «Abrir lección»
+// carga al editor y cierra; el caso multiarchivo (08) se dispara recién ahí.
 import { t } from "../i18n";
 import { Modal, ICONO_CERRAR } from "./modal";
 import { LECCIONES, type Leccion } from "../lecciones";
@@ -18,6 +17,7 @@ import {
   guardarProgreso,
   leerProgreso,
   resetearProgreso,
+  vecina,
   type Progreso,
 } from "../lecciones/progreso";
 
@@ -33,50 +33,86 @@ const ICONO_CHECK = `<svg class="ico modal-check" viewBox="0 0 24 24" width="20"
 export class Lecciones {
   private modal: Modal;
   private progreso: Progreso;
+  private seleccion = 0; // índice en LECCIONES de la lección mostrada en el detalle
+  private lista!: HTMLElement;
+  private detalle!: HTMLElement;
 
   constructor(private cb: CallbacksLecciones) {
     this.progreso = leerProgreso();
     this.modal = new Modal("modal-cuerpo-lecciones");
 
-    // Delegación: elegir una lección la abre; el botón reset reinicia.
+    // Un solo handler delegado en la card: reset, abrir, sig/ant, y elegir
+    // un item de la lista (que MUESTRA el detalle, no abre).
     this.modal.card.addEventListener("click", (e) => {
-      const objetivo = e.target as HTMLElement;
-      if (objetivo.closest("[data-rol=reset]")) {
+      const el = e.target as HTMLElement;
+      if (el.closest("[data-rol=reset]")) {
         resetearProgreso();
         this.progreso = new Set();
         this.render();
         return;
       }
-      const item = objetivo.closest<HTMLElement>("button.modal-item[data-i]");
-      if (!item) return;
-      const l = LECCIONES[Number(item.dataset.i)];
-      if (l.multiarchivo) this.cb.onAbrirMultiarchivo(l);
-      else this.cb.onAbrir(l);
-      this.cerrar();
+      if (el.closest("[data-rol=abrir]")) {
+        this.abrirSeleccion();
+        return;
+      }
+      if (el.closest("[data-rol=prev]")) return this.navegar(-1);
+      if (el.closest("[data-rol=next]")) return this.navegar(+1);
+      const item = el.closest<HTMLElement>("button.modal-item[data-i]");
+      if (item) {
+        this.seleccion = Number(item.dataset.i);
+        this.marcarActiva();
+        this.renderDetalle();
+      }
     });
 
     this.render();
   }
 
+  /// Índice de la lección «en curso» (primera no completada) o 0.
+  private indiceEnCurso(): number {
+    const i = LECCIONES.findIndex((l) => !this.progreso.has(l.numero));
+    return i >= 0 ? i : 0;
+  }
+
+  private abrirSeleccion(): void {
+    const l = LECCIONES[this.seleccion];
+    if (l.multiarchivo) this.cb.onAbrirMultiarchivo(l);
+    else this.cb.onAbrir(l);
+    this.cerrar();
+  }
+
+  /// Mueve la SELECCIÓN del detalle a la lección vecina (sig/ant), acotada
+  /// por `vecina` (RP-15). No abre nada: solo cambia el detalle.
+  private navegar(delta: number): void {
+    const num = vecina(LECCIONES[this.seleccion].numero, delta, LECCIONES.length);
+    if (num === null) return;
+    this.seleccion = LECCIONES.findIndex((x) => x.numero === num);
+    this.marcarActiva();
+    this.renderDetalle();
+  }
+
+  private marcarActiva(): void {
+    this.lista.querySelectorAll<HTMLElement>(".modal-item").forEach((b) => {
+      b.classList.toggle("activa", Number(b.dataset.i) === this.seleccion);
+    });
+  }
+
+  /// Reconstruye la card entera (lista + barra + contenedor de detalle).
   private render(): void {
     const total = LECCIONES.length;
     const hechas = LECCIONES.filter((l) => this.progreso.has(l.numero)).length;
     const pct = total === 0 ? 0 : Math.round((hechas / total) * 100);
-    // «en curso» = la primera lección no completada (la que toca seguir).
     const enCurso = LECCIONES.find((l) => !this.progreso.has(l.numero))?.numero ?? -1;
 
-    const filas = LECCIONES.map((l, i) => {
+    const items = LECCIONES.map((l, i) => {
       const hecha = this.progreso.has(l.numero);
-      const marca = hecha
-        ? ICONO_CHECK
-        : `<span class="modal-num">${l.numero}</span>`;
+      const marca = hecha ? ICONO_CHECK : `<span class="modal-num">${l.numero}</span>`;
       const nota =
         l.numero === enCurso ? ` <span class="mh-sub">· ${t("lecciones.enCurso")}</span>` : "";
-      const desc = escapar(l.objetivos[0] ?? l.paneles);
+      const activa = i === this.seleccion ? " activa" : "";
       return (
-        `<button class="modal-item" data-i="${i}">${marca}<div>` +
-        `<div class="mi-titulo">${escapar(l.titulo)}${nota}</div>` +
-        `<div class="mi-desc">${desc}</div></div></button>`
+        `<button class="modal-item${activa}" data-i="${i}">${marca}<div>` +
+        `<div class="mi-titulo">${escapar(l.titulo)}${nota}</div></div></button>`
       );
     }).join("");
 
@@ -93,7 +129,39 @@ export class Lecciones {
           <button class="ml-reset" data-rol="reset">${t("lecciones.reset")}</button></div>
         <div class="barra"><i style="width:${pct}%"></i></div>
       </div>
-      <div class="modal-scroll">${filas}</div>`;
+      <div class="lec-body">
+        <nav class="lec-lista" data-rol="lista">${items}</nav>
+        <div class="lec-detalle" data-rol="detalle"></div>
+      </div>`;
+    this.lista = this.modal.card.querySelector("[data-rol=lista]")!;
+    this.detalle = this.modal.card.querySelector("[data-rol=detalle]")!;
+    this.renderDetalle();
+  }
+
+  /// Llena el panel derecho con el detalle de la lección seleccionada.
+  private renderDetalle(): void {
+    const l = LECCIONES[this.seleccion];
+    const objetivos = l.objetivos.map((o) => `<li>${escapar(o)}</li>`).join("");
+    const prev = vecina(l.numero, -1, LECCIONES.length);
+    const next = vecina(l.numero, +1, LECCIONES.length);
+    this.detalle.innerHTML = `
+      <h3>${t("lecciones.leccion", { n: String(l.numero).padStart(2, "0") })}: ${escapar(l.titulo)}</h3>
+      <h4>${t("lecciones.objetivos")}</h4>
+      <ul class="lec-objetivos">${objetivos}</ul>
+      <h4>${t("lecciones.paneles")}</h4>
+      <p>${escapar(l.paneles)}</p>
+      ${
+        l.multiarchivo
+          ? `<div class="ay-nota"><span class="et">.include</span>${t("lecciones.multiarchivoNota")}</div>`
+          : ""
+      }
+      <div class="lec-acciones">
+        <button class="principal" data-rol="abrir">${t("lecciones.abrir")}</button>
+      </div>
+      <div class="lec-nav">
+        <button data-rol="prev"${prev === null ? " disabled" : ""}>${t("lecciones.anterior")}</button>
+        <button data-rol="next"${next === null ? " disabled" : ""}>${t("lecciones.siguiente")}</button>
+      </div>`;
   }
 
   /// Marca la lección como completada (la llama la app tras abrirla) y
@@ -107,6 +175,7 @@ export class Lecciones {
 
   abrir(disparador?: HTMLElement | null): void {
     this.progreso = leerProgreso();
+    this.seleccion = this.indiceEnCurso(); // primera apertura: «en curso»
     this.render();
     this.modal.abrir(disparador);
   }
