@@ -3,11 +3,28 @@
 // tema NO recarga: las variables CSS aplican en vivo (ventaja sobre el
 // idioma, que sí recarga). Persistencia en localStorage, patrón RP-15/16.
 
-export type Tema = "educativo" | "retro" | "pergamino" | "kawaii" | "disquete";
-// Orden = orden del selector. «educativo» (default) primero. Los 3 últimos
-// son los temas del diseño aprobado (RP17B). Un tema = un bloque de tokens
-// en tokens.css; agregar uno acá basta (selector e i18n lo derivan).
-export const TEMAS: Tema[] = ["educativo", "retro", "pergamino", "kawaii", "disquete"];
+import { aplicarVarsUsuario, leerTemaUsuario, limpiarVarsUsuario } from "./usuario";
+
+export type Tema =
+  | "educativo"
+  | "retro"
+  | "pergamino"
+  | "kawaii"
+  | "disquete"
+  | "usuario";
+// Orden = orden del selector. «educativo» (default) primero; «usuario»
+// (Personalizado, RP28) último. Los 3 del medio son los temas del diseño
+// aprobado (RP17B). Cada built-in = un bloque de tokens en tokens.css;
+// «usuario» NO tiene bloque: sus valores son vars inline desde localStorage
+// (ver usuario.ts). Agregar un tema acá basta (selector e i18n lo derivan).
+export const TEMAS: Tema[] = [
+  "educativo",
+  "retro",
+  "pergamino",
+  "kawaii",
+  "disquete",
+  "usuario",
+];
 export const CLAVE_TEMA = "emurv.tema.v1";
 
 /// ¿`v` es un tema válido? (validación PURA, para parsear lo persistido).
@@ -27,13 +44,18 @@ export function leerTema(): Tema {
 }
 
 /// Aplica el tema al documento: el default «educativo» = sin atributo
-/// (:root); cualquier otro = data-tema. Devuelve el tema aplicado.
+/// (:root); cualquier otro = data-tema. El tema «usuario» (RP28) además
+/// pinta sus variables inline desde localStorage. Devuelve el tema aplicado.
 export function aplicarTema(tema: Tema): Tema {
   const t = esTema(tema) ? tema : "educativo";
+  // SIEMPRE limpiar las vars inline del usuario primero: si quedaran,
+  // taparían los valores de tokens.css de cualquier otro tema.
+  limpiarVarsUsuario();
   if (t === "educativo") {
     document.documentElement.removeAttribute("data-tema");
   } else {
     document.documentElement.setAttribute("data-tema", t);
+    if (t === "usuario") aplicarVarsUsuario(leerTemaUsuario());
   }
   return t;
 }
