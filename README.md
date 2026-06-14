@@ -13,7 +13,7 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 ## Características
 
 - Editor con resaltado de sintaxis **RV32IMAFDC** (incluye coma flotante, atómicas y comprimidas), números de línea y breakpoints por click en el margen.
-- **Editor profesional**: autocompletado contextual (mnemónicos, registros y etiquetas del buffer; Ctrl-Espacio), ayuda al pasar el mouse sobre una instrucción (hover en español), e ir-a-definición de etiquetas (Cmd/Ctrl-click) con resaltado de sus usos.
+- **Editor profesional**: autocompletado contextual (mnemónicos, registros y etiquetas del buffer; Ctrl-Espacio), ayuda al pasar el mouse sobre una instrucción (hover en español), ir-a-definición de etiquetas (Cmd/Ctrl-click) con resaltado de sus usos, y **buscar/reemplazar** (Cmd/Ctrl+F) con panel traducido y resaltado de coincidencias.
 - Ensamblador propio RV32IM (enteros + multiplicación/división) con errores **por línea y columna, en español**.
 - Ejecución completa o paso a paso sobre [Unicorn Engine](https://www.unicorn-engine.org/); la línea por ejecutarse queda resaltada.
 - Vista de registros (x0–x31 + pc, nombres ABI, hex y decimal) con **resaltado de los que cambiaron** en el último paso; orden estándar RISC-V (RARS/gdb), separadores sutiles entre grupos ABI y tooltip con el rol de cada registro.
