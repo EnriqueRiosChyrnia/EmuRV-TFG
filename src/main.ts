@@ -34,6 +34,7 @@ import { Depuracion, type FilaBreakpoint } from "./paneles/depuracion";
 import { Lecciones } from "./paneles/lecciones";
 import { Ejemplos } from "./paneles/ejemplos";
 import { desacoplarPanel, botonDesacople } from "./paneles/desacople";
+import { depSync, type FilaConCond } from "./paneles/dep-sync";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
@@ -83,6 +84,10 @@ class App {
   /** El texto del editor cambió desde el último ensamblado exitoso:
    *  line_to_addr ya no es confiable para validar breakpoints. */
   private programaDesactualizado = false;
+  /** Depuración está en su ventana aparte (RP22-F3): main DELEGA el envío de
+   *  breakpoints a la ventana (que tiene las condiciones) para no pisarlas;
+   *  solo le manda la lista por evento. */
+  private depDesacoplada = false;
   /** Ruta en disco del buffer (RP5): base de resolución de .include.
    *  null = buffer nunca guardado (ejemplos embebidos incluidos). */
   private rutaArchivo: string | null = null;
@@ -274,8 +279,59 @@ class App {
         .then((st) => this.registros.actualizar(st))
         .catch(() => {});
     });
-    this.agregarDesacople("memoria", "panel-memoria", "panel.memoria", 560, 460, () => {
-      void this.memoria.refrescar();
+    this.agregarDesacople(
+      "memoria",
+      "panel-memoria",
+      "panel.memoria",
+      560,
+      460,
+      () => void this.memoria.refrescar(),
+    );
+    // Depuración (el delicado): al desacoplar, main DELEGA el envío de
+    // breakpoints a la ventana (que tiene las condiciones) y le manda la
+    // lista; al reacoplar, re-sincroniza desde el editor y reasume el envío.
+    this.agregarDesacople(
+      "depuracion",
+      "panel-depuracion",
+      "panel.depuracion",
+      460,
+      460,
+      () => {
+        this.depDesacoplada = false;
+        this.sincronizarPanelDepuracion();
+        this.enviarBreakpoints();
+      },
+      () => {
+        this.depDesacoplada = true;
+        this.emitirDepFilas();
+      },
+    );
+    this.configurarSyncDepuracion();
+  }
+
+  /** Construye la lista de breakpoints (línea+addr+condición) y la emite a la
+   *  ventana de Depuración desacoplada (RP22-F3). */
+  private emitirDepFilas(): void {
+    const conAddr = this.programa !== null && !this.programaDesactualizado;
+    const filas: FilaConCond[] = getBreakpointLines(this.editor).map((linea) => ({
+      linea,
+      addr: conAddr ? (this.programa!.line_to_addr[String(linea)] ?? null) : null,
+      cond: this.depuracion.condicionDe(linea) ?? "",
+    }));
+    depSync.emitFilas(filas);
+  }
+
+  /** Escucha las acciones de la ventana de Depuración (RP22-F3): pedir el
+   *  estado al abrir, quitar un breakpoint (vuelve al editor) y absorber las
+   *  condiciones editadas (para no perderlas al reacoplar). Una sola vez. */
+  private configurarSyncDepuracion(): void {
+    void depSync.onPedir(() => this.emitirDepFilas());
+    void depSync.onQuitar((linea) => {
+      toggleBreakpointAtLine(this.editor, linea);
+      this.alCambiarBreakpoints();
+    });
+    void depSync.onConds((conds) => {
+      for (const c of conds) this.depuracion.setCondicionExterna(c.linea, c.cond);
     });
   }
 
@@ -286,12 +342,21 @@ class App {
     width: number,
     height: number,
     alReacoplar: () => void,
+    alDesacoplar?: () => void,
   ): void {
     const h2 = document.querySelector<HTMLElement>(`#${seccionId} h2`);
     if (!h2) return;
     h2.appendChild(
       botonDesacople(t("desacople.titulo"), () => {
-        void desacoplarPanel({ id, seccionId, titulo: t(claveTitulo), width, height, alReacoplar });
+        void desacoplarPanel({
+          id,
+          seccionId,
+          titulo: t(claveTitulo),
+          width,
+          height,
+          alReacoplar,
+          alDesacoplar,
+        });
       }),
     );
   }
@@ -481,7 +546,11 @@ class App {
    *  panel): sincronizar la lista del panel y reenviar al backend. */
   private alCambiarBreakpoints(): void {
     this.sincronizarPanelDepuracion();
-    this.enviarBreakpoints();
+    // RP22-F3: si Depuración está en su ventana, ella tiene las condiciones y
+    // es quien manda set_breakpoints (main solo le pasa la lista); así no se
+    // pisan las condiciones. Acoplada, main envía normalmente.
+    if (this.depDesacoplada) this.emitirDepFilas();
+    else this.enviarBreakpoints();
     // RP18-F3: progressive disclosure — la Depuración arranca plegada; en
     // cuanto el alumno pone un breakpoint, se revela (ahí empieza a importar).
     if (getBreakpointLines(this.editor).length > 0) {

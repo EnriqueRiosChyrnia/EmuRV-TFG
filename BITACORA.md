@@ -2875,3 +2875,61 @@ con un programa ensamblado; al cerrar vuelve al lateral con lo editado.
 
 Compuerta F2: Memoria desacoplable igual que Registros (navega, edita,
 sincroniza, reaparece) · columna disasm · tsc/build · Rust intacto.
+
+## 2026-06-13 — RP22-F3: desacople de Depuración (el delicado)
+
+[Seguro — el problema] A diferencia de Registros/Memoria (estado del backend,
+puro evento), los breakpoints se CREAN en el gutter del editor (ventana
+principal) y la lista + las condiciones + los watchpoints son estado del
+PANEL. Con la lista en otra ventana hay que sincronizar editor↔ventana sin
+que las dos instancias de Depuración se pisen.
+
+[Seguro — diseño] Protocolo de eventos entre ventanas (`paneles/dep-sync.ts`,
+Tauri emit/listen, un solo lugar para nombres+payloads):
+- `app://dep-filas` (main→ventana): la lista [{linea,addr,cond}].
+- `app://dep-pedir` (ventana→main): handshake al abrir (pide el estado).
+- `app://dep-quitar` (ventana→main): quitar el bp de una línea (main lo saca
+  del editor → re-emite filas).
+- `app://dep-condiciones` (ventana→main): condiciones, para que main las
+  ABSORBA y no se pierdan al reacoplar.
+AUTORIDAD del ENVÍO mientras está desacoplado = la VENTANA (tiene las
+condiciones): main pone un flag `depDesacoplada` y, en `alCambiarBreakpoints`,
+en vez de `enviarBreakpoints()` emite las filas; la ventana arma y manda
+`set_breakpoints` (filas+condiciones). Así no se pisan las condiciones. Al
+reacoplar, main re-sincroniza desde el editor y REASUME el envío (ya con las
+condiciones absorbidas). Watchpoints: los maneja la clase en la ventana
+(set_watchpoints), aplicados al backend.
+
+[Seguro] Reuso de la clase: `Depuracion` se instancia en la ventana TAL CUAL;
+sus callbacks se cablean al protocolo (onQuitarBreakpoint→emit quitar;
+onCondicionCambiada→envía set_breakpoints + emit condiciones). Único agregado
+ADITIVO a la clase: `setCondicionExterna(linea, cond)` (fija una condición sin
+re-enviar) — la usan la ventana (sembrar lo que tenía main) y main (absorber
+lo editado en la ventana). No cambia el comportamiento acoplado.
+
+[Seguro] Detalles: el `<h2>` de Depuración se reestructuró (título+nota en un
+span, clase `panel-titulo-con-boton`) para colgarle el ⧉ sin romper el
+plegado; el ⧉ usa `stopPropagation` (no togglea el plegado). En la ventana, la
+clase cablea el plegado al título → se NEUTRALIZA por CSS en panel.html
+(`.panel.colapsado .panel-cuerpo { display:block }`), la ventana ES el panel.
+Handshake doble (emit al desacoplar + pedir al cargar) cubre la carrera de
+registro de listeners.
+
+[Limitación documentada — futuro] Los WATCHPOINTS agregados en la ventana
+desacoplada quedan aplicados en el backend (set_watchpoints) pero NO se
+reflejan en el panel embebido al reacoplar (la instancia de main no los
+rastrea; sí las condiciones, que se absorben). Como persistir posición/tamaño
+de ventana o duplicar (en vez de mover): mejora futura.
+
+[Seguro] tsc estricto, vite build, UI 62 verdes. Sin claves i18n nuevas
+(reusa las de Depuración). Sin renombrar ids ni tocar Rust.
+
+[PENDIENTE HUMANO] Verificación: ⧉ en Depuración abre la ventana; poner un
+breakpoint en el editor aparece en la lista de la ventana; quitarlo desde la
+ventana lo saca del editor; editar una condición y agregar un watchpoint
+desde la ventana funcionan; al reacoplar, la lista y las condiciones siguen
+bien.
+
+Compuerta F3: Depuración desacoplable y sincronizada con el editor (bp
+editor→ventana y quitar ventana→editor; condición y watchpoint desde la
+ventana) · tsc/build · Rust intacto.

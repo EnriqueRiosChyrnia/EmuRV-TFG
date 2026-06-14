@@ -109,6 +109,16 @@ export class Depuracion {
     return c ? c : null;
   }
 
+  /** Fija una condición SIN re-enviar al backend ni avisar (sincronización
+   *  entre ventanas, RP22): la ventana host la usa para SEMBRAR lo que ya
+   *  tenía la principal, y la principal para ABSORBER lo editado en la
+   *  ventana. Vacío = borrar. Re-renderiza para que el input la muestre. */
+  setCondicionExterna(linea: number, cond: string): void {
+    if (cond.trim()) this.condiciones.set(linea, cond);
+    else this.condiciones.delete(linea);
+    this.renderBreakpoints();
+  }
+
   private renderBreakpoints(): void {
     this.listaBp.textContent = "";
     if (this.filas.length === 0) {
