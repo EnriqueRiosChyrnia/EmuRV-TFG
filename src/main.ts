@@ -214,11 +214,14 @@ class App {
     btnLecciones.onclick = () => this.lecciones.abrir(btnLecciones);
     boton("video", "toolbar.video", "deemph").onclick = () => this.video.alternar();
     bar.appendChild(this.sep());
-    // Sección de archivo agrupada (RP23): Nuevo · Abrir · Guardar · Guardar como.
-    boton("nuevo", "toolbar.nuevo", "deemph").onclick = () => this.nuevoArchivo();
-    boton("abrir", "toolbar.abrir", "deemph").onclick = () => void this.abrirArchivo();
-    boton("guardar", "toolbar.guardar", "deemph").onclick = () => void this.guardarArchivo();
-    boton("guardarComo", "toolbar.guardarComo", "deemph").onclick = () => void this.guardarComo();
+    // Sección de archivo en un MENÚ DESPLEGABLE «Archivo ⌄» (RP23): Nuevo ·
+    // Abrir · Guardar · Guardar como. La lógica de cada acción no cambia, solo
+    // se agrupa para no llenar la barra de botones sueltos.
+    const btnArchivo = boton("archivo", "toolbar.archivo", "deemph");
+    btnArchivo.insertAdjacentHTML("beforeend", '<span class="caret" aria-hidden="true">⌄</span>');
+    btnArchivo.setAttribute("aria-haspopup", "menu");
+    btnArchivo.setAttribute("aria-expanded", "false");
+    btnArchivo.onclick = () => this.alternarMenuArchivo(btnArchivo);
     bar.appendChild(this.sep());
     // Exportar ELF queda aparte: produce un binario, no guarda el fuente.
     boton("exportar", "toolbar.exportar", "deemph").onclick = () => void this.exportarElf();
@@ -785,6 +788,68 @@ class App {
     "main:\n" +
     "        li   a7, 10      # servicio 10: terminar\n" +
     "        ecall\n";
+
+  /** Menú desplegable «Archivo» (RP23): popover anclado al botón con Nuevo /
+   *  Abrir / Guardar / Guardar como. Toggle (si está abierto, cierra); cierra
+   *  al click afuera o Escape. La lógica de cada acción vive en sus métodos. */
+  private alternarMenuArchivo(ancla: HTMLElement): void {
+    const previo = document.getElementById("menu-archivo");
+    if (previo) {
+      previo.remove();
+      ancla.setAttribute("aria-expanded", "false");
+      return;
+    }
+    const items: { id: string; clave: string; accion: () => void }[] = [
+      { id: "nuevo", clave: "toolbar.nuevo", accion: () => this.nuevoArchivo() },
+      { id: "abrir", clave: "toolbar.abrir", accion: () => void this.abrirArchivo() },
+      { id: "guardar", clave: "toolbar.guardar", accion: () => void this.guardarArchivo() },
+      { id: "guardarComo", clave: "toolbar.guardarComo", accion: () => void this.guardarComo() },
+    ];
+    const menu = document.createElement("div");
+    menu.id = "menu-archivo";
+    menu.className = "menu-toolbar";
+    menu.setAttribute("role", "menu");
+
+    let cerrar = (): void => {};
+    const afuera = (e: MouseEvent): void => {
+      const t2 = e.target as Node;
+      if (!menu.contains(t2) && !ancla.contains(t2)) cerrar();
+    };
+    const esc = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") cerrar();
+    };
+    cerrar = (): void => {
+      menu.remove();
+      ancla.setAttribute("aria-expanded", "false");
+      document.removeEventListener("click", afuera, true);
+      document.removeEventListener("keydown", esc);
+    };
+
+    for (const it of items) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "menu-item";
+      b.setAttribute("role", "menuitem");
+      b.innerHTML = `${icono(it.id)}<span>${t(it.clave)}</span>`;
+      b.onclick = () => {
+        cerrar();
+        it.accion();
+      };
+      menu.appendChild(b);
+    }
+
+    document.body.appendChild(menu);
+    const r = ancla.getBoundingClientRect();
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${r.left}px`;
+    ancla.setAttribute("aria-expanded", "true");
+    // registrar los cierres tras este click (si no, el mismo click lo cerraría)
+    setTimeout(() => {
+      document.addEventListener("click", afuera, true);
+      document.addEventListener("keydown", esc);
+    }, 0);
+    menu.querySelector<HTMLButtonElement>("button")?.focus();
+  }
 
   /** «Nuevo» (RP23): empieza un programa en blanco (plantilla mínima). Si hay
    *  cambios sin guardar, confirma antes de descartarlos. Resetea ruta,
