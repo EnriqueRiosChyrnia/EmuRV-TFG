@@ -35,6 +35,7 @@ import { Lecciones } from "./paneles/lecciones";
 import { Ejemplos } from "./paneles/ejemplos";
 import { desacoplarPanel, botonDesacople } from "./paneles/desacople";
 import { depSync, type FilaConCond } from "./paneles/dep-sync";
+import { panelSync } from "./paneles/panel-sync";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
@@ -516,10 +517,12 @@ class App {
       this.enviarBreakpoints(); // los del margen aplican a la sesión nueva
       void this.depuracion.reaplicarWatchpoints(); // ídem watchpoints (RP7)
       this.setModo("listo", t("estado.ensamblado", { n: ok.text_len }), "ok");
+      panelSync.notificar(); // ventanas desacopladas: re-sincronizar al nuevo programa
     } catch (e) {
       const errores = e as AsmError[];
       this.programa = null;
       this.memoria.setPrograma(null);
+      panelSync.notificar(); // ventanas desacopladas: limpiar (sin programa válido)
       this.consola.clear();
       setErrors(this.editor, errores);
       setExecLine(this.editor, null);
@@ -599,6 +602,7 @@ class App {
     this.reinicioPedido = true;
     this.consola.setInputMode(false);
     await api.reset();
+    panelSync.notificar(); // ventanas desacopladas: re-sincronizar al estado reiniciado
   }
 
   /** Carga una lección normal al editor (buffer sin ruta, como un ejemplo).
