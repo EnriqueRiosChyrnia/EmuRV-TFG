@@ -2785,3 +2785,61 @@ del roadmap: RP-22 (desacoplar paneles a ventanas) y el tema-de-usuario
 
 [PENDIENTE HUMANO] Verificación visual del detalle en los 5 temas (objetivos
 y paneles legibles, botón Abrir destacado, sig/ant correcto).
+
+## 2026-06-13 — RP22-F1: mecanismo de desacople genérico + Registros
+
+[Seguro — RESPUESTAS DEL SPIKE] Las tres preguntas que el plan pedía:
+1. ¿La clase del panel se reusa TAL CUAL en otro documento? SÍ. `new
+   Registros(cuerpo)` en `panel.ts` (la ventana host) funciona idéntico al
+   lateral: la clase solo necesita un contenedor DOM + api/i18n, presentes en
+   cualquier documento. CERO duplicación de lógica (no hay 3 implementaciones
+   ad-hoc; un host parametrizado por `?panel=`).
+2. ¿Los eventos llegan a la ventana 2da? SÍ. `app.emit` de Tauri hace
+   BROADCAST a todas las webviews; el `listen()` de la ventana recibe
+   emu://registros (durante la ejecución, ~10 Hz) y emu://detenido (al
+   pausar). Requisito: la capability debía cubrir las ventanas nuevas →
+   `"panel-*"` (glob) en capabilities/default.json (validado por build.rs).
+3. ¿Cómo se propaga el tema/idioma? AL ABRIR (sólido): `inicializarTema()`
+   lee localStorage `emurv.tema.v1` (las webviews comparten origen → mismo
+   storage) y aplica data-tema; el módulo i18n autocarga `emurv.lang.v1` al
+   importarse. EN VIVO (best-effort): listener `storage` re-aplica el tema
+   sin recargar y recarga al cambiar idioma. Al abrir SIEMPRE es correcto.
+
+[Seguro] Mecanismo genérico (`src/paneles/desacople.ts`): `desacoplarPanel({
+id, seccionId, titulo, width, height, alReacoplar })` abre `panel.html?panel=
+id` como `WebviewWindow` label `panel-<id>` (patrón de video.ts), en modo
+MOVER — oculta la `<section>` del lateral YA (antes de crear la ventana, para
+no duplicar; el flex de RP-18 recompone) y la RESTAURA en `tauri://destroyed`
+/`tauri://error`. `botonDesacople()` arma el ⧉ del `<h2>` con
+`stopPropagation` (no dispara el plegado de Depuración). Host: `panel.html`
+(carga tokens.css + styles.css) + `src/panel.ts` (instancia la clase, se
+suscribe, aplica tema/idioma).
+
+[Seguro] Registros desacoplado (F1): la ventana instancia `Registros`, se
+suscribe a onRegisters + onStopped y pide `get_state()` al abrir; editar
+(doble-click → write_reg) ya andaba en la clase. COHERENCIA en ediciones:
+write_reg/write_mem NO emiten evento, así que el panel embebido (oculto
+durante el desacople) podría quedar viejo; se resuelve en el REACOPLE
+(`alReacoplar` → get_state + actualizar). Durante run/step/stop ambos se
+sincronizan solos por el broadcast de eventos. NO hubo que tocar Rust.
+
+[Seguro] Pantalla NO se rompe: video.ts queda igual; el mecanismo es
+paralelo (otro host, otras labels). build multipágina suma `panel.html` al
+input de vite (junto a index/pantalla). i18n: +1 clave `desacople.titulo`
+(es/en, anti-drift verde). index.html: el `<h2>` de Registros pasó a
+`panel-titulo-con-boton` con un `<span data-i18n>` (para poder colgarle el ⧉
+sin que traducirTitulos lo pise). CSS `.panel-desacoplar` (botón discreto).
+
+[Seguro] Suites verdes: UI 62, src-tauri y emurv-cli (cargo test + clippy 0)
+— el cambio de capability lo valida build.rs y pasó. tsc estricto y vite
+build limpios. Sin renombrar ids del JS ni tocar Rust.
+
+[PENDIENTE HUMANO] Verificación visual: ⧉ en Registros lo manda a una
+ventana (sale del lateral, que se recompone); la ventana aplica el tema y el
+idioma activos; correr/paso/detener refresca la ventana; editar un registro
+ahí funciona y al cerrar la ventana el panel vuelve al lateral con el valor
+editado.
+
+Compuerta F1: Registros desacopla/recompone/edita/sincroniza · tema+idioma
+en la ventana · contraste AA (pares ya cubiertos) · mecanismo genérico ·
+Pantalla intacta · tsc/build · Rust intacto.

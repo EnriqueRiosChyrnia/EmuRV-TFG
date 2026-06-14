@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- tokens ANTES de styles.css (mismas reglas que index.html) -->
+    <link rel="stylesheet" href="/src/temas/tokens.css" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmuRV</title>
+    <style>
+      /* La ventana ES el panel: ocupa todo, sin chrome de tarjeta (RP22). */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--fondo);
+      }
+      #panel-host {
+        height: 100vh;
+        display: flex;
+      }
+      #panel-host > .panel {
+        flex: 1;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        min-height: 0;
+      }
+    </style>
+    <script type="module" src="/src/panel.ts" defer></script>
+  </head>
+  <body>
+    <div id="panel-host"></div>
+  </body>
+</html>

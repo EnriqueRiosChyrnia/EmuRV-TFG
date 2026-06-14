@@ -33,6 +33,7 @@ import { Consola } from "./paneles/consola";
 import { Depuracion, type FilaBreakpoint } from "./paneles/depuracion";
 import { Lecciones } from "./paneles/lecciones";
 import { Ejemplos } from "./paneles/ejemplos";
+import { desacoplarPanel, botonDesacople } from "./paneles/desacople";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
@@ -137,6 +138,7 @@ class App {
       onAbrirMultiarchivo: (l) => void this.abrirLeccionMultiarchivo(l),
     });
     this.ejemplos = new Ejemplos(EJEMPLOS, (i) => this.cargarEjemplo(i));
+    this.configurarDesacople();
     this.consola.setOnLine((line) => {
       void api.sendInput(line);
       this.setModo("corriendo", t("estado.corriendo"));
@@ -259,6 +261,36 @@ class App {
     if (!panel || !titulo) return;
     titulo.classList.add("panel-titulo-clickeable");
     titulo.addEventListener("click", () => panel.classList.toggle("colapsado"));
+  }
+
+  /** Botón ⧉ en cada panel desacoplable (RP22): abre el panel en su ventana
+   *  (modo MOVER); al reacoplar refresca el panel embebido con el estado vivo
+   *  (las ediciones desde la ventana no emiten evento). Se cablea Registros
+   *  acá (F1); Memoria/Depuración se suman en F2/F3. */
+  private configurarDesacople(): void {
+    this.agregarDesacople("registros", "panel-registros", "panel.registros", 380, 580, () => {
+      void api
+        .getState()
+        .then((st) => this.registros.actualizar(st))
+        .catch(() => {});
+    });
+  }
+
+  private agregarDesacople(
+    id: string,
+    seccionId: string,
+    claveTitulo: string,
+    width: number,
+    height: number,
+    alReacoplar: () => void,
+  ): void {
+    const h2 = document.querySelector<HTMLElement>(`#${seccionId} h2`);
+    if (!h2) return;
+    h2.appendChild(
+      botonDesacople(t("desacople.titulo"), () => {
+        void desacoplarPanel({ id, seccionId, titulo: t(claveTitulo), width, height, alReacoplar });
+      }),
+    );
   }
 
   private traducirTitulos(): void {

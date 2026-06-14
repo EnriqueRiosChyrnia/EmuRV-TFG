@@ -881,6 +881,20 @@ input:focus-visible { border-color: var(--acento); }
   cursor: pointer;
 }
 
+/* Botón ⧉ de desacople en la cabecera de los paneles (RP22): discreto,
+   se realza al pasar el mouse. Hereda el color tenue del título del panel. */
+.panel-desacoplar {
+  background: transparent;
+  border: 0;
+  color: var(--texto-suave);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: var(--radio);
+  cursor: pointer;
+}
+.panel-desacoplar:hover { color: var(--texto); background: var(--fondo-claro); }
+
 /* El atributo hidden solo aplica display:none desde la hoja del navegador;
    .panel { display: flex } lo pisaba y el panel de video nunca se ocultaba
    (bug de duplicación al desacoplar la pantalla). */
