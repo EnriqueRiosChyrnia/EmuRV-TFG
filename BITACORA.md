@@ -3349,3 +3349,159 @@ Cap. VI: NO tocados.
 Compuerta de cierre: cargo test + clippy AMBOS crates, tsc estricto, UI con
 node:test, ci-local.sh --skip-bundle, tauri build y bundle ≤30 MB (RNF-04)
 — resultados al pie de esta sesión.
+## 2026-06-14 — RP29-F1: spike de viabilidad del ELF reubicable
+
+Objetivo del punto RP-29 (Cap. VI §6.2.3): poder exportar un ELF cuyo CÓDIGO no
+dependa de cargarse en una dirección fija. Hoy `export_elf` arma un ET_EXEC con
+direcciones ABSOLUTAS del mapa RARS (.text 0x00400000, .data 0x10010000) y el
+ensamblador codifica `la`/cargas con etiqueta como `lui rd, %hi(abs)` +
+`addi rd, rd, %lo(abs)`: el binario asume cargarse en esas direcciones.
+
+[Seguro] DECISIÓN — vía elegida: **Vía 1 (PC-relativo directo)**. En el modo
+reubicable el ensamblador emitirá las referencias a símbolos como
+`auipc rd, %pcrel_hi(sym)` + `addi rd, rd, %pcrel_lo` (estándar RISC-V),
+codificando `sym - pc` en lugar de la dirección absoluta. Se descarta la Vía 2
+(emitir relocations R_RISCV_PCREL_HI20/LO12 y delegar en un linker externo):
+produciría un .o, no un ejecutable, exigiría un `ld` en runtime y rompería el
+flujo educativo autocontenido. La Vía 1 es la más didáctica y la más barata
+(ver costo abajo).
+
+[Seguro] EVIDENCIA — `src-tauri/tests/spike_reubicable.rs` (oráculo GNU
+riscv64-elf-as/ld/objcopy 2.46.1, sin relax para obtener el par canónico):
+- `pcrel_es_reubicable_y_el_absoluto_no`: el MISMO objeto pcrel, enlazado en
+  bases 0x00010000 y 0x80000000 (conservando el hueco .text↔.data), da un
+  `.text` IDÉNTICO byte a byte (`00001517 00050513`); el par absoluto `lui/%hi`
+  cambia (`00011537` vs `80011537`). → PC-relativo es independiente de la
+  posición; el absoluto no. Demostración directa de la reubicabilidad.
+- `nuestro_auipc_addi_reproduce_el_pcrel_de_gnu`: para huecos 0x1000/0x2234/
+  0x1800/0x2ffc (cubre %lo=0, positivo+acarreo, negativo, negativo+acarreo)
+  nuestro `auipc a0, hi` + `addi a0, a0, lo` con `hi=hi20(off)`,`lo=lo12(off)`
+  da EXACTAMENTE las dos palabras que GNU resuelve para `%pcrel_hi/%pcrel_lo`.
+
+[Seguro] COSTO / viabilidad: la matemática de `%pcrel_hi`/`%pcrel_lo` ES la de
+los helpers `hi20`/`lo12` que ya usa el par `lui+addi` absoluto (compensación
+de acarreo +0x800 y signo del %lo). La codificación de `auipc` (opcode 0x17) ya
+existe en el ensamblador. Por lo tanto el modo reubicable es, en esencia,
+alimentar `sym - pc` en vez de `sym` y cambiar el opcode de `lui` (0x37) por
+`auipc` (0x17) en la expansión de `la`/cargas/almacenamientos con etiqueta. Es
+una vía PROPORCIONADA: no requiere infraestructura nueva (sin relocations, sin
+linker, sin tabla de fixups extra). No se aplica la regla de conflictos del
+ROADMAP (frenar por desproporción): el spike sale en verde.
+
+[Suposición → a confirmar en F2] Alcance de «reubicable» para EmuRV: el par
+pcrel preserva `sym - pc`, así que el artefacto es reubicable mientras .text y
+.data se desplacen JUNTOS (misma delta), conservando su distancia relativa —
+que es el caso de `ld -Ttext`/cargadores que mueven la imagen como unidad. NO
+es PIE con relocations dinámicas (fuera de alcance por diseño). El export
+normal (absoluto) y la ejecución en la app NO cambian: el reubicable es una
+OPCIÓN del artefacto exportado.
+
+Compuerta F1: viabilidad demostrada + decisión fundada (Vía 1) con evidencia
+del oráculo GNU · suite src-tauri intacta (incl. los 2 tests del spike) ·
+clippy --all-targets -D warnings limpio.
+
+## 2026-06-14 — RP29-F2: export ELF reubicable verificado contra GNU
+
+[Seguro] IMPLEMENTACIÓN (Vía 1, decidida en F1). Modo reubicable en el
+ensamblador: las pseudo-instrucciones con etiqueta —`la`/`lla`, cargas
+(`lw`/`lh`/…/`flw`/`fld`) y almacenamientos (`sw`/…/`fsw`/`fsd`) con etiqueta—
+expanden a `auipc rd, %pcrel_hi(sym)` + `op rd, %pcrel_lo` (codifican
+`sym - pc`) en vez del par absoluto `lui rd, %hi(sym)` + `op rd, %lo`. La
+matemática es la misma (`hi20`/`lo12`); el cambio es alimentar `c.pcrel(addr)
+= addr - ins.addr` y usar el opcode de `auipc` (0x17) en lugar de `lui`
+(0x37). Las direcciones de pasada 1 y el `source_map` NO cambian: el modo solo
+afecta los BYTES emitidos en pasada 2.
+
+[Seguro] API y alcance del cambio (respetando el área core + CLI):
+- `Program` gana `reubicable: bool`; `export_elf` lo lee y marca el ELF
+  `ET_DYN` (PIE) cuando es true, `ET_EXEC` (absoluto) cuando es false. NO
+  cambió la firma de `export_elf` → `commands.rs`/GUI intactos (la GUI nunca
+  ensambla reubicable; su `Program.reubicable` es siempre false).
+- Nuevas entradas públicas `assemble_reubicable` y
+  `assemble_with_includes_reubicable`; las existentes (`assemble`,
+  `assemble_with_includes`) delegan en un `assemble_impl(.., reubicable)`
+  con `false`, sin cambiar su firma.
+- CLI: `emurv-cli asm --reubicable` (flag opcional; el parser a mano sigue sin
+  `clap`). `run`/`disasm`/`debug` siguen absolutos.
+
+[Seguro] VERIFICACIÓN — oráculo GNU as/ld/objcopy 2.46.1, `tests/
+rp29_reubicable.rs` (5 tests; los que linkan se saltean sin toolchain):
+- `reubicable_igual_al_pcrel_de_gnu`: nuestro `.text` reubicable de un
+  programa con `la`+`lw`+`sw` es BYTE A BYTE el par auipc/%pcrel que GNU
+  resuelve en el mapa de EmuRV (.text 0x00400000, .data 0x10010000). P.ej.
+  `la a0, msj` → `0fc10517 00050513` (auipc a0,0xfc10 ; addi a0,a0,0).
+- `pcrel_no_cambia_al_reubicar`: el MISMO objeto pcrel, enlazado en
+  0x00400000 y en 0x20400000/0x30010000 (delta +0x20000000 a ambos
+  segmentos), da un `.text` IDÉNTICO, y coincide con el nuestro → reubicable:
+  misma conducta cargado en otra dirección.
+- `export_normal_sigue_absoluto`: el `.text` del modo normal sigue siendo el
+  par `lui/%hi` de GNU, byte a byte (regresión: la Vía 1 no tocó el camino
+  absoluto).
+- `reubicable_usa_auipc_y_el_normal_lui` y `elf_reubicable_es_et_dyn_y_normal_
+  et_exec`: chequeos sin toolchain (opcode 0x17 vs 0x37; e_type 3 vs 2).
+- Humo CLI: `emurv-cli asm --reubicable` → readelf Type=DYN y objdump muestra
+  `auipc` resolviendo a `msj` (0x10010000); el normal → Type=EXEC y `lui`.
+
+[Seguro] LIMITACIONES (documentadas, dentro del alcance del plan):
+- El modo reubicable convierte las PSEUDO-instrucciones con etiqueta. Las
+  formas MANUALES `lui rd, %hi(sym)` / `%lo(sym)(base)` que el usuario escribe
+  a mano siguen absolutas (el par %hi/%lo es elección explícita del autor; el
+  ensamblador no las re-aparea a %pcrel). Para reubicabilidad total: usar
+  `la`/cargas-con-etiqueta. Los saltos (`j`/`call`/`b*`/`jal`) y las
+  comprimidas (`c.j`/`c.beqz`) YA eran PC-relativos: no cambian.
+- «Reubicable» = la imagen se desplaza como UNIDAD (`.text` y `.data` por la
+  misma delta), conservando su distancia relativa; es lo que hace `ld -Ttext`
+  y los cargadores de PIE. NO es PIE con relocations dinámicas (fuera de
+  alcance por diseño).
+- EmuRV solo IMPORTA `ET_EXEC` absoluto (elf_import.rs rechaza ET_DYN con
+  mensaje didáctico): el artefacto reubicable es para OTRAS herramientas, no
+  para recargar en la propia app. El mapa de memoria y la ejecución de la app
+  no cambian.
+
+Compuerta F2: reubicable verificado contra GNU (byte a byte + invariancia al
+reubicar) · export normal absoluto intacto (regresión) · CLI `--reubicable` ·
+suites verdes y clippy -D warnings limpio en AMBOS crates (src-tauri 219
+tests, emurv-cli verde).
+
+## 2026-06-14 — RP29-F3: docs ELF reubicable y cierre
+
+[Seguro] DOCS. `README.md`: el subcomando `asm` documenta `--reubicable` (con
+ejemplo) y un párrafo de «cuándo usarlo» (artefacto independiente de la
+dirección de carga vs. export normal absoluto recomendado). `docs/
+ENSAMBLADOR.md`: nueva §4.6 «Export reubicable: PC-relativo (RP29)» con la
+expansión `auipc/%pcrel`, la equivalencia matemática con `hi20`/`lo12`, el
+porqué de la independencia de posición (la imagen se desplaza como unidad), los
+límites y la verificación con el oráculo GNU. NO se tocó `docs/ROADMAP-PRO.md`
+ni el Cap. VI (regla del lote).
+
+[Seguro] CIERRE RP-29 — criterios de aceptación (del plan):
+- Opción de export que produce un ELF reubicable (no atado a 0x00400000),
+  verificado con la toolchain GNU ✓ F1 (spike) / F2 (implementación + oráculo
+  byte a byte + invariancia al reubicar).
+- Export normal (absoluto) y ejecución en la app intactos ✓ F2 (regresión
+  `export_normal_sigue_absoluto`; la GUI nunca ensambla reubicable; mapa de
+  memoria sin cambios).
+- Flag en emurv-cli (`asm --reubicable`) ✓ F2 (+ humo CLI: readelf Type=DYN,
+  objdump muestra `auipc`).
+- La regla de conflictos del ROADMAP (frenar si la vía es desproporcionada) NO
+  se activó: el spike F1 mostró que la Vía 1 reusa primitivas existentes.
+
+[Seguro] Compuerta F3 (cierre): `scripts/ci-local.sh --skip-bundle` TODO VERDE
+— frontend (`npm ci` · `tsc --noEmit` · `npm run test:ui` · `vite build`) +
+`cargo test` y `cargo clippy --all-targets -- -D warnings` en AMBOS crates
+(src-tauri y emurv-cli) + build release del CLI. `npx tauri build` construyó
+`EmuRV.app` y `scripts/check-bundle-size.sh` da **22 MB ≤ 30** (RNF-04).
+
+[PENDIENTE HUMANO] El paso `.dmg` de `npx tauri build` no se ejecutó en esta
+sesión headless (`create-dmg` usa AppleScript/Finder y necesita sesión de
+escritorio); el sujeto de RNF-04 es la `.app` (verde). Re-correr el bundle
+completo en sesión de escritorio para emitir el `.dmg`.
+
+[PENDIENTE HUMANO] Verificación manual sugerida (no bloqueante): exportar por
+CLI `asm --reubicable` un programa con `la`/`lw etiqueta` y abrirlo en una
+herramienta externa (objdump/Ripes) — confirmar que las referencias usan
+`auipc/%pcrel` y resuelven al símbolo; el export normal sigue mostrando `lui`.
+
+[Seguro] ÁREA. RP-29 tocó solo `src-tauri/src/core/` (assembler, elf_export,
+elf_import) y `emurv-cli/src/main.rs` (el flag), más tests y docs. Sin tocar el
+frontend (`src/`), sin `commands.rs`, sin merges ni cambios de rama.

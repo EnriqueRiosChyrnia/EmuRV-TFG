@@ -95,11 +95,11 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
 | RP-21 | Recuperar vista de objetivos en modal de Lecciones (fix regresión RP-20) | Alta | DOCUMENTADO |
 | RP-22 | Desacoplar paneles Registros/Memoria/Depuración a ventanas (modo mover) | Media | DOCUMENTADO |
 | RP-23 | Gestión de archivos (Nuevo, Guardar como, guardar inteligente) + cerrar ventanas hijas al salir | Media | DOCUMENTADO |
-| RP-24 | Find/Replace en el editor (Cmd+F) | Baja | PENDIENTE |
+| RP-24 | Find/Replace en el editor (Cmd+F) | Baja | DOCUMENTADO |
 | RP-25 | Indicador de cambios sin guardar + aviso al cerrar | Baja | PENDIENTE |
-| RP-26 | Búsqueda en el panel de Memoria | Baja | PENDIENTE |
+| RP-26 | Búsqueda en el panel de Memoria | Baja | DOCUMENTADO |
 | RP-27 | Persistir workspace/sesión (último archivo, layout, ventanas) | Media | PENDIENTE |
-| RP-28 | Tema de usuario (crear/editar/cargar) | Media | PENDIENTE |
+| RP-28 | Tema de usuario (crear/editar/cargar) | Media | DOCUMENTADO |
 | RP-29 | ELF reubicable (auipc, independiente de dirección de carga) | Media | PENDIENTE |
 | RP-30 | Pestañas + archivos recientes | Media-Alta | PENDIENTE |
 | RP-31 | Sprites + sonido (sobre el framebuffer) | Media-Alta | PENDIENTE |

@@ -73,10 +73,20 @@ pub fn export_elf(program: &Program) -> Result<Vec<u8>, String> {
     w.reserve_section_headers();
 
     // --- Escritura (mismo orden que las reservas) ---
+    // Modo reubicable (RP29): el código es PC-relativo, así que el artefacto
+    // se marca ET_DYN (PIE) — declara que puede cargarse en otra base mientras
+    // .text y .data se desplacen juntos. El export normal sigue ET_EXEC con
+    // direcciones absolutas. (EmuRV solo IMPORTA ET_EXEC; el reubicable es para
+    // otras herramientas — ver elf_import.rs.)
+    let e_type = if program.reubicable {
+        elf::ET_DYN
+    } else {
+        elf::ET_EXEC
+    };
     w.write_file_header(&FileHeader {
         os_abi: elf::ELFOSABI_NONE,
         abi_version: 0,
-        e_type: elf::ET_EXEC,
+        e_type,
         e_machine: elf::EM_RISCV,
         e_entry: TEXT_BASE as u64,
         e_flags: 0,

@@ -88,6 +88,12 @@ pub struct Program {
     /// El programa vino de un binario importado (RP11): sin fuente ni
     /// source_map — la UI muestra el listado desensamblado.
     pub from_binary: bool,
+    /// Ensamblado en modo REUBICABLE (RP29): las referencias a símbolos de
+    /// las pseudo-instrucciones (`la`/`lla`, cargas/almacenamientos con
+    /// etiqueta) se codifican PC-relativo (`auipc`+`%pcrel`) en vez de
+    /// absoluto (`lui`+`%hi/%lo`). El `export_elf` lo marca ET_DYN. El modo
+    /// por defecto (`false`) no cambia: sigue absoluto/ET_EXEC.
+    pub reubicable: bool,
 }
 
 impl Program {
@@ -625,6 +631,12 @@ pub fn assemble(source: &str) -> Result<Program, Vec<AsmError>> {
     assemble_with_includes(source, None, "programa.s")
 }
 
+/// Como [`assemble`] pero en modo REUBICABLE (RP29): las referencias a
+/// símbolos se codifican PC-relativo. Atajo para tests/usos sin includes.
+pub fn assemble_reubicable(source: &str) -> Result<Program, Vec<AsmError>> {
+    assemble_impl(source, None, "programa.s", true)
+}
+
 /// Ensambla el fuente completo, resolviendo `.include` relativo a
 /// `base_dir` (RP5). Devuelve el programa o TODOS los errores encontrados
 /// (no solo el primero), ordenados por archivo y línea.
@@ -632,6 +644,28 @@ pub fn assemble_with_includes(
     source: &str,
     base_dir: Option<&std::path::Path>,
     main_name: &str,
+) -> Result<Program, Vec<AsmError>> {
+    assemble_impl(source, base_dir, main_name, false)
+}
+
+/// Igual que [`assemble_with_includes`] pero en modo REUBICABLE (RP29).
+/// Lo usa la CLI con `--reubicable`; la app (modo normal) NO lo llama.
+pub fn assemble_with_includes_reubicable(
+    source: &str,
+    base_dir: Option<&std::path::Path>,
+    main_name: &str,
+) -> Result<Program, Vec<AsmError>> {
+    assemble_impl(source, base_dir, main_name, true)
+}
+
+/// Cuerpo común del ensamblado. `reubicable` solo afecta la pasada 2: la
+/// expansión de las pseudo-instrucciones con etiqueta usa `auipc`+`%pcrel`
+/// en vez de `lui`+`%hi/%lo` (las direcciones y el `source_map` no cambian).
+fn assemble_impl(
+    source: &str,
+    base_dir: Option<&std::path::Path>,
+    main_name: &str,
+    reubicable: bool,
 ) -> Result<Program, Vec<AsmError>> {
     let pp = super::preprocess::preprocess(source, base_dir, main_name)?;
     let files = pp.files;
@@ -709,7 +743,7 @@ pub fn assemble_with_includes(
             }
             continue;
         }
-        match encode_instr(ins, &p.symbols) {
+        match encode_instr(ins, &p.symbols, reubicable) {
             Ok(words) => {
                 debug_assert_eq!(words.len() as u32 * 4, ins.size);
                 for (k, w) in words.iter().enumerate() {
@@ -752,6 +786,7 @@ pub fn assemble_with_includes(
             files,
             entry: TEXT_BASE,
             from_binary: false,
+            reubicable,
         })
     } else {
         p.errors.sort_by_key(|e| (e.file.clone(), e.line, e.col));
@@ -1983,6 +2018,8 @@ fn lo12(v: u32) -> i32 {
 struct Ctx<'a> {
     ins: &'a PInstr,
     symbols: &'a BTreeMap<String, u32>,
+    /// Modo reubicable (RP29): la expansión con etiqueta usa PC-relativo.
+    reubicable: bool,
 }
 
 impl Ctx<'_> {
@@ -2048,6 +2085,14 @@ impl Ctx<'_> {
                 )
             }),
         }
+    }
+    /// Offset PC-relativo de `addr` respecto del `auipc` que abre la
+    /// expansión (la primera palabra de la pseudo, en `ins.addr`): es el
+    /// valor de `%pcrel_hi`/`%pcrel_lo` del estándar RISC-V. `hi20`/`lo12`
+    /// lo parten igual que en el par absoluto, así que reconstruyen `addr`
+    /// exacto (verificado contra GNU en tests/spike_reubicable.rs).
+    fn pcrel(&self, addr: u32) -> u32 {
+        addr.wrapping_sub(self.ins.addr)
     }
     /// Resuelve una etiqueta (u offset numérico absoluto) a dirección.
     fn target(&self, i: usize) -> Result<u32, AsmError> {
@@ -2171,8 +2216,16 @@ impl Ctx<'_> {
     }
 }
 
-fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32>, AsmError> {
-    let c = Ctx { ins, symbols };
+fn encode_instr(
+    ins: &PInstr,
+    symbols: &BTreeMap<String, u32>,
+    reubicable: bool,
+) -> Result<Vec<u32>, AsmError> {
+    let c = Ctx {
+        ins,
+        symbols,
+        reubicable,
+    };
     let m = ins.mnem.as_str();
     let w = match m {
         // ---- R-type ----
@@ -2353,10 +2406,20 @@ fn encode_instr(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<Vec<u32
         "la" | "lla" => {
             let addr = c.target(1)?;
             let rd = c.reg(0)?;
-            return Ok(vec![
-                enc_u(hi20(addr), rd, 0x37),
-                enc_i(lo12(addr), rd, 0, rd, 0x13),
-            ]);
+            return Ok(if c.reubicable {
+                // PC-relativo: auipc rd, %pcrel_hi ; addi rd, rd, %pcrel_lo
+                let off = c.pcrel(addr);
+                vec![
+                    enc_u(hi20(off), rd, 0x17),
+                    enc_i(lo12(off), rd, 0, rd, 0x13),
+                ]
+            } else {
+                // Absoluto: lui rd, %hi ; addi rd, rd, %lo
+                vec![
+                    enc_u(hi20(addr), rd, 0x37),
+                    enc_i(lo12(addr), rd, 0, rd, 0x13),
+                ]
+            });
         }
         // ---- RV32A (RP13): opcode AMO 0x2F, funct3=010 (.w) ----
         _ if parse_amo(m).is_some() => {
@@ -2427,12 +2490,21 @@ fn encode_load(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
             Ok(vec![enc_i(off as i32, base, load_f3(c, m)?, rd, 0x03)])
         }
         Some(OpKind::Sym(_) | OpKind::Imm(_)) => {
-            // lw rd, etiqueta_o_constante  →  lui rd, %hi ; lw rd, %lo(rd)
             let addr = c.target(1)?;
-            Ok(vec![
-                enc_u(hi20(addr), rd, 0x37),
-                enc_i(lo12(addr), rd, load_f3(c, m)?, rd, 0x03),
-            ])
+            if c.reubicable {
+                // lw rd, etiqueta → auipc rd, %pcrel_hi ; lw rd, %pcrel_lo(rd)
+                let off = c.pcrel(addr);
+                Ok(vec![
+                    enc_u(hi20(off), rd, 0x17),
+                    enc_i(lo12(off), rd, load_f3(c, m)?, rd, 0x03),
+                ])
+            } else {
+                // lw rd, etiqueta → lui rd, %hi ; lw rd, %lo(rd)
+                Ok(vec![
+                    enc_u(hi20(addr), rd, 0x37),
+                    enc_i(lo12(addr), rd, load_f3(c, m)?, rd, 0x03),
+                ])
+            }
         }
         _ => Err(c.internal_err(1, "un operando de memoria o una etiqueta")),
     }
@@ -2445,7 +2517,8 @@ fn encode_store(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
         let imm = c.check_imm12(1, off)?;
         Ok(vec![enc_s(imm, rs2, base, load_f3(c, m)?)])
     } else {
-        // sw rs2, etiqueta, rt  →  lui rt, %hi ; sw rs2, %lo(rt)
+        // sw rs2, etiqueta, rt → (abs) lui rt,%hi;sw rs2,%lo(rt)
+        //                        (reub) auipc rt,%pcrel_hi;sw rs2,%pcrel_lo(rt)
         let addr = c.target(1)?;
         let rt = c.reg(2)?;
         if rt == 0 {
@@ -2455,10 +2528,18 @@ fn encode_store(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
                 "el registro auxiliar de un almacenamiento con etiqueta no puede ser zero/x0",
             ));
         }
-        Ok(vec![
-            enc_u(hi20(addr), rt, 0x37),
-            enc_s(lo12(addr), rs2, rt, load_f3(c, m)?),
-        ])
+        if c.reubicable {
+            let off = c.pcrel(addr);
+            Ok(vec![
+                enc_u(hi20(off), rt, 0x17),
+                enc_s(lo12(off), rs2, rt, load_f3(c, m)?),
+            ])
+        } else {
+            Ok(vec![
+                enc_u(hi20(addr), rt, 0x37),
+                enc_s(lo12(addr), rs2, rt, load_f3(c, m)?),
+            ])
+        }
     }
 }
 
@@ -2497,10 +2578,18 @@ fn encode_fload(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
                     "el registro auxiliar de una carga f con etiqueta no puede ser zero/x0",
                 ));
             }
-            Ok(vec![
-                enc_u(hi20(addr), rt, 0x37),
-                enc_i(lo12(addr), rt, f3, rd, 0x07),
-            ])
+            if c.reubicable {
+                let off = c.pcrel(addr);
+                Ok(vec![
+                    enc_u(hi20(off), rt, 0x17),
+                    enc_i(lo12(off), rt, f3, rd, 0x07),
+                ])
+            } else {
+                Ok(vec![
+                    enc_u(hi20(addr), rt, 0x37),
+                    enc_i(lo12(addr), rt, f3, rd, 0x07),
+                ])
+            }
         }
         _ => Err(c.internal_err(1, "un operando de memoria o una etiqueta")),
     }
@@ -2524,10 +2613,18 @@ fn encode_fstore(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
                 "el registro auxiliar de un almacenamiento f con etiqueta no puede ser zero/x0",
             ));
         }
-        Ok(vec![
-            enc_u(hi20(addr), rt, 0x37),
-            enc_s_fp(lo12(addr), rs2, rt, f3),
-        ])
+        if c.reubicable {
+            let off = c.pcrel(addr);
+            Ok(vec![
+                enc_u(hi20(off), rt, 0x17),
+                enc_s_fp(lo12(off), rs2, rt, f3),
+            ])
+        } else {
+            Ok(vec![
+                enc_u(hi20(addr), rt, 0x37),
+                enc_s_fp(lo12(addr), rs2, rt, f3),
+            ])
+        }
     }
 }
 
@@ -2537,7 +2634,13 @@ fn encode_fstore(c: &Ctx, m: &str) -> Result<Vec<u32>, AsmError> {
 /// dan error didáctico — el ensamblador no comprime solo, así que un valor
 /// fuera de rango es siempre culpa de lo que el usuario escribió.
 fn encode_compressed(ins: &PInstr, symbols: &BTreeMap<String, u32>) -> Result<u16, AsmError> {
-    let c = Ctx { ins, symbols };
+    // Las comprimidas con salto (c.j/c.beqz/c.bnez) ya son PC-relativas, así
+    // que el modo reubicable no las afecta: `reubicable: false` es correcto.
+    let c = Ctx {
+        ins,
+        symbols,
+        reubicable: false,
+    };
     let m = ins.mnem.as_str();
     let err = |col: u32, msg: String| AsmError::new(ins.line, col, msg);
     let w: u16 = match m {
