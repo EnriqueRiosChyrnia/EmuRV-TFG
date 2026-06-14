@@ -4,6 +4,7 @@
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
@@ -22,6 +23,7 @@ import {
 import type { AsmError } from "../api";
 import { fuenteAutocompletado } from "./autocompletar";
 import { ayudaDe, descripcionInstr } from "./ayuda-isa";
+import { frasesBusqueda } from "./buscar";
 import { definicionDeEtiqueta, palabraEn, usosDeEtiqueta } from "./etiquetas";
 import { esMnemonico } from "./isa";
 import { riscvLanguage } from "./riscv";
@@ -271,6 +273,14 @@ export function createEditor(
         highlightActiveLineGutter(),
         history(),
         keymap.of([...defaultKeymap, ...completionKeymap, ...historyKeymap, indentWithTab]),
+        // Búsqueda/reemplazo (RP-24): Cmd/Ctrl+F abre el panel arriba, con
+        // resaltado de las coincidencias de la selección y etiquetas en el
+        // idioma activo. En modo binario (read-only) CodeMirror oculta los
+        // controles de reemplazo, así que el panel solo busca.
+        keymap.of(searchKeymap),
+        search({ top: true }),
+        highlightSelectionMatches(),
+        EditorState.phrases.of(frasesBusqueda()),
         riscvLanguage,
         // Autocompletado contextual (RP14): mnemónicos, registros y
         // etiquetas del buffer, con descripción del diccionario en el info.
