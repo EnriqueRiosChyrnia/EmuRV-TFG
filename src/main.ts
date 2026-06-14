@@ -35,6 +35,7 @@ import { Consola } from "./paneles/consola";
 import { Depuracion, type FilaBreakpoint } from "./paneles/depuracion";
 import { Lecciones } from "./paneles/lecciones";
 import { Ejemplos } from "./paneles/ejemplos";
+import { EditorTema } from "./paneles/editor-tema";
 import { desacoplarPanel, botonDesacople } from "./paneles/desacople";
 import { depSync, type FilaConCond } from "./paneles/dep-sync";
 import { panelSync } from "./paneles/panel-sync";
@@ -83,6 +84,7 @@ class App {
   private ayuda: Ayuda;
   private lecciones: Lecciones;
   private ejemplos!: Ejemplos;
+  private editorTema: EditorTema;
   private programa: AssembleOk | null = null;
   /** El texto del editor cambió desde el último ensamblado exitoso:
    *  line_to_addr ya no es confiable para validar breakpoints. */
@@ -153,6 +155,12 @@ class App {
       onAbrirMultiarchivo: (l) => void this.abrirLeccionMultiarchivo(l),
     });
     this.ejemplos = new Ejemplos(EJEMPLOS, (i) => this.cargarEjemplo(i));
+    // Editor de tema de usuario (RP28): al guardar/cerrar sincroniza el
+    // <select> de tema de la toolbar con el tema activo persistido.
+    this.editorTema = new EditorTema(() => {
+      const sel = document.getElementById("tema") as HTMLSelectElement | null;
+      if (sel) sel.value = leerTema();
+    });
     this.configurarDesacople();
     this.configurarCierreVentanas();
     this.consola.setOnLine((line) => {
@@ -269,6 +277,11 @@ class App {
       setTema(tema.value as Tema);
     };
     bar.appendChild(tema);
+
+    // Editor de tema de usuario (RP28): botón que abre el modal «Editar
+    // tema». Guardar crea/actualiza el tema «Personalizado» y lo selecciona.
+    const btnEditarTema = boton("tema-editar", "tema.editar");
+    btnEditarTema.onclick = () => this.editorTema.abrir(btnEditarTema);
   }
 
   private sep(): HTMLElement {

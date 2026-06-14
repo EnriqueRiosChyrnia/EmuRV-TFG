@@ -209,6 +209,7 @@ export class Ayuda {
         <h3>${t("ayuda.idiomaTemas.titulo")}</h3>
         <p>${t("ayuda.idioma.texto")}</p>
         <p class="compacto">${t("ayuda.temas.texto")}</p>
+        <p class="compacto">${t("ayuda.temas.usuario")}</p>
       </section>
 
       <section id="ay-about">

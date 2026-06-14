@@ -271,3 +271,17 @@
    está). El editor recolorea solo: su highlight emite las clases .cm-sx-*
    (ver src/editor/tema.ts) que en styles.css pintan con var(--sx-*).
    ---------------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------------
+   TEMA «PERSONALIZADO» DEL USUARIO (RP28, Parte B de RP17)
+   ----------------------------------------------------------------------
+   El tema [data-tema="usuario"] NO tiene bloque acá A PROPÓSITO: sus
+   valores los arma el USUARIO en el editor «Editar tema» y se aplican como
+   variables CSS INLINE sobre :root (document.documentElement.style), leídas
+   de localStorage `emurv.tema-usuario.v1`. El estilo inline gana la cascada
+   sobre estos bloques [data-tema], así que NO hace falta — ni conviene —
+   hardcodear sus colores en este archivo. Ver src/temas/usuario.ts (datos +
+   aplicar/limpiar vars) e src/paneles/editor-tema.ts (la UI). Su contraste
+   AA es responsabilidad del usuario: el editor AVISA si un par no llega a
+   4.5:1, pero no bloquea (es su tema) — por eso no entra en contraste.test.
+   ---------------------------------------------------------------------- */
