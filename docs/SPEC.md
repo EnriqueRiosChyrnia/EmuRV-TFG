@@ -36,3 +36,12 @@ Principio rector: UX familiar al ciclo de emu8086 — **editar → ensamblar →
 - Modo gráfico/VGA, interrupciones de hardware, MMIO más allá de la consola.
 - Builds de Windows/Linux (solo dejar la configuración multiplataforma de Tauri intacta).
 - Autenticación, telemetría, actualizaciones automáticas.
+
+> **Nota (post-v0.1, roadmap profesional):** varios de estos puntos se
+> entregaron DESPUÉS de v0.1 como extensiones aprobadas en `docs/ROADMAP-PRO.md`
+> (cada una con su `docs/PLAN-RP<N>-*.md` y verificación en `BITACORA.md`), sin
+> alterar el alcance de v0.1 que esta SPEC fija: las extensiones **F/D/A/C**
+> (RP-12/RP-13), la **carga/depuración de ELF** (RP-11/RP-6), el **modo gráfico
+> y el teclado MMIO** (framebuffer/TEC), y el soporte **RV64 conmutable** con
+> RV32 (RP-32) — selector de ancho, repertorio RV64IM verificado contra GNU y
+> registros de 64 bits, con RV32 como default intacto.

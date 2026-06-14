@@ -3750,3 +3750,60 @@ por los tests.
 (233 + 2 end-to-end) · `tsc --noEmit` limpio · `npm run test:ui` **90/90** ·
 `emurv-cli` verde · `cargo clippy --all-targets -- -D warnings` limpio en AMBOS
 crates. Commit `rp32-fase-4: UI selector de arquitectura y registros 64-bit`.
+
+## 2026-06-14 — RP32-F5: docs RV64 y cierre
+
+[Seguro] CLI `--rv64` (el plan lo dejaba opcional: «el CLI puede ganar un flag
+--rv64 — registrar»). `emurv-cli asm --rv64` y `run --rv64` ensamblan/ejecutan
+con el repertorio de 64 bits (`ensamblar_archivo` toma `xlen`; `run --rv64`
+ensambla el fuente directo porque un ELF importado siempre es RV32). `asm
+--reubicable --rv64` se rechaza (reubicable es RV32, RP29). Humo verificado:
+`run --rv64 ejemplos/15-rv64.asm` → «addiw (W, 32 bits) = 93»; `asm` sin el flag
+sobre ese fuente da los errores didácticos de arquitectura. `debug`/`disasm`
+siguen RV32 (gdb-stub y desensamblador RV64 fuera de alcance — registrado).
+
+[Seguro] DOCS. `README.md`: intro «RV32IM, conmutable a RV64IM», nueva viñeta
+de la arquitectura conmutable (repertorio W, ld/sd, registros de 64 bits,
+verificado contra GNU, RV32 intacto), ejemplos de CLI `--rv64`, conteo de
+ejemplos 12→13 (se reemplazó la línea «RV64 queda fuera de alcance», ya
+obsoleta). `docs/ENSAMBLADOR.md`: §4.7 «RV64IM: arquitectura conmutable» (el
+repertorio, el truco del shamt de 6 bits con encoding idéntico, el error
+didáctico, lo fuera de alcance) y nota del oráculo RV64 en §5. `docs/SPEC.md`:
+nota post-v0.1 que aclara que RV64 (y F/D/A/C, ELF, gráficos) se entregaron por
+el roadmap sin alterar el alcance de v0.1. NO se tocó `docs/ROADMAP-PRO.md` ni
+el Cap. VI (regla del plan).
+
+[Seguro] CRITERIOS DE ACEPTACIÓN (del plan RP-32) — TODOS cumplidos:
+- Ejecutar y ensamblar RV64, conmutable RV32/RV64, persistido ✓ (F2 núcleo, F3
+  ensamblador, F4 selector+persistencia+UI).
+- Encodings RV64 verificados contra GNU ✓ (F3: `rp32_rv64_oracle.rs` palabra a
+  palabra contra `riscv64-elf-as -march=rv64im`).
+- Registros de 64 bits en la UI en modo RV64 ✓ (F4: hex de 16 dígitos + decimal
+  i64; `registros-fmt.ts` + test).
+- RV32 100 % intacto (tests previos verdes, default RV32) ✓ (todas las fases;
+  el único toque a tests fue el ensanche mecánico u32→u64).
+- El spike F1 NO reveló alcance desproporcionado: la vía u64-interno+xlen reusó
+  todas las primitivas; no hubo que frenar ni trocear ✓.
+
+[Seguro] COMPUERTA F5 (CIERRE) — TODO VERDE:
+- `scripts/ci-local.sh --skip-bundle`: **TODO VERDE** (frontend `npm ci` + `tsc
+  --noEmit` + `npm run test:ui` 90/90 + `vite build`; `cargo test` y `cargo
+  clippy --all-targets -- -D warnings` en src-tauri y emurv-cli; build release
+  del CLI).
+- `cargo test` src-tauri **235 passed / 0 failed**; emurv-cli verde.
+- `npx tauri build`: construyó **EmuRV.app y EmuRV_0.1.0_aarch64.dmg**;
+  `scripts/check-bundle-size.sh` da **22 MB ≤ 30** (RNF-04).
+
+[PENDIENTE HUMANO] Verificación visual de la GUI (no automatizable headless):
+elegir «RV64» en la barra, cargar el ejemplo 15, ensamblar y ejecutar, y
+confirmar que el panel muestra 16 dígitos hex en los registros (t0/t2) con el
+valor de 2^40+0x7B, y que al volver a «RV32» vuelven a 8 dígitos. La cadena
+assemble→run→registros-u64 ya está cubierta por tests (CLI y backend
+end-to-end); falta solo el click-through visual.
+
+[Seguro] ÁREA RP-32 (todas las fases): `src-tauri/src/core/` (mod, machine,
+assembler, elf_import), `src-tauri/src/commands.rs`, `emurv-cli/src/main.rs`,
+frontend (`api.ts`, `main.ts`, `arquitectura.ts`, `paneles/registros*.ts`,
+`editor/isa.ts`+`ayuda-isa.ts`, i18n), `ejemplos/15-rv64.asm`, tests nuevos y
+docs. Sin merges ni cambios de rama (la coordinadora mergea). Commit
+`rp32-fase-5: docs RV64`.

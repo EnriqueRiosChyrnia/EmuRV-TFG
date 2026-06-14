@@ -227,6 +227,36 @@ da un `.text` **idéntico** (reubicable de verdad), mientras que el par absoluto
 `lui/%hi` cambia; y el export normal sigue siendo, byte a byte, el par
 absoluto de GNU (regresión). Si la toolchain no está, esos tests se saltean.
 
+### 4.7. RV64IM: arquitectura conmutable (RP32, 2026-06-14)
+
+El ensamblador está parametrizado por **ancho** (`Xlen::Rv32` / `Rv64`). El
+ancho viaja con el `Program` y lo elige el usuario (selector en la barra,
+persistido; `emurv-cli asm|run --rv64`). RV32 es el default y queda **100 %
+intacto**: un fuente RV32 se ensambla byte a byte como antes (regresión en
+`tests/rp32_rv64_oracle.rs::rv32_identico_con_y_sin_parametro`).
+
+En modo **RV64** se habilita el repertorio de 64 bits sobre RV32IM:
+
+- **RV64I:** `ld` (doubleword, 8 bytes), `lwu` (word sin signo), `sd`
+  (doubleword); las «W» de OP-IMM-32 — `addiw`, `slliw`, `srliw`, `sraiw` — y
+  las de OP-32 — `addw`, `subw`, `sllw`, `srlw`, `sraw` — que operan sobre 32
+  bits y **sign-extienden** el resultado a 64.
+- **RV64M:** `mulw`, `divw`, `divuw`, `remw`, `remuw` (32 bits, sign-extendidas).
+- **Corrimientos `slli`/`srli`/`srai`:** en RV64 el `shamt` es de **6 bits**
+  (0–63). El encoding es idéntico al de RV32; el bit extra del `shamt` cae justo
+  donde RV32 tiene el bit bajo de `funct7` (que vale 0 para `slli`/`srli`, y
+  `srai` reusa el mismo `funct6=010000`). Solo cambia el **rango** validado.
+
+La conmutación es estricta: una instrucción RV64 en un programa RV32 da un
+**error didáctico** («"sd" es una instrucción de RV64; este programa es RV32…»),
+no «instrucción desconocida» — el mnemónico existe, pero no en ese ancho. El
+mapa de memoria educativo **no cambia** (es bajo, cabe en 32 bits): lo que se
+ensancha a 64 son los **valores** de registro, no las direcciones.
+
+**Fuera de alcance (registrado):** `li` de 64 bits (constantes > 32 bits, que en
+GNU expanden a varias `lui`/`slli`/`addi`) y RV64C (`c.ld`/`c.sd`): el plan
+RP-32 pide las W-instructions y `ld`/`sd`, no esas extensiones.
+
 ## 5. Verificación
 
 Las codificaciones de RV32IM+Zicsr se validaron contra la especificación
@@ -242,6 +272,14 @@ calculadas a mano en los tests. Ejemplos documentados en la suite:
 > (`tests/rp12_gnu_oracle.rs`): si la toolchain no está en el equipo, el
 > test se saltea con aviso. Es un criterio más fuerte que el cálculo a
 > mano y conviene extenderlo al repertorio entero a futuro.
+
+> **Oráculo RV64 (2026-06-14, RP-32):** el repertorio **RV64IM** (ld/sd/lwu,
+> las W de OP-32/OP-IMM-32 y los corrimientos con `shamt` de 6 bits) se verifica
+> **palabra a palabra** contra `riscv64-elf-as -march=rv64im -mabi=lp64`
+> (`tests/rp32_rv64_oracle.rs`), con la misma política de salteo si la toolchain
+> no está. El mismo archivo comprueba la conmutación (RV64 ilegal en RV32 y
+> viceversa para el `shamt`) y que un fuente RV32 ensambla idéntico con y sin el
+> parámetro de ancho.
 
 La suite completa del proyecto (ensamblador + máquina + syscalls + export ELF + integración de los 6 ejemplos) cierra en **35/35 tests verdes**, con `cargo clippy --all-targets` sin advertencias.
 
