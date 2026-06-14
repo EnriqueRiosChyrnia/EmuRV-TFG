@@ -3505,3 +3505,93 @@ herramienta externa (objdump/Ripes) — confirmar que las referencias usan
 [Seguro] ÁREA. RP-29 tocó solo `src-tauri/src/core/` (assembler, elf_export,
 elf_import) y `emurv-cli/src/main.rs` (el flag), más tests y docs. Sin tocar el
 frontend (`src/`), sin `commands.rs`, sin merges ni cambios de rama.
+
+## 2026-06-14 — RP32-F1: spike RV64 (Unicorn + arquitectura del cambio xlen)
+
+Punto RP-32 del ROADMAP-PRO: soporte RV64 (64 bits) CONMUTABLE con RV32 (no
+reemplazo). RV32 sigue siendo el default y debe quedar 100 % intacto. Es el
+punto más grande del roadmap: toca el núcleo entero, por eso la Fase 1 es un
+spike que FIJA la arquitectura del cambio ANTES de tocar `machine.rs`.
+
+### Evidencia del spike (`tests/spike_rv64.rs`, 5 tests verdes)
+
+PoC con Unicorn 2.1.5 CRUDO (mismo patrón que spike_csr/spike_mmio: medir
+primero, comprometer después). Encodings armados a mano contra la espec base
+(opcodes OP-IMM 0x13, OP-IMM-32 0x1B, LOAD 0x03, STORE 0x23); la verificación
+palabra-a-palabra contra `riscv64-elf-as -march=rv64im` queda para la Fase 3.
+
+- **P1 [Seguro]** `Mode::RISCV64` ejecuta instrucciones RV64-only y retiene
+  valores > 2³². `slli t0, t0, 40` → `t0 = 0x100_0000_0000` (2⁴⁰);
+  `addiw t1, x0, -1` → `t1 = 0xFFFF_FFFF_FFFF_FFFF` (resultado de 32 bits
+  SIGN-extendido a 64, semántica RV64 de las W-instructions).
+- **P2 [Seguro]** El binding de registros es el MISMO que RV32 (`xN = id N+1`,
+  `Arch::RISCV`): round-trip de 64 bits `reg_write`/`reg_read` →
+  `0x0123_4567_89AB_CDEF` exacto. No hace falta otra dependencia ni otro
+  esquema de IDs (los de CSR/F de RP8/RP12 también valen).
+- **P3 [Seguro]** `sd`/`ld` mueven 8 bytes: `0xCAFE_BABE_DEAD_BEEF` ida y
+  vuelta por memoria, registro y bytes en RAM coinciden.
+- **P4 [Seguro]** RV32 INTACTO. El MISMO binario RV32I (`li/li/add`) da `t2=42`
+  tanto en `RISCV32` como en `RISCV64`; y una instrucción RV64-only es ILEGAL
+  en RV32 (`addiw` y `slli shamt=40` → `Err(EXCEPTION)`). Es decir: el modo del
+  motor enforce el repertorio correcto sin que nosotros validemos nada.
+- **P5 [Seguro] (el hallazgo decisivo)** En `Mode::RISCV32` el motor TRUNCA los
+  registros a 32 bits ÉL MISMO: se escribió `0x1_0000_0001` y `reg_read`
+  devolvió `0x1`; en `RISCV64` devolvió `0x1_0000_0001`. Consecuencia: pasar la
+  API interna a `u64` NO altera la semántica de RV32 — en modo 32 los valores
+  ya vuelven acotados a 32 bits por Unicorn, igual que hoy (`reg_read(..) as
+  u32` sigue siendo correcto y redundante).
+
+### Decisión [Seguro]: u64-interno + `xlen` conmutable (Vía elegida)
+
+1. **`xlen` viaja con el `Program` y con la `Machine`.** Enum `Xlen { Rv32,
+   Rv64 }`, default `Rv32`. El ensamblado produce el `xlen` y la máquina lo
+   recibe en `new`. La conmutación es elegir, en `Machine::new`, `Mode::RISCV32`
+   o `Mode::RISCV64` según `xlen` — TODO el resto del setup (mapa de memoria,
+   hooks, carga) es idéntico.
+2. **El núcleo opera en `u64`.** `reg_read`/`reg_write` de Unicorn ya son `u64`;
+   en RV32 el motor garantiza el truncado a 32 (P5). `Machine::registers()`
+   pasa a `[u64; 32]` (el «cambio mecánico u32→u64» que el plan autoriza); los
+   pocos tests que comparan contra `SP_INIT`/`GP_INIT` (`u32`) se ajustan con
+   `u64::from(..)` en F2 sin cambiar semántica.
+3. **Las DIRECCIONES siguen en 32 bits.** El mapa de memoria educativo (estilo
+   RARS: `TEXT_BASE`, `SP_INIT`, framebuffer, teclado MMIO) se mantiene BAJO y
+   cabe en 32 bits → cabe en 64 sin tocar nada. Por eso en `StopReason` los
+   campos de DIRECCIÓN (`addr`, `pc`) quedan `u32`; lo único que se ensancha a
+   `u64` es el campo de VALOR (`Watchpoint.value`), que es un dato de registro/
+   memoria y sí puede ser de 64 bits en RV64. Esto resuelve la aparente
+   contradicción del plan («StopReason pasa a u64» vs «las direcciones caben en
+   32»): se ensanchan los VALORES, no las direcciones.
+4. **Frontend↔backend (para F4):** los valores de registro de 64 bits cruzan el
+   límite como STRINGS hex (igual que `get_fregs` en RP12), NO como `number` de
+   JS — un `number` pierde precisión por encima de 2⁵³ y no representa
+   `0xCAFE_BABE_DEAD_BEEF`. El panel mostrará 16 dígitos hex en RV64 y 8 en
+   RV32.
+
+### Alcance PROPORCIONADO (regla de conflictos del ROADMAP: NO se activó)
+
+El spike confirma que la Vía reusa primitivas existentes (mismo `Arch`, mismo
+binding, mismo mapa, mismos hooks): el cambio queda ACOTADO a (a) elegir `Mode`
+por `xlen`, (b) ensanchar valores de registro a `u64` en la API de `Machine` y
+en `Watchpoint.value`, (c) parametrizar el ensamblador por `xlen` (F3) y (d) el
+selector + registros de 64 bits en la UI (F4). NO hay que reescribir la máquina
+ni duplicarla. El alcance es razonable → se PROCEDE (no se frena ni se trocea).
+
+**Alternativas consideradas y descartadas:**
+- *Tipo `Machine` genérico sobre el ancho, o un `Rv64Machine` aparte* —
+  duplicación enorme de los ~1400 renglones de `machine.rs` (hooks, syscalls,
+  watchpoints, video, teclado) para nada: Unicorn ya conmuta el ancho con
+  `Mode`. Descartada [Seguro].
+- *Mantener `registers() -> [u32;32]` y agregar `registers_x64()` aparte* —
+  evitaría tocar tests, pero parte la API en dos vistas y obliga a la UI a
+  elegir cuál llamar según el modo; con `u64` unificado el RV32 sigue dando
+  valores de 32 bits «gratis» (P5). Se prefiere la API única en `u64`.
+- *Direcciones a `u64` también* — innecesario y costoso: el mapa educativo es
+  bajo por diseño (compatibilidad RARS) y NO se mueve a direcciones altas
+  (fuera de alcance del plan). Se dejan `u32`.
+
+### Compuerta F1 — VERDE
+
+Spike verde (5/5) · arquitectura decidida y fundada (esta entrada) · suite
+actual INTACTA: `cargo test` de src-tauri da **224 passed, 0 failed** = 219
+previos + 5 del spike (los 219 sin tocar). `cargo clippy --test spike_rv64 -- -D
+warnings` limpio. Commit `rp32-fase-1: spike RV64 (Unicorn + arquitectura xlen)`.
