@@ -92,8 +92,18 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
 | RP-18 | Ajustes de layout y UX (bug toolbar, densidad de paneles, registros) | Alta | DOCUMENTADO |
 | RP-19 | Estética «Cálido» (única) + microinteracciones + wordmark + grupo-ejec | Media | DOCUMENTADO |
 | RP-20 | Rediseño de modales + Ayuda 2 columnas + Acerca de | Media | DOCUMENTADO |
-| RP-21 | Recuperar vista de objetivos en modal de Lecciones (fix regresión RP-20) | Alta | EN-EJECUCION |
-| RP-22 | Desacoplar paneles Registros/Memoria/Depuración a ventanas (modo mover) | Media | PENDIENTE (tras RP-21) |
+| RP-21 | Recuperar vista de objetivos en modal de Lecciones (fix regresión RP-20) | Alta | DOCUMENTADO |
+| RP-22 | Desacoplar paneles Registros/Memoria/Depuración a ventanas (modo mover) | Media | DOCUMENTADO |
+| RP-23 | Gestión de archivos (Nuevo, Guardar como, guardar inteligente) + cerrar ventanas hijas al salir | Media | DOCUMENTADO |
+| RP-24 | Find/Replace en el editor (Cmd+F) | Baja | PENDIENTE |
+| RP-25 | Indicador de cambios sin guardar + aviso al cerrar | Baja | PENDIENTE |
+| RP-26 | Búsqueda en el panel de Memoria | Baja | PENDIENTE |
+| RP-27 | Persistir workspace/sesión (último archivo, layout, ventanas) | Media | PENDIENTE |
+| RP-28 | Tema de usuario (crear/editar/cargar) | Media | PENDIENTE |
+| RP-29 | ELF reubicable (auipc, independiente de dirección de carga) | Media | PENDIENTE |
+| RP-30 | Pestañas + archivos recientes | Media-Alta | PENDIENTE |
+| RP-31 | Sprites + sonido (sobre el framebuffer) | Media-Alta | PENDIENTE |
+| RP-32 | RV64 — soporte 64 bits, conmutable RV32/RV64 | Alta (esfuerzo) | PENDIENTE |
 
 ## Detalle de los puntos
 
@@ -348,6 +358,25 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
   legibilidad verificada por checklist en todos los temas; sin frameworks; bundle
   ≤ 30 MB. El tema-de-usuario puede quedar como sub-fase o propuesta según
   alcance al armar el plan.
+
+### RP-24..RP-32 — Pulido «IDE profesional» (post-rediseño, 2026-06-14)
+Mejoras pedidas por el autor tras evaluar el producto como herramienta de uso
+profesional. Detalle de cada una en su `PLAN-RP<N>-*.md` cuando se cree.
+- **RP-32 (RV64) — decisión del autor:** soporte de 64 bits para uso profesional
+  real. Diseño: CONMUTABLE RV32/RV64, no reemplazo — un switch (o elegir el ancho
+  al crear un programa nuevo). Es el de mayor esfuerzo (ensamblador, Unicorn modo
+  RISCV64, panel de registros 64-bit, mapa de memoria, source_map). Va al final;
+  worktree propio (toca el core entero, no se paraleliza con otros).
+
+**Paralelización con git worktrees (autor quiere trabajar en simultáneo):** los
+puntos que tocan ÁREAS DISJUNTAS se ejecutan en paralelo, cada uno en su worktree
+(rama propia), y la coordinadora mergea + verifica integración. Mapa de áreas:
+- RP-24 → `src/editor/` · RP-26 → `src/paneles/memoria.ts` · RP-28 → `src/temas/`
+  · RP-29 → `src-tauri/.../elf_export.rs` (Rust) = **DISJUNTOS, paralelizables**.
+- RP-25, RP-27, RP-30 → todos `main.ts` pesado = **SECUENCIALES entre sí**.
+- RP-31 (Rust+frontend audio), RP-32 (core entero) = worktree propio cada uno.
+Roce menor entre paralelos: claves i18n (es/en) y BITACORA — conflicto de merge
+trivial; los prompts agregan claves al final y secciones propias en BITACORA.
 
 ## Fuera de este roadmap (decisión explícita)
 
