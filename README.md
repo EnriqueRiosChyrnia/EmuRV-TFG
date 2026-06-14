@@ -204,11 +204,26 @@ Subcomandos:
 # Ensamblar y exportar un ELF32 RISC-V estándar:
 emurv-cli asm ejemplos/01-hola-mundo.asm -o hola.elf
 
+# Variante reubicable (código PC-relativo, ET_DYN): el mismo programa pero
+# preparado para cargarse en otra dirección, no atado a 0x00400000.
+emurv-cli asm --reubicable ejemplos/01-hola-mundo.asm -o hola-pic.elf
+
 # Ensamblar y ejecutar, con la consola del programa en stdin/stdout:
 echo "8
 34" | emurv-cli run ejemplos/02-suma-interactiva.asm
 # → imprime los textos del programa y "La suma es: 42"
 ```
+
+El flag **`--reubicable`** (solo en `asm`) emite las referencias a símbolos de
+las pseudo-instrucciones (`la`, cargas y almacenamientos con etiqueta) en forma
+PC-relativa (`auipc`/`%pcrel`) en lugar de absoluta (`lui`/`%hi`), y marca el
+ELF `ET_DYN`. Sirve para llevar el binario a herramientas que lo reubican (un
+linker con otra base, un cargador PIE). **Cuándo usarlo:** solo si necesitás un
+artefacto independiente de la dirección de carga; el export normal (absoluto,
+`ET_EXEC`) es el recomendado para inspeccionar en Ripes/objdump con el mapa de
+EmuRV y es lo que la app produce con «Exportar ELF». La conducta del programa
+en EmuRV no cambia. (Detalle y límites en `docs/ENSAMBLADOR.md` y la BITACORA
+RP29.)
 
 Flags de `run`: `--max-instr N` (presupuesto de instrucciones) y `--timeout-s S`
 (tiempo de pared; es el límite útil para los ejemplos de tiempo real, que en

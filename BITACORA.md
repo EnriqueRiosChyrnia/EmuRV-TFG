@@ -3203,3 +3203,46 @@ Compuerta F2: reubicable verificado contra GNU (byte a byte + invariancia al
 reubicar) · export normal absoluto intacto (regresión) · CLI `--reubicable` ·
 suites verdes y clippy -D warnings limpio en AMBOS crates (src-tauri 219
 tests, emurv-cli verde).
+
+## 2026-06-14 — RP29-F3: docs ELF reubicable y cierre
+
+[Seguro] DOCS. `README.md`: el subcomando `asm` documenta `--reubicable` (con
+ejemplo) y un párrafo de «cuándo usarlo» (artefacto independiente de la
+dirección de carga vs. export normal absoluto recomendado). `docs/
+ENSAMBLADOR.md`: nueva §4.6 «Export reubicable: PC-relativo (RP29)» con la
+expansión `auipc/%pcrel`, la equivalencia matemática con `hi20`/`lo12`, el
+porqué de la independencia de posición (la imagen se desplaza como unidad), los
+límites y la verificación con el oráculo GNU. NO se tocó `docs/ROADMAP-PRO.md`
+ni el Cap. VI (regla del lote).
+
+[Seguro] CIERRE RP-29 — criterios de aceptación (del plan):
+- Opción de export que produce un ELF reubicable (no atado a 0x00400000),
+  verificado con la toolchain GNU ✓ F1 (spike) / F2 (implementación + oráculo
+  byte a byte + invariancia al reubicar).
+- Export normal (absoluto) y ejecución en la app intactos ✓ F2 (regresión
+  `export_normal_sigue_absoluto`; la GUI nunca ensambla reubicable; mapa de
+  memoria sin cambios).
+- Flag en emurv-cli (`asm --reubicable`) ✓ F2 (+ humo CLI: readelf Type=DYN,
+  objdump muestra `auipc`).
+- La regla de conflictos del ROADMAP (frenar si la vía es desproporcionada) NO
+  se activó: el spike F1 mostró que la Vía 1 reusa primitivas existentes.
+
+[Seguro] Compuerta F3 (cierre): `scripts/ci-local.sh --skip-bundle` TODO VERDE
+— frontend (`npm ci` · `tsc --noEmit` · `npm run test:ui` · `vite build`) +
+`cargo test` y `cargo clippy --all-targets -- -D warnings` en AMBOS crates
+(src-tauri y emurv-cli) + build release del CLI. `npx tauri build` construyó
+`EmuRV.app` y `scripts/check-bundle-size.sh` da **22 MB ≤ 30** (RNF-04).
+
+[PENDIENTE HUMANO] El paso `.dmg` de `npx tauri build` no se ejecutó en esta
+sesión headless (`create-dmg` usa AppleScript/Finder y necesita sesión de
+escritorio); el sujeto de RNF-04 es la `.app` (verde). Re-correr el bundle
+completo en sesión de escritorio para emitir el `.dmg`.
+
+[PENDIENTE HUMANO] Verificación manual sugerida (no bloqueante): exportar por
+CLI `asm --reubicable` un programa con `la`/`lw etiqueta` y abrirlo en una
+herramienta externa (objdump/Ripes) — confirmar que las referencias usan
+`auipc/%pcrel` y resuelven al símbolo; el export normal sigue mostrando `lui`.
+
+[Seguro] ÁREA. RP-29 tocó solo `src-tauri/src/core/` (assembler, elf_export,
+elf_import) y `emurv-cli/src/main.rs` (el flag), más tests y docs. Sin tocar el
+frontend (`src/`), sin `commands.rs`, sin merges ni cambios de rama.
