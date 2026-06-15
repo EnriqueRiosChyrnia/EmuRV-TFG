@@ -44,6 +44,7 @@ import { panelSync } from "./paneles/panel-sync";
 import { Memoria } from "./paneles/memoria";
 import { Registros } from "./paneles/registros";
 import { Video } from "./paneles/video";
+import { Audio } from "./paneles/audio";
 
 import ejContador from "../ejemplos/03-contador.asm?raw";
 import ejFibonacci from "../ejemplos/04-fibonacci.asm?raw";
@@ -85,6 +86,9 @@ class App {
   private memoria: Memoria;
   private depuracion: Depuracion;
   private video: Video;
+  /** Dispositivo de sonido (RP31): reproduce los tonos del programa (WebAudio).
+   *  No tiene UI; se conecta solo al evento `emu://sonido`. */
+  private audio: Audio;
   private ayuda: Ayuda;
   private lecciones: Lecciones;
   private ejemplos!: Ejemplos;
@@ -157,6 +161,9 @@ class App {
       document.getElementById("video-canvas") as HTMLCanvasElement,
       document.getElementById("video-desacoplar")!,
     );
+    // Sonido (RP31): sin panel, solo el dispositivo. RP-30 rearquitectura el
+    // resto; la huella acá es mínima (instanciar + conectar el evento abajo).
+    this.audio = new Audio();
     this.ayuda = new Ayuda();
     this.lecciones = new Lecciones({
       onAbrir: (l) => this.abrirLeccion(l),
@@ -477,6 +484,9 @@ class App {
         this.video.iniciarTimer();
       }),
     );
+    // El programa disparó un tono: reproducirlo (RP31). Apagado por defecto:
+    // solo llega este evento si el programa usó el dispositivo de sonido.
+    this.unlisteners.push(await events.onSonido((ev) => this.audio.reproducir(ev)));
   }
 
   /** Cancela todas las suscripciones a eventos del backend. */

@@ -3957,3 +3957,45 @@ nuevos de sonido). `cargo clippy --all-targets -- -D warnings` limpio en AMBOS
 crates. Video y teclado intactos (sus tests verdes sin cambios). Área:
 `core/sound.rs` (nuevo), `core/mod.rs`, `core/machine.rs`, `commands.rs`.
 Commit `rp31-fase-2: dispositivo de sonido MMIO + evento`.
+
+## 2026-06-15 — RP31-F3: reproducción de sonido (WebAudio)
+
+Frontend del dispositivo de sonido. CERO dependencias npm (WebAudio es nativo
+del runtime). Huella mínima en `main.ts` (territorio de RP-30 intacto).
+
+[Seguro] `src/paneles/audio.ts` (clase `Audio`, sin panel): un único
+`AudioContext` creado PEREZOSAMENTE en el primer tono (para entonces el usuario
+ya tocó «Ejecutar» → la política de autoplay permite `resume()`). `reproducir`
+crea un `OscillatorNode` (tipo según `wave`) + un `GainNode` con envolvente
+lineal corta (ataque/liberación de 5 ms) para que el tono no «chasquee» al
+empezar/cortar; se autodetiene a `dur_ms` y libera los nodos en `onended`.
+Silencio respetado: sin WebAudio (entorno sin `AudioContext`) o ante un tono
+vacío (freq/dur ≤ 0) no suena nada y no se reintenta crear el contexto.
+
+[Seguro] Funciones PURAS exportadas y testeadas (sin AudioContext, que no
+existe en node): `waveType(wave)` (0=square 1=sine 2=triangle 3=sawtooth, resto
+square) y `planEnvolvente(durMs)` (ataque/liberación recortados a la mitad de la
+duración para tonos muy cortos, anti-click). 5 tests UI.
+
+[Seguro] `src/api.ts`: tipo `SonidoEvent { freq, dur_ms, wave }` + evento
+`events.onSonido` (escucha `emu://sonido`). `src/main.ts`: huella mínima —
+`this.audio = new Audio()` junto a `this.video`, y una línea en
+`suscribirEventos` que conecta `onSonido → this.audio.reproducir`. NO se tocó el
+modelo de buffer/editor/pestañas (eso es RP-30).
+
+[Sin i18n] El sonido no tiene UI ni strings al usuario (suena o calla): no se
+agregaron claves a es/en, así que el anti-drift sigue verde sin cambios.
+
+Compuerta F3: `npx tsc --noEmit` limpio · `npm run test:ui` **100/100** (5
+nuevos de audio). El backend (F2) ya emite `emu://sonido` y el frontend lo
+consume: la cadena disparo→evento→WebAudio está cableada y cubierta por tests
+de ambos lados.
+
+[PENDIENTE HUMANO] Oír el tono no es automatizable headless (no hay salida de
+audio). La verificación auditiva («suena un tono al ejecutar el ejemplo») queda
+para la compuerta final F5 con el ejemplo `.asm`, igual que las verificaciones
+VISUALES de video son PENDIENTE HUMANO.
+
+Área RP31-F3: `src/paneles/audio.ts` (nuevo), `src/paneles/audio.test.ts`
+(nuevo), `src/api.ts`, `src/main.ts`. Commit `rp31-fase-3: reproduccion de
+sonido (WebAudio)`.

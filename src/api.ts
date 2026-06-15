@@ -131,6 +131,14 @@ export type AperturaOk =
   | { tipo: "fuente"; contenido: string }
   | { tipo: "binario"; ok: AssembleOk; listado: string };
 
+/** Payload del evento `emu://sonido` (RP31): un tono pedido por el programa
+ *  vía MMIO. `wave`: 0=cuadrada, 1=senoidal, 2=triángulo, 3=sierra. */
+export interface SonidoEvent {
+  freq: number;
+  dur_ms: number;
+  wave: number;
+}
+
 export const events = {
   onConsole: (cb: (text: string) => void): Promise<UnlistenFn> =>
     listen<{ text: string }>("emu://consola", (e) => cb(e.payload.text)),
@@ -143,6 +151,9 @@ export const events = {
   /** El programa empezó a usar la pantalla gráfica (VRAM o control). */
   onVideoActivo: (cb: () => void): Promise<UnlistenFn> =>
     listen("emu://video-activo", () => cb()),
+  /** El programa disparó un tono por el dispositivo de sonido (RP31). */
+  onSonido: (cb: (ev: SonidoEvent) => void): Promise<UnlistenFn> =>
+    listen<SonidoEvent>("emu://sonido", (e) => cb(e.payload)),
   /** El programa pidió limpiar la consola (syscall 60, extensión EmuRV). */
   onConsoleClear: (cb: () => void): Promise<UnlistenFn> =>
     listen("emu://consola-limpiar", () => cb()),
