@@ -4098,3 +4098,137 @@ frontend (`src/paneles/audio.ts`+test nuevos, `src/api.ts`, `src/main.ts`,
 i18n), `ejemplos/16-sonido.asm` y `17-sprites.asm`, `docs/MEMORIA-GRAFICA.md`
 y `docs/SONIDO.md`. Sin merges ni cambios de rama (la coordinadora mergea).
 Commit `rp31-fase-5: ejemplos y docs de sprites/sonido`.
+
+## 2026-06-15 — RP30-F1: spike pestañas (estrategia de editor + modelo)
+
+Punto RP-30 del roadmap (`docs/PLAN-RP30-pestanas-recientes.md`), el último y el
+de mayor riesgo en frontend: convertir el modelo **un-solo-documento** en
+**multi-documento** (pestañas, como un IDE) más una lista de archivos recientes.
+F1 es spike: NO refactoriza; decide y funda la estrategia. Baseline verde
+confirmado antes de empezar (`tsc --noEmit` limpio, `npm run test:ui` 100/100).
+
+### Pregunta del spike
+
+`class App` (`src/main.ts`) tiene campos doc-céntricos para UN buffer: `editor`
+(un único `EditorView`), `rutaArchivo`, `docLimpio`, `programa`,
+`programaDesactualizado`, `modoBinario`, `bannerBinario`. ¿Cómo pasar a N
+documentos sin romper la paridad single-tab ni RP-25 («•») / RP-27 (workspace) /
+RP-32 (xlen)? La decisión clave es **cómo intercambiar documentos en el editor**.
+
+### Evidencia (lectura del fuente CM6 instalado, no de memoria)
+
+Verificado en `node_modules/@codemirror/view/dist/index.js`:
+
+- `setState(newState)` (línea 8010): **NO crea un `ViewUpdate` ni pasa por el
+  ciclo de `update(transactions)`**. Destruye los view-plugins, reconstruye
+  `ViewState`/`DocView` desde el nuevo estado y vuelve a montar. Consecuencia
+  directa: **`EditorView.updateListener` NO se dispara en un `setState`** (el
+  listener vive en el camino `update`, no en `setState`). El swap de documento
+  por tanto NO invoca nuestro `onDocChanged` (que marca
+  `programaDesactualizado`, programa el guardado de workspace y llama
+  `actualizarTitulo`), así que **cambiar de pestaña no ensucia el doc entrante**.
+  [Seguro]
+- `ViewUpdate.docChanged` = `!this.changes.empty`, y `changes` se compone de las
+  transacciones (líneas 1657-1662, 1710). Solo una edición real (transacción con
+  cambios) marca «sucio». El `setDoc` actual (transacción con `changes`) sí lo
+  haría — por eso los swaps van por `setState`, no por `setDoc`. [Seguro]
+- `setState` preserva el foco (`hadFocus` → `this.focus()`, líneas 8018/8037)
+  pero **resetea el scroll** (reconstruye `DocView` + `requestMeasure`, no
+  restaura `scrollTop`). El scroll por documento debe guardarse/restaurarse a
+  mano. [Seguro]
+- Lo que vive en `EditorState` viaja con el swap automáticamente: historial de
+  undo (`history()` es un `StateField`), selección/cursor (`state.selection`),
+  modo solo-lectura (el `Compartment` `readOnlyComp` es parte del estado →
+  `modoBinario` per-doc gratis), y nuestros `StateField`: breakpoints
+  (`breakpointField`), línea de ejecución (`execLineField`) y diagnósticos de
+  error. Todos son per-doc sin esfuerzo. [Seguro]
+
+### Decisión 1 — Editor: 1 vista + N `EditorState`, swap por `setState` [Seguro]
+
+Se elige **un único `EditorView` reutilizado con un `EditorState` por documento**
+sobre la alternativa de N vistas. Fundamentos: (a) preserva undo/cursor/readOnly/
+breakpoints/exec-line/errores per-doc de forma nativa (todo es estado); (b) es
+mucho más liviano que N árboles DOM persistentes; (c) `setState` no dispara el
+`updateListener`, así que el swap es invisible para la lógica de «sucio» y de
+persistencia. Coste manual acotado y conocido: **guardar `view.state` saliente en
+el `Documento` antes del swap y guardar/restaurar `scrollDOM.scrollTop` por
+documento**. Reconstruir view-plugins en cada swap es barato con pocas pestañas y
+swaps esporádicos.
+
+Refactor implicado en F2 (registrado acá, no ejecutado): extraer de
+`createEditor` un constructor de extensiones y un `crearEstadoEditor(doc, cbs)`
+que produzca un `EditorState` reutilizable. El `updateListener` debe usar
+`u.view` en vez de la variable `view` capturada por clausura, para que las
+extensiones no dependan de una instancia concreta de vista y sirvan para
+cualquier estado nuevo. `setDoc/getDoc/setErrors/...` siguen igual.
+
+### Decisión 2 — Modelo `Documento` [Seguro]
+
+Módulo nuevo `src/documento.ts`. Por pestaña:
+`{ id, rutaArchivo, docLimpio, modoBinario, programa, programaDesactualizado,
+estado: EditorState, scrollTop }`. El gestor de pestañas mantiene
+`Documento[]` + índice `activa`. El «nombre» de la pestaña se deriva de
+`rutaArchivo` (basename) o «Sin título» (reusar `titulo.sinTitulo` de RP-25). El
+indicador «•» (RP-25) pasa a ser **por pestaña**: `getDoc(view) !== docLimpio`
+para la activa; para las inactivas, comparar su `estado.doc` guardado con su
+`docLimpio`. El título de la VENTANA refleja la pestaña activa (RP-25 sigue
+valiendo). Los campos doc-céntricos de `App` se mueven a `Documento`; `App`
+delega en `docActivo`.
+
+### Decisión 3 — Sesión de backend ↔ pestaña activa [Probable]
+
+El backend es de **una sola sesión** (`api.assemble` crea/reemplaza la activa) y
+los paneles (registros, memoria, consola, depuración, video, sonido) son
+instancias globales atadas a esa única sesión. Regla elegida, la más simple y
+segura:
+
+- **Solo la pestaña activa interactúa con el backend.** Ensamblar/Ejecutar/Paso/
+  Depurar operan sobre la sesión, que «pertenece» a la pestaña que ensambló por
+  última vez.
+- **Cambiar de pestaña con ejecución viva (`corriendo`/`esperando`) se BLOQUEA**:
+  la barra de pestañas (y «+»/cerrar) se deshabilita mientras la ejecución está
+  viva, igual que ya se deshabilita el menú Archivo en `setModo`. Evita dejar la
+  sesión a medias. Cuando está parado (`listo`/`terminado`/`sin_programa`) el
+  cambio se permite.
+- Al activar una pestaña que **no es la dueña** de la sesión viva, su programa no
+  corresponde al backend: se trata como hay-que-reensamblar (mismo criterio que
+  `programaDesactualizado`) — Ejecutar/Paso quedan tras un Ensamblar, que crea la
+  sesión nueva y la vuelve dueña. Los paneles globales reflejan la sesión viva;
+  NO se simula estado de panel por pestaña en v1 (limitación documentada;
+  per-pestaña de paneles = futuro).
+
+Marcada [Probable] (no [Seguro]) porque es decisión de diseño de UX, no un hecho
+del fuente; se valida con la app en F3 (verificación manual del plan).
+
+### Decisión 4 — Workspace v1→v2 [Seguro]
+
+Subir a `emurv.workspace.v2 = { version: 2, pestanas: DocPersistido[],
+activa: number }` con `DocPersistido = { contenido, rutaArchivo }` (igual que hoy
+v1 NO persiste binario/programa, solo el fuente editable). `parsearWorkspace`
+sigue siendo PURO y devuelve SIEMPRE la forma v2 normalizada: un objeto v2
+explícito se lee tal cual (con saneo de cada pestaña y de `activa` acotada al
+rango); un objeto v1 `{contenido, rutaArchivo}` se MIGRA a
+`{ pestanas: [{contenido, rutaArchivo}], activa: 0 }`; basura → null. Tests de
+`parsearWorkspace` para v1 (migración), v2 (lectura) y entradas corruptas. El
+debounce de 400 ms se conserva; `persistir/restaurar` operan sobre todas las
+pestañas. Mismo patrón que `progreso.ts` (parseo puro + wrappers tolerantes).
+
+### Decisión 5 — xlen sigue GLOBAL [Seguro]
+
+`leerXlen()/setXlen()` (RP-32) quedan globales, sin cambios. Hacerlo per-doc
+exigiría guardar xlen en `Documento` y sincronizar el `<select>` de arquitectura
+de la toolbar en cada cambio de pestaña — superficie de UI extra sin pedido del
+autor. El plan lo autoriza solo «si el spike lo ve barato»; no lo es a cambio de
+su valor. Registrado como futuro (xlen per-pestaña). El alcance del resto del
+plan es PROPORCIONADO (regla de conflictos del ROADMAP NO activada): la
+estrategia setState mantiene la huella en lo conocido y barato.
+
+### Compuerta F1 — VERDE
+
+- Decisión fundada y documentada (5 decisiones arriba, la de editor verificada
+  contra el fuente CM6 instalado).
+- Suite ACTUAL intacta: F1 no toca código (solo BITACORA). `tsc --noEmit` limpio
+  y `npm run test:ui` 100/100 antes y después.
+- Rust no se toca (se confirmará intacto en el cierre F5).
+
+Commit `rp30-fase-1: spike pestanas (estrategia de editor + modelo)`.
