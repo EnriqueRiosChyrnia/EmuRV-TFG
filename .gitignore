@@ -28,3 +28,6 @@ graphify-out
 
 # screenshots del diseño (pesados, referencia local)
 docs/diseno-ui/uploads/
+
+# Artefactos de build Linux (Docker)
+linux-dist/
