@@ -59,6 +59,8 @@ import ejTrap from "../ejemplos/12-trap-handler.asm?raw";
 import ejFlotantes from "../ejemplos/13-flotantes.asm?raw";
 import ejAtomicas from "../ejemplos/14-atomicas.asm?raw";
 import ejRv64 from "../ejemplos/15-rv64.asm?raw";
+import ejSonido from "../ejemplos/16-sonido.asm?raw";
+import ejSprites from "../ejemplos/17-sprites.asm?raw";
 
 const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.hola", codigo: ejHola },
@@ -74,6 +76,8 @@ const EJEMPLOS: { clave: string; codigo: string }[] = [
   { clave: "ejemplo.flotantes", codigo: ejFlotantes },
   { clave: "ejemplo.atomicas", codigo: ejAtomicas },
   { clave: "ejemplo.rv64", codigo: ejRv64 },
+  { clave: "ejemplo.sonido", codigo: ejSonido },
+  { clave: "ejemplo.sprites", codigo: ejSprites },
 ];
 
 /** Estado de la UI respecto del programa. */
