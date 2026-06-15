@@ -98,7 +98,7 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
 | RP-24 | Find/Replace en el editor (Cmd+F) | Baja | DOCUMENTADO |
 | RP-25 | Indicador de cambios sin guardar + aviso al cerrar | Baja | DOCUMENTADO |
 | RP-26 | Búsqueda en el panel de Memoria | Baja | DOCUMENTADO |
-| RP-27 | Persistir workspace/sesión (último archivo, layout, ventanas) | Media | PENDIENTE |
+| RP-27 | Persistir workspace/sesión (último archivo, layout, ventanas) | Media | DOCUMENTADO |
 | RP-28 | Tema de usuario (crear/editar/cargar) | Media | DOCUMENTADO |
 | RP-29 | ELF reubicable (auipc, independiente de dirección de carga) | Media | DOCUMENTADO |
 | RP-30 | Pestañas + archivos recientes | Media-Alta | PENDIENTE |

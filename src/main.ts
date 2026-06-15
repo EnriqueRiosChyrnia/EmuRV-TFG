@@ -30,6 +30,7 @@ import { icono } from "./iconos";
 import wordmark from "./assets/emurv-wordmark.svg?raw";
 import { inicializarTema, leerTema, setTema, TEMAS, type Tema } from "./temas";
 import { leerXlen, setXlen } from "./arquitectura";
+import { guardarWorkspace, leerWorkspace } from "./workspace";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
@@ -102,6 +103,8 @@ class App {
   /** Contenido del editor en el último guardado/carga (RP23): el buffer está
    *  «sucio» si difiere del actual. Lo usa «Nuevo» para confirmar descartar. */
   private docLimpio = "";
+  /** RP27: timer de debounce del guardado de workspace (undefined = sin pendiente). */
+  private timerWorkspace: number | undefined;
   private reinicioPedido = false;
   /** Modo binario (RP11): el editor muestra el listado desensamblado de
    *  un ELF importado, solo lectura; Ensamblar queda deshabilitado. */
@@ -125,6 +128,7 @@ class App {
       () => {
         this.programaDesactualizado = true;
         this.actualizarTitulo(); // RP25: «•» en vivo al teclear
+        this.programarGuardadoWorkspace(); // RP27: persistir el buffer (debounced)
       },
     );
     this.docLimpio = ejHola; // el editor arranca con el ejemplo «Hola mundo»
@@ -172,6 +176,7 @@ class App {
       this.setModo("corriendo", t("estado.corriendo"));
     });
     void this.suscribirEventos();
+    this.restaurarWorkspace(); // RP27: retomar el buffer de la sesión anterior
     this.setModo("sin_programa", t("estado.sin_programa"));
   }
 
@@ -818,6 +823,29 @@ class App {
     return !this.modoBinario && getDoc(this.editor) !== this.docLimpio;
   }
 
+  /** RP27: retoma el buffer de la sesión anterior (contenido + ruta). Si no hay
+   *  nada persistido, el editor queda con su default («Hola mundo»). No restaura
+   *  modo binario: solo fuentes editables. */
+  private restaurarWorkspace(): void {
+    const w = leerWorkspace();
+    if (!w) return;
+    this.setDocLimpio(w.contenido);
+    this.rutaArchivo = w.rutaArchivo;
+  }
+
+  /** RP27: persiste el buffer actual (no en modo binario: el desensamblado es
+   *  solo lectura y no debe pisar el último fuente). */
+  private persistirWorkspace(): void {
+    if (this.modoBinario) return;
+    guardarWorkspace({ contenido: getDoc(this.editor), rutaArchivo: this.rutaArchivo });
+  }
+
+  /** RP27: persistencia con debounce para no escribir localStorage por tecla. */
+  private programarGuardadoWorkspace(): void {
+    if (this.timerWorkspace !== undefined) clearTimeout(this.timerWorkspace);
+    this.timerWorkspace = window.setTimeout(() => this.persistirWorkspace(), 400);
+  }
+
   /** RP25: el título de la ventana refleja el archivo actual y antepone «•»
    *  cuando hay cambios sin guardar (convención de editor/IDE). Se invoca al
    *  cargar/guardar (vía setModo y escribirArchivo) y en cada tecla. */
@@ -953,6 +981,7 @@ class App {
       this.rutaArchivo = path;
       this.docLimpio = getDoc(this.editor); // recién guardado: limpio
       this.actualizarTitulo(); // RP25: quita «•» y muestra el nombre guardado
+      this.persistirWorkspace(); // RP27: persistir ruta + contenido recién guardados
       this.estadoEl.textContent = t("archivo.guardado", { path });
       this.estadoEl.className = "ok";
     } catch (e) {
@@ -1000,6 +1029,7 @@ class App {
     // lanzaba TypeError y la ejecución nunca arrancaba.]
     b.archivo.disabled = modo === "corriendo" || modo === "esperando";
     this.actualizarTitulo(); // RP25: refresca «•» y nombre tras cargar/cambiar de estado
+    this.persistirWorkspace(); // RP27: cada carga/cambio de estado deja el buffer persistido
   }
 }
 
