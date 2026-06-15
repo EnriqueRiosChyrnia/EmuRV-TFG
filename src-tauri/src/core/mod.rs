@@ -12,6 +12,7 @@ pub mod elf_import;
 pub mod keyboard;
 pub mod machine;
 pub mod preprocess;
+pub mod sound;
 pub mod syscalls;
 pub mod video;
 
@@ -95,6 +96,26 @@ pub const PALETTE_SIZE: u32 = 0x00001000;
 pub const VIDEO_CONTROL_BASE: u32 = 0x9003_0000;
 /// Tamaño mapeado del control (alineado a página 4K).
 pub const VIDEO_CONTROL_SIZE: u32 = 0x00001000;
+
+/// Dispositivo de SONIDO (RP31), espejo del modelo de video. Página MMIO
+/// nueva en `0x9004_0000`: dentro de la franja de dispositivos `0x9000_xxxx`
+/// (video vive en `0x9000`–`0x9003`), en la primera dirección libre, sin pisar
+/// nada (disjunta de framebuffer/paleta/control/teclado — ver
+/// `tests/spike_sonido.rs` S4). El programa escribe frecuencia/duración/forma
+/// de onda y dispara un tono escribiendo `SOUND_TRIGGER`; el hook MEM_WRITE lo
+/// encola y el run loop emite `emu://sonido`. Apagado por defecto (RF4).
+pub const SOUND_BASE: u32 = 0x9004_0000;
+/// Tamaño mapeado de la página de sonido (4 KB, mínimo de Unicorn).
+pub const SOUND_SIZE: u32 = 0x0000_1000;
+/// SOUND_FREQ: frecuencia del tono en Hz (u32).
+pub const SOUND_FREQ: u32 = SOUND_BASE;
+/// SOUND_DUR: duración del tono en ms (u32).
+pub const SOUND_DUR: u32 = SOUND_BASE + 0x04;
+/// SOUND_WAVE: forma de onda (u32): 0=cuadrada, 1=senoidal, 2=triángulo, 3=sierra.
+pub const SOUND_WAVE: u32 = SOUND_BASE + 0x08;
+/// SOUND_TRIGGER: escribir cualquier valor emite un tono con la frecuencia,
+/// duración y forma de onda vigentes. Leerlo consume nada (no es entrada).
+pub const SOUND_TRIGGER: u32 = SOUND_BASE + 0x0C;
 
 /// Base de la página MMIO del teclado (TEC2). Misma dirección que el
 /// receptor del teclado de RARS/MARS, a propósito: el material didáctico

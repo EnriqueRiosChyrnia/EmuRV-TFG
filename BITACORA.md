@@ -3911,3 +3911,49 @@ ELECCIÓN de camino: Seguro.]
 Área RP31-F1: `src-tauri/tests/spike_sonido.rs` (nuevo), `BITACORA.md`,
 `docs/PLAN-RP31-sprites-sonido.md` (ya existía). Sin merges ni cambios de rama
 (la coordinadora mergea). Commit `rp31-fase-1: spike sonido + decision de sprites`.
+
+## 2026-06-15 — RP31-F2: dispositivo de sonido MMIO + evento
+
+Implementación del backend de sonido decidido en F1, espejando el modelo de
+video/teclado. NÚCLEO de sonido nuevo; video y teclado SIN tocar.
+
+[Seguro] `core/sound.rs`: `SoundEvent { freq, dur_ms, wave }` (payload del
+evento, `serde::Serialize`) y `SoundShared { cola: VecDeque<SoundEvent>,
+in_use }` (espejo de `VideoShared`, pero por EVENTO en vez de por frame: el
+video PUBLICA un frame conservado, el sonido ENCOLA tonos que se consumen una
+vez). `push` encola + marca `in_use`; `limpiar` vacía (Reiniciar). 3 tests
+unitarios.
+
+[Seguro] `core/mod.rs`: constantes `SOUND_BASE=0x9004_0000` (página 4 KB) y los
+registros `SOUND_FREQ/DUR/WAVE/TRIGGER` (offsets 0/4/8/12). Disjunta de
+video/paleta/control/teclado (S4 del spike).
+
+[Seguro] `core/machine.rs`: mapeo de la página de sonido con respaldo real
+(mismo criterio que el teclado: las lecturas de host no disparan hooks) + hook
+MEM_WRITE sobre `[SOUND_FREQ, SOUND_TRIGGER+3]`. Solo la escritura a
+`SOUND_TRIGGER` dispara: lee freq/dur/wave (12 bytes contiguos) y `push`ea un
+`SoundEvent`. `MachData.sound_shared` (la máquina lo crea; la GUI lo lee con
+`sound_shared()`, como el teclado). `load()` vacía la cola y pone los 4
+registros en 0 (sin tonos fantasma tras Reiniciar). 3 tests de máquina:
+round-trip de un evento, apagado sin disparo (RF4), Reiniciar limpia la cola.
+
+[Seguro] `commands.rs`: `drenar_sonido(app, &sound)` drena la cola y emite un
+`emu://sonido` por tono. Se llama tras cada tramo del run loop y en Paso (igual
+que `check_video`/`publish_frame`), y en `console_thread` al pedir entrada (si
+el programa disparó un tono y se bloqueó esperando una línea, suena ya —espejo
+del aviso de video en la misma situación). El canal `init` de `crear_sesion`
+ahora devuelve `(keyboard, sound)`. La sesión NO guarda el `Arc` de sonido: a
+diferencia de video (`read_framebuffer`) y teclado (`push_key`), ningún comando
+del frontend TIRA de sonido —es solo PUSH vía evento— así que el run loop y el
+hilo de consola lo drenan directo (sin campo muerto en `Session`).
+
+[Seguro] El sonido respeta el modelo «apagado por defecto» (RF4): un programa
+que no escribe `SOUND_TRIGGER` no encola nada, `in_use` queda false y no se
+emite ningún evento. Cero costo para programas sin sonido (el hook MEM_WRITE
+solo se dispara al escribir la página de sonido, que esos programas no tocan).
+
+Compuerta F2: `cargo test` **245 passed / 0 failed** (239 de F1 intactos + 6
+nuevos de sonido). `cargo clippy --all-targets -- -D warnings` limpio en AMBOS
+crates. Video y teclado intactos (sus tests verdes sin cambios). Área:
+`core/sound.rs` (nuevo), `core/mod.rs`, `core/machine.rs`, `commands.rs`.
+Commit `rp31-fase-2: dispositivo de sonido MMIO + evento`.
