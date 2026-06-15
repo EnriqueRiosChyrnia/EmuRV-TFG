@@ -11,6 +11,7 @@
   "toolbar.guardarComo": "Guardar como",
   "toolbar.exportar": "Exportar ELF",
   "archivo.descartarConfirm": "¿Empezar un programa nuevo? Si hay cambios sin guardar, se perderán.",
+  "archivo.cerrarConfirm": "¿Cerrar EmuRV? Hay cambios sin guardar que se perderán.",
   "archivo.nuevo": "Programa nuevo (sin guardar).",
   "toolbar.ejemplos": "Ejemplos",
   "toolbar.ayuda": "Ayuda",
@@ -281,5 +282,6 @@
   "tema.aviso.ok": "Contraste AA: todos los colores se leen bien.",
   "tema.aviso.titulo": "Contraste bajo — estos colores pueden costar de leer:",
   "tema.aviso.par": "{fg} sobre {bg}: {ratio}:1",
-  "ayuda.temas.usuario": "Además podés crear tu propio tema: con «Editar tema» (junto al selector) se abre un editor con un control de color por cada elemento (fondos, texto, acento, estados y la sintaxis del editor). El cambio se previsualiza en vivo, se guarda en tu equipo y aparece como «Personalizado» en el selector. Si algún color queda con poco contraste para leer, el editor te avisa (no te lo impide: es tu tema). Volvés al punto de partida con «Restaurar Educativo», y podés exportar o importar tu tema como archivo JSON."
+  "ayuda.temas.usuario": "Además podés crear tu propio tema: con «Editar tema» (junto al selector) se abre un editor con un control de color por cada elemento (fondos, texto, acento, estados y la sintaxis del editor). El cambio se previsualiza en vivo, se guarda en tu equipo y aparece como «Personalizado» en el selector. Si algún color queda con poco contraste para leer, el editor te avisa (no te lo impide: es tu tema). Volvés al punto de partida con «Restaurar Educativo», y podés exportar o importar tu tema como archivo JSON.",
+  "titulo.sinTitulo": "Sin título"
 }
