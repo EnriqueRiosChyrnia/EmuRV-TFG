@@ -25,7 +25,12 @@ import {
   toggleBreakpointAtLine,
   type EditorCallbacks,
 } from "./editor";
-import { crearDocumento, nombreDocumento, type Documento } from "./documento";
+import {
+  crearDocumento,
+  indiceActivoTrasCerrar,
+  nombreDocumento,
+  type Documento,
+} from "./documento";
 import { BarraPestanas } from "./paneles/pestanas";
 import { getLang, setLang, t } from "./i18n";
 import { icono } from "./iconos";
@@ -114,6 +119,11 @@ class App {
   /** Último modo seteado (RP30): para bloquear el cambio de pestaña con una
    *  ejecución viva (corriendo/esperando). */
   private modoActual: Modo = "sin_programa";
+  /** Id del documento DUEÑO de la única sesión de backend (RP30): el que
+   *  ensambló/abrió-binario por última vez. Solo ese documento puede ejecutar
+   *  sin re-ensamblar; al activar otra pestaña con `programa`, hay que
+   *  re-ensamblar (la sesión es única y sigue a la activa). */
+  private sesionDocId: string | null = null;
   /** Depuración está en su ventana aparte (RP22-F3): main DELEGA el envío de
    *  breakpoints a la ventana (que tiene las condiciones) para no pisarlas;
    *  solo le manda la lista por evento. */
@@ -470,9 +480,10 @@ class App {
     const hijas = ["panel-registros", "panel-memoria", "panel-depuracion", "pantalla"];
     void principal.onCloseRequested(async (evento) => {
       evento.preventDefault();
-      // RP25: avisar si se cierra con cambios sin guardar (la ventana principal
-      // arrastra a las hijas, así que el aviso va una sola vez, acá).
-      if (this.hayCambiosSinGuardar() && !confirm(t("archivo.cerrarConfirm"))) return;
+      // RP25/RP30: avisar si se cierra con cambios sin guardar en CUALQUIER
+      // pestaña (la ventana principal arrastra a las hijas, así que el aviso va
+      // una sola vez, acá).
+      if (this.hayAlgunCambioSinGuardar() && !confirm(t("archivo.cerrarConfirm"))) return;
       for (const label of hijas) {
         const w = await WebviewWindow.getByLabel(label);
         if (w) await w.close().catch(() => {});
@@ -641,6 +652,7 @@ class App {
       const ok = await api.assemble(getDoc(this.editor), this.rutaArchivo, leerXlen());
       this.programa = ok;
       this.programaDesactualizado = false;
+      this.sesionDocId = this.doc.id; // este documento pasa a ser dueño de la sesión
       this.consola.clear();
       this.consola.setInputMode(false);
       setErrors(this.editor, []);
@@ -666,6 +678,7 @@ class App {
     } catch (e) {
       const errores = e as AsmError[];
       this.programa = null;
+      this.sesionDocId = null; // ensamblado fallido: ningún documento corre
       this.memoria.setPrograma(null);
       panelSync.notificar(); // ventanas desacopladas: limpiar (sin programa válido)
       this.consola.clear();
@@ -797,27 +810,38 @@ class App {
     }
   }
 
-  /** Abre un archivo del usuario: un fuente reemplaza el contenido del
-   *  editor; un ELF (detección por magic en el backend, RP11) entra en
-   *  modo binario con el listado desensamblado, solo lectura. */
+  /** Abre un archivo del usuario en una PESTAÑA NUEVA (RP30-F3); si ya hay una
+   *  pestaña con esa ruta, la enfoca en vez de duplicarla. Un fuente abre una
+   *  pestaña editable; un ELF (detección por magic en el backend, RP11) entra
+   *  en modo binario con el listado desensamblado, solo lectura. */
   private async abrirArchivo(): Promise<void> {
+    if (this.estaVivo()) return;
     const { open } = await import("@tauri-apps/plugin-dialog");
     const path = await open({
       title: t("archivo.tituloAbrir"),
       filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s", "elf"] }],
     });
     if (!path) return;
+    // Si ya está abierto (misma ruta), enfocar esa pestaña en vez de duplicar.
+    const ya = this.documentos.findIndex((d) => d.rutaArchivo === path);
+    if (ya >= 0) {
+      this.activarPestana(ya);
+      return;
+    }
     try {
       const apertura = await api.abrirPrograma(path);
       if (apertura.tipo === "fuente") {
-        this.salirModoBinario();
-        this.setDocLimpio(apertura.contenido);
-        this.programa = null;
+        this.crearYActivarPestana(apertura.contenido);
         this.rutaArchivo = path; // base para .include (RP5)
+        this.consola.clear();
+        this.actualizarChromeBinario();
+        this.sincronizarPanelDepuracion();
         this.setModo("sin_programa", t("archivo.abierto", { path }));
       } else {
+        this.crearYActivarPestana(""); // entrarModoBinario llena el listado
         await this.entrarModoBinario(apertura.ok, apertura.listado, path);
       }
+      this.programarGuardadoWorkspace();
     } catch (e) {
       this.consola.append(`${t("archivo.errorAbrir", { message: String(e) })}\n`, "error");
     }
@@ -835,15 +859,9 @@ class App {
     this.programa = ok;
     this.programaDesactualizado = false;
     this.rutaArchivo = null;
+    this.sesionDocId = this.doc.id; // la sesión de backend es de este documento
     this.botones["ensamblar"].disabled = true;
-    if (!this.bannerBinario) {
-      this.bannerBinario = document.createElement("div");
-      this.bannerBinario.id = "binario-banner";
-      const editorEl = document.getElementById("editor")!;
-      editorEl.parentElement!.insertBefore(this.bannerBinario, editorEl);
-    }
-    this.bannerBinario.textContent = t("binario.banner");
-    this.bannerBinario.hidden = false;
+    this.actualizarChromeBinario(); // banner del modo binario (chrome compartido)
     this.consola.clear();
     this.consola.setInputMode(false);
     setErrors(this.editor, []);
@@ -885,10 +903,16 @@ class App {
     this.docLimpio = contenido;
   }
 
-  /** ¿El buffer tiene cambios sin guardar? (RP23) En modo binario nunca:
-   *  el listado desensamblado es solo lectura. */
+  /** ¿El buffer ACTIVO tiene cambios sin guardar? (RP23) En modo binario nunca:
+   *  el listado desensamblado es solo lectura. Lo usa el título de la ventana. */
   private hayCambiosSinGuardar(): boolean {
     return !this.modoBinario && getDoc(this.editor) !== this.docLimpio;
+  }
+
+  /** ¿ALGUNA pestaña tiene cambios sin guardar? (RP30) Lo usa el aviso al cerrar
+   *  la ventana: con varias pestañas, avisa si cualquiera está sucia. */
+  private hayAlgunCambioSinGuardar(): boolean {
+    return this.documentos.some((d, i) => this.docSucio(d, i === this.activaIdx));
   }
 
   /** RP27: retoma el buffer de la sesión anterior (contenido + ruta). Si no hay
@@ -933,6 +957,14 @@ class App {
     return this.modoActual === "corriendo" || this.modoActual === "esperando";
   }
 
+  /** ¿El programa del documento activo corresponde a la sesión de backend viva?
+   *  (RP30) Solo entonces se puede Ejecutar/Paso/Reiniciar/Exportar sin volver
+   *  a ensamblar. Con una sola pestaña es siempre `this.programa !== null`
+   *  (la activa es siempre la dueña), así que la paridad single-tab se conserva. */
+  private programaVigente(): boolean {
+    return this.programa !== null && this.sesionDocId === this.doc.id;
+  }
+
   /** ¿El documento tiene cambios sin guardar? Para la activa, la fuente de
    *  verdad es el editor; para una inactiva, su `estado` guardado. (RP25 por
    *  pestaña). En modo binario nunca (el listado es solo lectura). */
@@ -972,10 +1004,9 @@ class App {
     this.editor.scrollDOM.scrollTop = doc.scrollTop;
   }
 
-  /** Sincroniza el chrome dependiente del documento activo tras un swap:
-   *  banner binario (compartido), panel de Depuración y modo/estado. readOnly,
-   *  breakpoints, errores y línea actual ya viajan en el `EditorState`. */
-  private sincronizarUIactiva(): void {
+  /** Muestra/oculta el banner del modo binario (chrome compartido) según el
+   *  modo del documento activo. */
+  private actualizarChromeBinario(): void {
     if (this.modoBinario) {
       if (!this.bannerBinario) {
         this.bannerBinario = document.createElement("div");
@@ -988,14 +1019,37 @@ class App {
     } else if (this.bannerBinario) {
       this.bannerBinario.hidden = true;
     }
+  }
+
+  /** Sincroniza el chrome dependiente del documento activo tras un swap:
+   *  banner binario, panel de Depuración y modo/estado. readOnly, breakpoints,
+   *  errores y línea actual ya viajan en el `EditorState`. La sesión de backend
+   *  NO se toca: si el documento entrante tiene `programa` pero no es el dueño
+   *  de la sesión viva, se le pide re-ensamblar para ejecutarlo (RP30-F3). */
+  private sincronizarUIactiva(): void {
+    this.actualizarChromeBinario();
     this.sincronizarPanelDepuracion(); // breakpoints del documento activo
-    // Estado según el programa del documento entrante (setModo recalcula los
-    // botones, refresca el título/barra y persiste el workspace).
-    if (this.programa) {
-      this.setModo("listo", t("estado.ensamblado", { n: this.programa.text_len }), "ok");
+    if (this.programaVigente()) {
+      this.setModo("listo", t("estado.ensamblado", { n: this.programa!.text_len }), "ok");
+    } else if (this.programa) {
+      // Tiene un programa propio, pero la sesión de backend es de otra pestaña.
+      this.setModo("sin_programa", t("pestana.reensamblar"));
     } else {
       this.setModo("sin_programa", t("estado.sin_programa"));
     }
+  }
+
+  /** Crea un documento alrededor de `contenido`, lo agrega y lo activa,
+   *  preservando el estado de la pestaña saliente. NO sincroniza la UI: el
+   *  llamante decide el modo/mensaje (cada flujo es distinto). */
+  private crearYActivarPestana(contenido: string): Documento {
+    this.guardarEstadoActivo();
+    const estado = crearEstadoEditor(contenido, this.editorCbs);
+    const doc = crearDocumento(estado, { docLimpio: contenido });
+    this.documentos.push(doc);
+    this.activaIdx = this.documentos.length - 1;
+    this.cargarEstado(doc);
+    return doc;
   }
 
   /** Trae al frente la pestaña `idx` preservando el estado de la saliente. */
@@ -1008,37 +1062,41 @@ class App {
     this.sincronizarUIactiva();
   }
 
-  /** Abre una pestaña nueva en blanco (plantilla mínima) y la activa. */
+  /** Abre una pestaña nueva en blanco (plantilla mínima) y la activa. La usan
+   *  «+» y «Nuevo» (RP30-F3: ambos abren pestaña en blanco). */
   private nuevaPestana(): void {
     if (this.estaVivo()) return;
-    this.guardarEstadoActivo();
-    const estado = crearEstadoEditor(App.PLANTILLA_NUEVA, this.editorCbs);
-    const doc = crearDocumento(estado, { docLimpio: App.PLANTILLA_NUEVA });
-    this.documentos.push(doc);
-    this.activaIdx = this.documentos.length - 1;
-    this.cargarEstado(doc);
-    this.sincronizarUIactiva();
+    this.crearYActivarPestana(App.PLANTILLA_NUEVA);
+    this.consola.clear();
+    this.actualizarChromeBinario(); // doc nuevo: oculta el banner si venía de binario
+    this.sincronizarPanelDepuracion();
+    this.setModo("sin_programa", t("archivo.nuevo"));
     this.programarGuardadoWorkspace();
   }
 
-  /** Cierra la pestaña `idx`. No cierra la última (siempre queda una). En F2 el
-   *  cierre es directo; RP30-F3 añade el aviso «•» antes de descartar. */
+  /** Cierra la pestaña `idx`. No cierra la última (siempre queda una). Avisa
+   *  antes de descartar cambios sin guardar (RP25 «•», RP30-F3). */
   private cerrarPestana(idx: number): void {
     if (this.estaVivo()) return;
     if (this.documentos.length <= 1) return;
     if (idx < 0 || idx >= this.documentos.length) return;
     const cerrabaActiva = idx === this.activaIdx;
+    if (this.docSucio(this.documentos[idx], cerrabaActiva) && !confirm(t("archivo.cerrarConfirm"))) {
+      return;
+    }
+    const cerrado = this.documentos[idx];
+    const total = this.documentos.length;
     this.documentos.splice(idx, 1);
+    // Si el documento cerrado era el dueño de la sesión, ya no hay dueño.
+    if (this.sesionDocId === cerrado.id) this.sesionDocId = null;
+    this.activaIdx = indiceActivoTrasCerrar(this.activaIdx, idx, total);
     if (cerrabaActiva) {
-      // Activar el vecino (misma posición, o el último si se cerró el último);
-      // su estado debe cargarse en la vista (la activa cambió de documento).
-      this.activaIdx = Math.min(idx, this.documentos.length - 1);
+      // La activa cambió de documento: hay que cargar su estado en la vista.
       this.cargarEstado(this.doc);
       this.sincronizarUIactiva();
     } else {
       // La activa sigue siendo el mismo documento (su estado vivo está en la
-      // vista, no se toca); solo se corrige su índice y se repinta la barra.
-      if (idx < this.activaIdx) this.activaIdx -= 1;
+      // vista, no se toca); solo se repinta la barra con el índice corregido.
       this.refrescarBarra();
     }
     this.programarGuardadoWorkspace();
@@ -1115,18 +1173,11 @@ class App {
     menu.querySelector<HTMLButtonElement>("button")?.focus();
   }
 
-  /** «Nuevo» (RP23): empieza un programa en blanco (plantilla mínima). Si hay
-   *  cambios sin guardar, confirma antes de descartarlos. Resetea ruta,
-   *  programa, consola y errores; sale de modo binario. */
+  /** «Nuevo» (RP23 → RP30-F3): abre una pestaña EN BLANCO (plantilla mínima),
+   *  igual que «+». Ya no descarta el buffer actual (queda en su pestaña), así
+   *  que no necesita confirmar. */
   private nuevoArchivo(): void {
-    if (this.hayCambiosSinGuardar() && !confirm(t("archivo.descartarConfirm"))) return;
-    this.salirModoBinario();
-    this.setDocLimpio(App.PLANTILLA_NUEVA);
-    this.programa = null;
-    this.rutaArchivo = null; // buffer nuevo: sin base de .include
-    setErrors(this.editor, []);
-    this.consola.clear();
-    this.setModo("sin_programa", t("archivo.nuevo"));
+    this.nuevaPestana();
   }
 
   /** Columna de instrucción del panel Memoria (RP11): vale para fuentes
@@ -1202,20 +1253,26 @@ class App {
     this.estadoEl.textContent = mensaje;
     this.estadoEl.className = clase;
     const b = this.botones;
-    const hayPrograma = this.programa !== null;
+    // RP30: Ejecutar/Paso/Reiniciar/Exportar exigen que el programa del
+    // documento activo SEA el de la sesión de backend viva (con una sola
+    // pestaña, equivale a `programa !== null`: la activa es siempre la dueña).
+    const puedeCorrer = this.programaVigente();
     const parado = modo === "listo" || modo === "terminado";
     b.ensamblar.disabled = modo === "corriendo" || modo === "esperando";
-    b.ejecutar.disabled = !hayPrograma || !parado || modo === "terminado";
-    b.paso.disabled = !hayPrograma || !parado || modo === "terminado";
+    b.ejecutar.disabled = !puedeCorrer || !parado || modo === "terminado";
+    b.paso.disabled = !puedeCorrer || !parado || modo === "terminado";
     b.detener.disabled = modo !== "corriendo" && modo !== "esperando";
-    b.reiniciar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
-    b.exportar.disabled = !hayPrograma || modo === "corriendo" || modo === "esperando";
+    b.reiniciar.disabled = !puedeCorrer || modo === "corriendo" || modo === "esperando";
+    b.exportar.disabled = !puedeCorrer || modo === "corriendo" || modo === "esperando";
     // Menú Archivo (Nuevo/Abrir/Guardar/Guardar como): se deshabilita mientras
     // la ejecución está viva — Abrir reemplazaría el editor y Guardar leería un
     // estado a medias (mismo criterio que Exportar). [Fix: antes referenciaba
     // b.abrir/b.guardar, que dejaron de existir al agrupar el menú → setModo
     // lanzaba TypeError y la ejecución nunca arrancaba.]
     b.archivo.disabled = modo === "corriendo" || modo === "esperando";
+    // RP30: la barra de pestañas se bloquea con ejecución viva (no cambiar/
+    // abrir/cerrar pestaña mientras corre: la sesión es única y sigue a la activa).
+    document.getElementById("pestanas")?.classList.toggle("bloqueada", this.estaVivo());
     this.actualizarTitulo(); // RP25: refresca «•» y nombre tras cargar/cambiar de estado
     this.persistirWorkspace(); // RP27: cada carga/cambio de estado deja el buffer persistido
   }

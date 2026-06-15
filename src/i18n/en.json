@@ -289,5 +289,6 @@
   "ejemplo.sonido.desc": "Plays a chord through the sound device (MMIO + WebAudio).",
   "ejemplo.sprites.desc": "Draws a sprite over a background using the hardware sprite overlay.",
   "pestana.nueva": "New tab",
-  "pestana.cerrar": "Close tab"
+  "pestana.cerrar": "Close tab",
+  "pestana.reensamblar": "Assemble this tab to run it (the session belongs to another tab)."
 }

@@ -208,6 +208,12 @@ input:focus-visible { border-color: var(--acento); }
   overflow-x: auto;
   min-height: 0;
 }
+/* RP30: con ejecución viva la barra se bloquea (no cambiar/abrir/cerrar pestaña
+   mientras corre: la sesión de backend es única y sigue a la activa). */
+#pestanas.bloqueada {
+  opacity: 0.5;
+  pointer-events: none;
+}
 .pestana {
   display: inline-flex;
   align-items: center;
