@@ -3999,3 +3999,46 @@ VISUALES de video son PENDIENTE HUMANO.
 Área RP31-F3: `src/paneles/audio.ts` (nuevo), `src/paneles/audio.test.ts`
 (nuevo), `src/api.ts`, `src/main.ts`. Commit `rp31-fase-3: reproduccion de
 sonido (WebAudio)`.
+
+## 2026-06-15 — RP31-F4: sprites sobre el framebuffer (overlay por hardware)
+
+Implementación de la opción (a) decidida en F1: overlay de sprites por hardware
+compuesto sobre el framebuffer INDEXADO antes de convertir a RGBA. El frontend
+NO se tocó: el frame compuesto viaja por el mismo pipeline de video
+(`read_framebuffer`), así que `src/paneles/video.ts` no necesitó cambios.
+
+[Seguro] `core/sprites.rs` (funciones PURAS, sin Unicorn): `componer(fb, tabla,
+patrones)` compone los sprites habilitados sobre una copia del framebuffer
+(índice 0 = transparente/color-key; recorte a 320×240; sprite 0 al fondo, 63
+arriba) y `hay_sprites(tabla)` detecta uso. 8 tests: posición, transparencia,
+recorte parcial (x=315, y=-3 sin pánico), totalmente fuera, deshabilitado,
+orden de pintado, y el camino sin-sprites = framebuffer tal cual.
+
+[Seguro] `core/mod.rs`: `SPRITE_TABLE_BASE=0x9005_0000` (64 entradas × 8 B:
+x:i16, y:i16, pattern:u8, flags:u8 [bit0=habilitado], 2 reservados) y
+`SPRITE_PATTERN_BASE=0x9006_0000` (64 patrones de 16×16 indexados, 256 B c/u).
+Disjuntas de todo (S4 del spike).
+
+[Seguro] `core/machine.rs`: mapeo de ambas regiones (lectura pasiva, SIN hooks
+—como el framebuffer—), `load()` las pone en 0 (sin overlay fantasma tras
+Reiniciar) y `publicar_frame` extendido. CLAVE para «video 100% intacto»: el
+camino SIN sprites queda BIT-IDÉNTICO (snapshot = fb+pal, se convierte el
+framebuffer tal cual); solo cuando hay sprites habilitados se leen los patrones,
+se compone y el snapshot incluye tabla+patrones (mover un sprite re-publica).
+Los sprites cuentan como uso de pantalla (RF4): un juego que solo dibuja sprites
+sobre negro también enciende el panel. Test de integración
+`sprite_aparece_en_el_frame_publicado`: un programa escribe un patrón + una
+entrada en (5,7) y el RGBA publicado tiene ese píxel en blanco.
+
+[Seguro] Costo razonable confirmado (la elección (a) de F1 NO resultó
+desproporcionada): la composición es una función pura testeable y el cambio en
+`publicar_frame` es aditivo; los 235 tests previos de video/teclado siguen
+verdes sin tocarse. No hubo que caer al plan B (blit documentado).
+
+Compuerta F4: `cargo test` **254 passed / 0 failed** (245 de F3 + 8 de sprites +
+1 de integración). `cargo clippy --all-targets -- -D warnings` limpio en AMBOS
+crates. El sprite VISIBLE en pantalla (click-through) queda como verificación
+manual de la compuerta final F5 (no automatizable headless), igual que las demás
+verificaciones visuales. El ejemplo `.asm` (y su ensamblado RV32/RV64) es F5.
+Área: `core/sprites.rs` (nuevo), `core/mod.rs`, `core/machine.rs`. Commit
+`rp31-fase-4: sprites sobre el framebuffer`.
