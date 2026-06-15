@@ -56,3 +56,16 @@ export function nombreDocumento(rutaArchivo: string | null, sinTitulo: string): 
   if (!rutaArchivo) return sinTitulo;
   return rutaArchivo.split(/[/\\]/).pop() || rutaArchivo;
 }
+
+/** Índice activo resultante tras cerrar la pestaña `cerrado` (PURO, RP30-F3).
+ *  `activa` es el índice activo PREVIO; `total` la cantidad de pestañas ANTES de
+ *  cerrar (se asume > 1: nunca se cierra la última). Reglas:
+ *  - si se cierra la activa: queda activa la de su misma posición, o la última
+ *    si se cerró la última (acota a la nueva longitud `total - 1`);
+ *  - si se cierra una a la izquierda: la activa se corre un lugar a la izquierda;
+ *  - si se cierra una a la derecha: el índice activo no cambia. */
+export function indiceActivoTrasCerrar(activa: number, cerrado: number, total: number): number {
+  if (cerrado === activa) return Math.min(cerrado, total - 2); // total-2 = último índice nuevo
+  if (cerrado < activa) return activa - 1;
+  return activa;
+}

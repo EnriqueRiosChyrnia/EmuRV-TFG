@@ -4317,3 +4317,106 @@ nuevo/binario se comportan idénticos a antes — la paridad es el invariante de
 pestanas.ts` (nuevos), `src/main.ts`, `index.html`, `src/styles.css`,
 `src/i18n/{es,en}.json`. Sin merges ni cambios de rama.
 Commit `rp30-fase-2: infraestructura de pestanas (paridad single-tab)`.
+
+## 2026-06-15 — RP30-F3: abrir/cambiar/cerrar/nueva pestaña
+
+Sobre la infraestructura de F2, activa los flujos multi-pestaña y la regla de la
+sesión de backend.
+
+### Abrir/Nuevo ahora son tab-aware [Seguro]
+
+- `abrirArchivo`: si ya hay una pestaña con esa ruta, la ENFOCA; si no, abre el
+  archivo en una pestaña NUEVA (fuente editable o, si es ELF, modo binario en su
+  propia pestaña). Antes reemplazaba el buffer activo.
+- `Nuevo` y «+» abren una pestaña EN BLANCO (plantilla mínima) — `nuevoArchivo`
+  ahora delega en `nuevaPestana`. Ya no descarta el buffer actual (queda en su
+  pestaña), así que `Nuevo` ya no necesita confirmar.
+- Ejemplos y lecciones MANTIENEN su comportamiento (cargan en la pestaña activa):
+  el plan solo redefine abrir/nuevo como operaciones de pestaña; cargar un
+  ejemplo es «cargar en el editor actual». Decisión de alcance registrada.
+
+### Interpretación de la regla dura de paridad [Seguro]
+
+La regla «con UNA sola pestaña, comportamiento 100% idéntico» se interpreta como:
+el bucle de emulación y edición (ensamblar/ejecutar/paso/depurar/guardar/modo
+binario/teclear/«•»/persistencia) es idéntico al actual. Abrir/Nuevo cambian a
+abrir pestañas PORQUE ESE ES el entregable explícito de RP-30 (criterios de
+aceptación: «"+"/Nuevo abre pestaña en blanco; abrir archivo abre/enfoca
+pestaña»). Ambas afirmaciones no pueden ser literales a la vez; mandan los
+criterios de aceptación. Con una sola pestaña, el núcleo no cambió; lo único que
+cambia es que abrir/nuevo ahora crean pestaña en vez de reemplazar — el feature.
+(Verificación humana puede ajustar esto si el autor prefiere reemplazar cuando
+hay una única pestaña vacía; queda como nota.)
+
+### Sesión de backend ↔ pestaña activa (regla de F1, ya implementada) [Probable]
+
+El backend es de UNA sesión. `sesionDocId` = id del documento DUEÑO (el último
+que ensambló o abrió binario). `programaVigente()` = `programa != null &&
+sesionDocId === doc.id` reemplaza a `hayPrograma` en `setModo` para
+Ejecutar/Paso/Reiniciar/Exportar. Consecuencias:
+- Con UNA pestaña, la activa es siempre la dueña → `programaVigente()` equivale a
+  `programa != null` → paridad single-tab EXACTA.
+- Al activar otra pestaña que tiene `programa` pero no es la dueña, se le pide
+  re-ensamblar (mensaje `pestana.reensamblar`); Ejecutar/Paso quedan
+  deshabilitados hasta Ensamblar (que crea sesión nueva y la vuelve dueña).
+- `ensamblar` exitoso / `entrarModoBinario` fijan `sesionDocId = doc.id`; un
+  ensamblado fallido lo pone en null. Cerrar la pestaña dueña pone `sesionDocId`
+  en null (re-ensamblar para correr).
+- **Bloqueo con ejecución viva**: con `corriendo`/`esperando`, `activar/nueva/
+  cerrar/abrir` se cancelan (guard `estaVivo()`) y la barra se atenúa con
+  `pointer-events:none` (`#pestanas.bloqueada`). El menú Archivo ya estaba
+  deshabilitado en vivo (RP23). Marcada [Probable]: regla de UX validable a mano.
+
+### Cambiar/cerrar preservando estado [Seguro]
+
+`activarPestana`: snapshot del saliente (estado + scrollTop) → `setState` del
+entrante → restaurar scrollTop → `sincronizarUIactiva` (banner binario, panel de
+Depuración, modo según `programaVigente`). Como `setState` no dispara el
+`updateListener` (F1), el swap no ensucia el documento entrante (undo/cursor/
+breakpoints/errores/línea actual viajan en el estado). `cerrarPestana`: avisa con
+`archivo.cerrarConfirm` si la pestaña está sucia («•»); al cerrar una pestaña que
+NO es la activa, la vista NO se toca (su estado vivo sigue ahí); el índice activo
+resultante lo calcula `indiceActivoTrasCerrar` (PURA, testeada). El aviso al
+CERRAR LA VENTANA ahora usa `hayAlgunCambioSinGuardar` (cualquier pestaña sucia),
+no solo la activa (RP25 por pestaña).
+
+### Tests [Seguro]
+
+`documento.test.ts` sube a 8 casos: `nombreDocumento` (4) + `indiceActivoTras
+Cerrar` (4: cerrar activa misma-posición, activa última, izquierda, derecha). La
+mecánica del swap (DOM/EditorView) se verifica a mano (sin jsdom; CERO deps).
+
+### Revisión adversarial (subagente) + disposición [Seguro]
+
+Se revisó el diff de F3 buscando bugs de correctitud del núcleo multi-pestaña
+(clobber de estado en el swap, uso-antes-de-init de los accessors, off-by-one al
+cerrar, fuga del «•» en el swap, ruptura de paridad single-tab). **Cero hallazgos
+en esas áreas** (el núcleo es sólido). Dos observaciones menores, evaluadas y
+NO accionadas (regla 2 de CLAUDE.md — registrar fuera de alcance y seguir):
+
+- `cargarEjemplo` descarta el buffer sin confirmar. Verificado: es el
+  comportamiento PREVIO a RP-30 (el original tampoco confirmaba; el botón
+  Ejemplos nunca se deshabilitó en ejecución). No es regresión; cargar un
+  ejemplo es «cargar en el editor activo». Cambiarlo rompería la paridad y
+  ampliaría alcance. PROPUESTA FUERA DE ALCANCE: confirmar al descartar / abrir
+  ejemplos-lecciones en pestaña nueva (futuro).
+- Re-abrir el MISMO `.elf` crea una 2ª pestaña (no enfoca). Verificado: la
+  pestaña binaria pone `rutaArchivo = null` A PROPÓSITO (es la base de
+  `.include` y, sobre todo, el destino de `Guardar`; ponerla al `.elf` haría que
+  Guardar sobrescriba el binario con el listado). Por eso las pestañas binarias
+  no tienen identidad de ruta y el dedup-por-ruta solo cubre fuentes (el caso
+  común). LIMITACIÓN documentada.
+
+### Compuerta F3 — VERDE
+
+- `npx tsc --noEmit` limpio · `npm run test:ui` **108 / 108** · `npm run build` OK.
+- i18n: clave nueva `pestana.reensamblar` AL FINAL de es/en (anti-drift verde).
+- Rust intacto (no se tocó).
+- [PENDIENTE HUMANO] Verificación: abrir 2-3 archivos (pestañas distintas),
+  alternar sin perder contenido/cursor/scroll/«•», cerrar con aviso si está
+  sucia, ejecutar solo en la activa, intentar cambiar de pestaña mientras corre
+  (bloqueado), abrir un archivo ya abierto (enfoca).
+
+Área F3: `src/main.ts`, `src/documento.ts`(+test), `src/styles.css`,
+`src/i18n/{es,en}.json`. Sin merges ni cambios de rama.
+Commit `rp30-fase-3: abrir/cambiar/cerrar pestanas`.
