@@ -103,7 +103,7 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
 | RP-29 | ELF reubicable (auipc, independiente de dirección de carga) | Media | DOCUMENTADO |
 | RP-30 | Pestañas + archivos recientes | Media-Alta | PENDIENTE |
 | RP-31 | Sprites + sonido (sobre el framebuffer) | Media-Alta | PENDIENTE |
-| RP-32 | RV64 — soporte 64 bits, conmutable RV32/RV64 | Alta (esfuerzo) | EN-EJECUCION |
+| RP-32 | RV64 — soporte 64 bits, conmutable RV32/RV64 | Alta (esfuerzo) | DOCUMENTADO |
 
 ## Detalle de los puntos
 
