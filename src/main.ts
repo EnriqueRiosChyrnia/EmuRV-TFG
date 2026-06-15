@@ -39,7 +39,8 @@ import { icono } from "./iconos";
 import wordmark from "./assets/emurv-wordmark.svg?raw";
 import { inicializarTema, leerTema, setTema, TEMAS, type Tema } from "./temas";
 import { leerXlen, setXlen } from "./arquitectura";
-import { guardarWorkspace, leerWorkspace } from "./workspace";
+import { guardarWorkspace, leerWorkspace, type DocPersistido } from "./workspace";
+import { agregarReciente, guardarRecientes, leerRecientes } from "./recientes";
 import type { Leccion } from "./lecciones";
 import { Ayuda } from "./paneles/ayuda";
 import { Consola } from "./paneles/consola";
@@ -124,6 +125,9 @@ class App {
    *  sin re-ensamblar; al activar otra pestaña con `programa`, hay que
    *  re-ensamblar (la sesión es única y sigue a la activa). */
   private sesionDocId: string | null = null;
+  /** Archivos recientes (RP30): rutas abiertas/guardadas, persistidas; se
+   *  listan en el menú Archivo. */
+  private recientes: string[] = leerRecientes();
   /** Depuración está en su ventana aparte (RP22-F3): main DELEGA el envío de
    *  breakpoints a la ventana (que tiene las condiciones) para no pisarlas;
    *  solo le manda la lista por evento. */
@@ -822,6 +826,13 @@ class App {
       filters: [{ name: t("archivo.filtro"), extensions: ["asm", "s", "elf"] }],
     });
     if (!path) return;
+    await this.abrirRuta(path);
+  }
+
+  /** Abre una ruta concreta en una pestaña nueva (o enfoca la existente). La
+   *  usan el diálogo de Abrir y la lista de recientes del menú Archivo (RP30). */
+  private async abrirRuta(path: string): Promise<void> {
+    if (this.estaVivo()) return;
     // Si ya está abierto (misma ruta), enfocar esa pestaña en vez de duplicar.
     const ya = this.documentos.findIndex((d) => d.rutaArchivo === path);
     if (ya >= 0) {
@@ -841,10 +852,18 @@ class App {
         this.crearYActivarPestana(""); // entrarModoBinario llena el listado
         await this.entrarModoBinario(apertura.ok, apertura.listado, path);
       }
+      this.agregarReciente(path); // RP30: registrar en recientes
       this.programarGuardadoWorkspace();
     } catch (e) {
       this.consola.append(`${t("archivo.errorAbrir", { message: String(e) })}\n`, "error");
     }
+  }
+
+  /** Agrega `ruta` a la lista de recientes (al frente, sin duplicados) y la
+   *  persiste (RP30). */
+  private agregarReciente(ruta: string): void {
+    this.recientes = agregarReciente(this.recientes, ruta);
+    guardarRecientes(this.recientes);
   }
 
   /** Modo binario (RP11): la sesión ya quedó creada en el backend (como
@@ -915,21 +934,38 @@ class App {
     return this.documentos.some((d, i) => this.docSucio(d, i === this.activaIdx));
   }
 
-  /** RP27: retoma el buffer de la sesión anterior (contenido + ruta). Si no hay
-   *  nada persistido, el editor queda con su default («Hola mundo»). No restaura
-   *  modo binario: solo fuentes editables. */
+  /** RP27 → RP30 v2: retoma TODAS las pestañas de la sesión anterior (contenido
+   *  + ruta) y la activa. Si no hay nada persistido, el editor queda con su
+   *  default («Hola mundo»). No restaura modo binario: solo fuentes editables.
+   *  Migra el formato v1 (un solo buffer) a una pestaña (ver workspace.ts). */
   private restaurarWorkspace(): void {
     const w = leerWorkspace();
     if (!w) return;
-    this.setDocLimpio(w.contenido);
-    this.rutaArchivo = w.rutaArchivo;
+    this.documentos = w.pestanas.map((p) =>
+      crearDocumento(crearEstadoEditor(p.contenido, this.editorCbs), {
+        rutaArchivo: p.rutaArchivo,
+        docLimpio: p.contenido,
+      }),
+    );
+    this.activaIdx = Math.min(Math.max(w.activa, 0), this.documentos.length - 1);
+    this.cargarEstado(this.doc); // pinta la pestaña activa en la única vista
   }
 
-  /** RP27: persiste el buffer actual (no en modo binario: el desensamblado es
-   *  solo lectura y no debe pisar el último fuente). */
+  /** RP27 → RP30 v2: persiste todas las pestañas (su fuente + ruta) y la activa.
+   *  Las pestañas en modo binario se omiten (el listado desensamblado es solo
+   *  lectura y no debe pisar un fuente); si TODAS son binarias, no persiste
+   *  (no pisa lo último válido). El activo usa el contenido vivo del editor. */
   private persistirWorkspace(): void {
-    if (this.modoBinario) return;
-    guardarWorkspace({ contenido: getDoc(this.editor), rutaArchivo: this.rutaArchivo });
+    const pestanas: DocPersistido[] = [];
+    let activa = 0;
+    this.documentos.forEach((d, i) => {
+      if (d.modoBinario) return; // no persistir binarios
+      if (i === this.activaIdx) activa = pestanas.length;
+      const contenido = i === this.activaIdx ? getDoc(this.editor) : d.estado.doc.toString();
+      pestanas.push({ contenido, rutaArchivo: d.rutaArchivo });
+    });
+    if (pestanas.length === 0) return; // todo binario: nada que persistir
+    guardarWorkspace({ pestanas, activa });
   }
 
   /** RP27: persistencia con debounce para no escribir localStorage por tecla. */
@@ -1160,6 +1196,33 @@ class App {
       menu.appendChild(b);
     }
 
+    // Archivos recientes (RP30): separador + lista de rutas (abre en pestaña).
+    if (this.recientes.length > 0) {
+      const sep = document.createElement("div");
+      sep.className = "menu-sep";
+      menu.appendChild(sep);
+      const titulo = document.createElement("div");
+      titulo.className = "menu-titulo";
+      titulo.textContent = t("archivo.recientes");
+      menu.appendChild(titulo);
+      for (const ruta of this.recientes) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "menu-item menu-reciente";
+        b.setAttribute("role", "menuitem");
+        // textContent (no innerHTML): la ruta es dato del usuario.
+        const span = document.createElement("span");
+        span.textContent = nombreDocumento(ruta, ruta);
+        b.appendChild(span);
+        b.title = ruta;
+        b.onclick = () => {
+          cerrar();
+          void this.abrirRuta(ruta);
+        };
+        menu.appendChild(b);
+      }
+    }
+
     document.body.appendChild(menu);
     const r = ancla.getBoundingClientRect();
     menu.style.top = `${r.bottom + 4}px`;
@@ -1218,6 +1281,7 @@ class App {
       await api.guardarArchivo(path, getDoc(this.editor));
       this.rutaArchivo = path;
       this.docLimpio = getDoc(this.editor); // recién guardado: limpio
+      this.agregarReciente(path); // RP30: registrar en recientes
       this.actualizarTitulo(); // RP25: quita «•» y muestra el nombre guardado
       this.persistirWorkspace(); // RP27: persistir ruta + contenido recién guardados
       this.estadoEl.textContent = t("archivo.guardado", { path });

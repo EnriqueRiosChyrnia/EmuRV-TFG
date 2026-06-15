@@ -1,49 +1,91 @@
-// Persistencia del workspace (RP27): recuerda el último buffer del editor y su
-// ruta entre sesiones, para retomar donde se dejó. Mismo patrón que progreso.ts
-// / i18n / temas: clave versionada en localStorage, una función de parseo PURA
-// (testeable sin DOM) y wrappers de lectura/escritura tolerantes a entornos sin
-// localStorage (modo privado, tests).
+// Persistencia del workspace (RP27 → RP30 v2): recuerda TODAS las pestañas
+// abiertas (contenido + ruta) y cuál es la activa, para retomar la sesión.
+// Mismo patrón del repo: clave versionada en localStorage, parseo PURO
+// (testeable sin DOM) + wrappers tolerantes a entornos sin localStorage.
+//
+// v1 era un solo buffer `{contenido, rutaArchivo}`. v2 es `{pestanas, activa}`.
+// `parsearWorkspace` devuelve SIEMPRE la forma v2: lee un objeto v2 tal cual y
+// MIGRA un objeto v1 a una sola pestaña — así la sesión guardada con la versión
+// anterior se recupera sin pérdida.
 
-/// Clave versionada (si el formato cambia, se sube la v).
-export const CLAVE_WORKSPACE = "emurv.workspace.v1";
+/// Clave del formato actual (v2).
+export const CLAVE_WORKSPACE = "emurv.workspace.v2";
+/// Clave del formato anterior (v1), solo para migrar al leer.
+export const CLAVE_WORKSPACE_V1 = "emurv.workspace.v1";
 
-export interface Workspace {
-  /** Contenido del editor al cerrar. */
+/** Un documento persistido: solo el fuente editable (igual que v1, NO se
+ *  persisten programa ni modo binario: el listado desensamblado es derivado). */
+export interface DocPersistido {
   contenido: string;
-  /** Ruta del archivo abierto (base para `.include`), o null si es un buffer
-   *  sin guardar / ejemplo embebido. */
   rutaArchivo: string | null;
 }
 
-/// Parseo PURO del JSON crudo de localStorage. Devuelve null ante ausencia,
-/// JSON corrupto o forma inesperada (tolerante: nunca lanza).
+export interface Workspace {
+  /** Pestañas abiertas, en orden. Al menos una. */
+  pestanas: DocPersistido[];
+  /** Índice de la pestaña activa, acotado a [0, pestanas.length - 1]. */
+  activa: number;
+}
+
+/// Sanea un documento crudo: exige `contenido` string; `rutaArchivo` string o
+/// null. Devuelve null si no cumple (se descarta esa pestaña).
+function sanearDoc(x: unknown): DocPersistido | null {
+  if (typeof x !== "object" || x === null) return null;
+  const o = x as Record<string, unknown>;
+  if (typeof o.contenido !== "string") return null;
+  return {
+    contenido: o.contenido,
+    rutaArchivo: typeof o.rutaArchivo === "string" ? o.rutaArchivo : null,
+  };
+}
+
+/// Parseo PURO del JSON crudo. Devuelve la forma v2 normalizada, o null ante
+/// ausencia/JSON corrupto/forma inesperada (tolerante: nunca lanza).
+///   - v2 `{pestanas:[...], activa}`: se lee, saneando cada pestaña y acotando
+///     `activa`; si no queda ninguna pestaña válida, null.
+///   - v1 `{contenido, rutaArchivo}`: se MIGRA a una sola pestaña activa.
 export function parsearWorkspace(crudo: string | null): Workspace | null {
   if (!crudo) return null;
+  let o: unknown;
   try {
-    const o: unknown = JSON.parse(crudo);
-    if (typeof o !== "object" || o === null) return null;
-    const w = o as Record<string, unknown>;
-    if (typeof w.contenido !== "string") return null;
-    return {
-      contenido: w.contenido,
-      rutaArchivo: typeof w.rutaArchivo === "string" ? w.rutaArchivo : null,
-    };
+    o = JSON.parse(crudo);
   } catch {
     return null;
   }
+  if (typeof o !== "object" || o === null) return null;
+  const obj = o as Record<string, unknown>;
+
+  // v2: lista de pestañas + activa.
+  if (Array.isArray(obj.pestanas)) {
+    const pestanas = obj.pestanas
+      .map(sanearDoc)
+      .filter((d): d is DocPersistido => d !== null);
+    if (pestanas.length === 0) return null;
+    const cruda = typeof obj.activa === "number" ? Math.trunc(obj.activa) : 0;
+    const activa = Math.min(Math.max(cruda, 0), pestanas.length - 1);
+    return { pestanas, activa };
+  }
+
+  // v1: un solo buffer → migrar a una pestaña.
+  const doc = sanearDoc(obj);
+  if (doc) return { pestanas: [doc], activa: 0 };
+  return null;
 }
 
-/// Lee el workspace persistido, o null si no hay / no se puede.
+/// Lee el workspace persistido (v2; si no hay v2 pero sí v1, lo migra), o null.
 export function leerWorkspace(): Workspace | null {
   try {
-    return parsearWorkspace(localStorage.getItem(CLAVE_WORKSPACE));
+    const v2 = localStorage.getItem(CLAVE_WORKSPACE);
+    if (v2) return parsearWorkspace(v2);
+    const v1 = localStorage.getItem(CLAVE_WORKSPACE_V1);
+    if (v1) return parsearWorkspace(v1); // migración v1 → v2
   } catch {
     // sin localStorage: arranca con el default
-    return null;
   }
+  return null;
 }
 
-/// Persiste el workspace. Sin localStorage: vale para la sesión, no rompe.
+/// Persiste el workspace (v2). Sin localStorage: vale para la sesión, no rompe.
 export function guardarWorkspace(w: Workspace): void {
   try {
     localStorage.setItem(CLAVE_WORKSPACE, JSON.stringify(w));
@@ -52,10 +94,11 @@ export function guardarWorkspace(w: Workspace): void {
   }
 }
 
-/// Olvida el workspace persistido (no se usa hoy; útil para un futuro «reset»).
+/// Olvida el workspace persistido (ambas versiones). Útil para un futuro «reset».
 export function olvidarWorkspace(): void {
   try {
     localStorage.removeItem(CLAVE_WORKSPACE);
+    localStorage.removeItem(CLAVE_WORKSPACE_V1);
   } catch {
     // no-op
   }

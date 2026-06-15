@@ -4420,3 +4420,60 @@ NO accionadas (regla 2 de CLAUDE.md — registrar fuera de alcance y seguir):
 Área F3: `src/main.ts`, `src/documento.ts`(+test), `src/styles.css`,
 `src/i18n/{es,en}.json`. Sin merges ni cambios de rama.
 Commit `rp30-fase-3: abrir/cambiar/cerrar pestanas`.
+
+## 2026-06-15 — RP30-F4: archivos recientes + workspace v2
+
+### Recientes (`src/recientes.ts` + test) [Seguro]
+
+Patrón del repo (parseo PURO + wrappers tolerantes, como `progreso.ts`):
+clave `emurv.recientes.v1`, lista de rutas más-reciente-primero, sin duplicados,
+acotada a `MAX_RECIENTES = 10`. `parsearRecientes` (tolerante: filtra no-strings,
+acota), `agregarReciente` (PURA: pone al frente, dedup, acota, no muta),
+`serializarRecientes`, wrappers `leer/guardarRecientes`. Test `recientes.test.ts`
+(8 casos: tolerancia, filtrado, tope, front, dedup-sube-al-frente, no-mutación,
+ida y vuelta). En `main.ts`: se agrega a recientes al ABRIR (`abrirRuta`) y al
+GUARDAR (`escribirArchivo`); el menú Archivo lista los recientes (separador +
+encabezado «Recientes» + basename por entrada, `title` = ruta completa) y
+abrirlos usa `abrirRuta` (abre en pestaña / enfoca la existente). La ruta se
+pinta con `textContent` (dato del usuario, no `innerHTML`).
+
+### Workspace v2 (`src/workspace.ts` + test reescrito) [Seguro]
+
+Subido a `emurv.workspace.v2 = { pestanas: DocPersistido[], activa }` con
+`DocPersistido = { contenido, rutaArchivo }` (igual que v1, NO se persiste
+programa ni modo binario). `parsearWorkspace` sigue PURO y devuelve SIEMPRE la
+forma v2: lee un objeto v2 (saneando cada pestaña con `sanearDoc` y acotando
+`activa` al rango, default 0; si no queda ninguna pestaña válida → null) y MIGRA
+un objeto v1 `{contenido, rutaArchivo}` a `{ pestanas:[doc], activa:0 }`. El
+wrapper `leerWorkspace` lee primero la clave v2 y, si no hay, la v1 (migración
+transparente). `olvidarWorkspace` borra ambas. Test reescrito (`workspace.test.ts`,
+11 casos): tolerancia/corrupto, migración v1 (con saneo de `rutaArchivo` y
+`contenido` vacío), lectura v2, saneo y descarte de pestañas inválidas, vacío →
+null, y acotado/truncado de `activa`.
+
+### Integración en `main.ts` [Seguro / Probable la mecánica DOM]
+
+- `restaurarWorkspace`: reconstruye `documentos` desde `w.pestanas`
+  (`crearDocumento(crearEstadoEditor(p.contenido, cbs), {rutaArchivo, docLimpio})`),
+  acota `activaIdx` y pinta la activa con `cargarEstado`. Los documentos quedan
+  «limpios» (docLimpio = contenido → sin «•»). Migra v1 sin pérdida (una pestaña).
+- `persistirWorkspace`: serializa TODAS las pestañas (fuente vivo del activo vía
+  `getDoc`; `estado.doc` de las inactivas) + el índice activo. Omite las pestañas
+  en modo binario (listado solo lectura); si TODAS son binarias, no persiste (no
+  pisa lo último válido). Debounce de 400 ms conservado (RP27).
+- RP27 sigue funcionando (ahora multi-pestaña) y RP25 «•» es por pestaña; ambos
+  no se rompen.
+
+### Compuerta F4 — VERDE
+
+- `npx tsc --noEmit` limpio · `npm run test:ui` **119 / 119** (108 + 8 recientes +
+  3 netos de workspace v2) · `npm run build` OK.
+- i18n: `archivo.recientes` AL FINAL de es/en (anti-drift verde).
+- Rust intacto.
+- [PENDIENTE HUMANO] Verificación: abrir/guardar deja entradas en «Recientes»;
+  abrir desde recientes funciona; cerrar la app con 2+ pestañas y reabrir las
+  restaura (contenido + activa); una sesión v1 vieja se migra a una pestaña.
+
+Área F4: `src/recientes.ts`(+test) nuevo, `src/workspace.ts`(+test reescrito),
+`src/main.ts`, `src/styles.css`, `src/i18n/{es,en}.json`. Sin merges ni cambios
+de rama. Commit `rp30-fase-4: archivos recientes + workspace v2`.

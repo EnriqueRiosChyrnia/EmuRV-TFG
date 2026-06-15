@@ -290,5 +290,6 @@
   "ejemplo.sprites.desc": "Draws a sprite over a background using the hardware sprite overlay.",
   "pestana.nueva": "New tab",
   "pestana.cerrar": "Close tab",
-  "pestana.reensamblar": "Assemble this tab to run it (the session belongs to another tab)."
+  "pestana.reensamblar": "Assemble this tab to run it (the session belongs to another tab).",
+  "archivo.recientes": "Recent"
 }

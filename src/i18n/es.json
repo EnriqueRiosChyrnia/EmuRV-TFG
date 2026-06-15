@@ -290,5 +290,6 @@
   "ejemplo.sprites.desc": "Dibuja un sprite sobre un fondo con el overlay de sprites por hardware.",
   "pestana.nueva": "Nueva pestaña",
   "pestana.cerrar": "Cerrar pestaña",
-  "pestana.reensamblar": "Ensamblá esta pestaña para ejecutarla (la sesión es de otra pestaña)."
+  "pestana.reensamblar": "Ensamblá esta pestaña para ejecutarla (la sesión es de otra pestaña).",
+  "archivo.recientes": "Recientes"
 }

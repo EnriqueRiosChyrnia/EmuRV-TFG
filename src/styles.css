@@ -120,6 +120,26 @@ html, body {
   outline: none;
 }
 .menu-toolbar .menu-item .ico { width: 15px; height: 15px; flex: none; }
+/* Recientes (RP30): separador + encabezado + rutas (basename, atenuadas). */
+.menu-toolbar .menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--borde);
+}
+.menu-toolbar .menu-titulo {
+  padding: 2px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  color: var(--texto);
+}
+.menu-toolbar .menu-reciente span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
 /* Cálido (RP19): primario realzado con una sombra suave del acento. */
 #toolbar button.principal {
   background: var(--acento);
