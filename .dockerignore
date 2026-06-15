@@ -1,0 +1,11 @@
+# Build Linux en Docker: contexto mínimo (los artefactos macOS no deben entrar).
+**/node_modules
+**/target
+dist
+docs/diseno-ui
+graphify-out
+.git
+entrega-tester
+linux-dist
+*.dmg
+*.app
