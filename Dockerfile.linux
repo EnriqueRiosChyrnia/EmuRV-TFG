@@ -1,0 +1,40 @@
+# Compila EmuRV para Linux x86_64 (AppImage) desde macOS via Docker.
+# Multi-stage: el stage `export` deja SOLO el .AppImage para sacarlo con
+#   docker build --platform linux/amd64 -f Dockerfile.linux \
+#       --target export --output type=local,dest=linux-dist .
+# En un host arm64 (Apple Silicon) corre emulado (qemu) -> lento pero funciona.
+
+FROM --platform=linux/amd64 ubuntu:22.04 AS builder
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Dependencias de build de Tauri 2 en Linux + CMake (Unicorn se compila con CMake).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl wget file ca-certificates git \
+      build-essential pkg-config cmake \
+      libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+      libayatana-appindicator3-dev libsoup-3.0-dev libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rust stable (perfil mínimo).
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Node 20 LTS.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+# node_modules de Linux (esbuild y demás binarios nativos son por-plataforma).
+RUN npm ci
+
+# AppImage en contenedor: sin FUSE, extraer-y-correr linuxdeploy/appimagetool.
+ENV APPIMAGE_EXTRACT_AND_RUN=1
+
+# beforeBuildCommand (npm run build = tsc + vite) lo dispara tauri solo.
+RUN npx tauri build --bundles appimage
+
+# Stage de salida: solo el AppImage.
+FROM scratch AS export
+COPY --from=builder /app/src-tauri/target/release/bundle/appimage/*.AppImage /
