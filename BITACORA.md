@@ -3807,3 +3807,107 @@ frontend (`api.ts`, `main.ts`, `arquitectura.ts`, `paneles/registros*.ts`,
 `editor/isa.ts`+`ayuda-isa.ts`, i18n), `ejemplos/15-rv64.asm`, tests nuevos y
 docs. Sin merges ni cambios de rama (la coordinadora mergea). Commit
 `rp32-fase-5: docs RV64`.
+
+## 2026-06-15 — RP31-F1: spike de sonido + decisión de sprites
+
+Worktree `rp31/sprites-sonido`. Punto RP-31 del ROADMAP-PRO: dar a los
+programas un dispositivo de **sonido** y soporte de **sprites** para que el
+emulador sirva para «cosas tipo juego», espejando el modelo de video/teclado
+que ya existe. La Fase 1 es SPIKE: fija el mecanismo y el layout MMIO de sonido
+y DECIDE el camino de sprites antes de tocar el núcleo. Núcleo intacto en F1
+(el spike usa Unicorn crudo, como `tests/spike_mmio.rs`).
+
+### Decisión 1 — Layout MMIO de sonido [Seguro]
+
+Región nueva `SOUND_BASE = 0x9004_0000`, tamaño 0x1000 (página de 4 KB, mínimo
+de Unicorn). Está dentro de la franja de dispositivos `0x9000_xxxx` (video:
+`0x9000`–`0x9003`), en la PRIMERA dirección libre, lejos del teclado
+(`0xFFFF_0000`). Registros (u32, little-endian):
+
+| Offset | Registro       | Significado                                   |
+|--------|----------------|-----------------------------------------------|
+| +0x00  | SOUND_FREQ     | frecuencia del tono en Hz                     |
+| +0x04  | SOUND_DUR      | duración en ms                                |
+| +0x08  | SOUND_WAVE     | forma de onda: 0=cuadrada 1=senoidal 2=triángulo 3=sierra |
+| +0x0C  | SOUND_TRIGGER  | escribir cualquier valor → emite un tono con freq/dur/wave vigentes |
+
+Alternativas consideradas: (a) base en otra franja (p. ej. `0xA000_0000`) —
+descartada por alejarse de la convención «dispositivos en `0x9000_xxxx`»; (b)
+un único registro empaquetado (freq/dur/wave en un word) — descartado por ser
+menos didáctico (el alumno escribe campos con nombre, no hace bit-twiddling).
+
+### Decisión 2 — Mecanismo de disparo: hook MEM_WRITE sobre TRIGGER [Seguro]
+
+El video PUBLICA de forma PASIVA (el run loop relee la VRAM cada tramo y la
+compara con un flag sucio). El sonido NO puede hacer eso: necesita eventos
+DISCRETOS (cada disparo = un tono), y un sondeo pasivo perdería disparos o
+re-emitiría el mismo tono cada tramo. Por eso el sonido espeja al TECLADO, no
+al «publicar_frame» de video: una página MMIO con **respaldo de memoria real**
+y un **hook**. La diferencia con el teclado es el tipo de hook —MEM_WRITE en
+vez de MEM_READ— porque el disparo es una ESCRITURA del guest a SOUND_TRIGGER.
+
+El hook cubre `[SOUND_FREQ, SOUND_TRIGGER+3]`. Cuando el registro normalizado
+del acceso es SOUND_TRIGGER, lee freq/dur/wave de memoria (las `sw` previas ya
+las dejaron ahí; el respaldo real las conserva) y encola un `EventoSonido`,
+marcando `in_use=true`. Respaldo real (igual criterio que el teclado,
+`tests/spike_mmio.rs` B6): las lecturas de host (visor de memoria de la UI) NO
+disparan hooks, así inspeccionar la memoria de sonido no tiene efectos
+colaterales. En Fase 2 el estado compartido será `SoundShared` (espejo de
+`VideoShared`): una cola de eventos + `in_use`, que el run loop DRENA entre
+tramos emitiendo un `emu://sonido { freq, dur_ms, wave }` por cada uno.
+
+Medido en el spike (`tests/spike_sonido.rs`, 4 tests verdes):
+- **S1**: una escritura a SOUND_TRIGGER encola UN evento `{440, 200, 1}`. ✓
+- **S2**: escribir freq/dur/wave SIN disparar no encola nada e `in_use` queda
+  en false (apagado por defecto, RF4: solo suena si el programa usa el
+  dispositivo). El hook igual VE las 3 escrituras de config (no disparan). ✓
+- **S3**: dos disparos encolan dos eventos (cola drenable por el run loop). ✓
+- **S4**: las regiones nuevas (sonido + sprites) son DISJUNTAS de framebuffer,
+  paleta, control de video y teclado (la regla dura «no pisar video/teclado»). ✓
+
+### Decisión 3 — Camino de sprites: (a) overlay por hardware [Seguro]
+
+Se elige la **opción (a): overlay de sprites por hardware**, compuesto en Rust
+sobre el framebuffer INDEXADO antes de convertir a RGBA. Razones:
+
+1. Alinea con la intención del autor («profesional/creativo, tipo juego»,
+   «espejando el modelo de video»): el programa mueve un sprite actualizando
+   (x, y) en una tabla, sin redibujar a mano.
+2. Costo razonable y ACOTADO: una función de composición PURA y testeable, dos
+   regiones MMIO nuevas (lejos de las existentes, ver S4) y un cambio ADITIVO
+   en `publicar_frame`. Clave para la regla dura «video 100% intacto»: el
+   camino SIN sprites queda BIT-IDÉNTICO (si la tabla de sprites no se usó,
+   `publicar_frame` compone nada y convierte el framebuffer tal cual, como
+   hoy); las regresiones las vigilan los tests de video ya verdes.
+
+Layout propuesto (el detalle fino lo cierra la Fase 4):
+- `SPRITE_TABLE_BASE = 0x9005_0000`, tamaño 0x1000. 64 entradas × 8 bytes:
+  x:i16, y:i16 (con signo, para recorte fuera de pantalla por izquierda/arriba),
+  pattern:u8 (índice de patrón), flags:u8 (bit0=habilitado), 2 bytes reservados.
+- `SPRITE_PATTERN_BASE = 0x9006_0000`, tamaño 0x4000 (16 KB). 64 patrones de
+  16×16 píxeles indexados (256 bytes c/u). Índice 0 = transparente (color-key).
+- Composición: sprite 0 al fondo, 63 arriba; píxeles de índice 0 no se pintan;
+  recorte a la pantalla 320×240. El flag sucio de `publicar_frame` se extiende
+  para incluir tabla+patrones SOLO cuando hay sprites en uso.
+
+Alternativa (b) —helper/macro de «blit» documentado sobre el framebuffer
+existente, sin MMIO nueva— CONSIDERADA y descartada como primera opción: es más
+barata y de hecho más instructiva (el alumno ve el bucle de copia), pero no da
+el modelo «hardware» tipo juego que pidió el autor. Queda como PLAN B
+declarado: si en Fase 4 el overlay (a) resultara desproporcionado o rompiera la
+intangibilidad de video (p. ej. el flag sucio se complica de más), se cae a (b)
+documentando la decisión, y el punto RP-31 igual cierra (criterio de aceptación
+del plan). [Confianza del DISEÑO de (a): Probable hasta validarlo en F4; la
+ELECCIÓN de camino: Seguro.]
+
+### Compuerta F1 — VERDE
+
+- `cargo test` src-tauri: **239 passed / 0 failed** (235 previos intactos + 4
+  del spike de sonido). Suite actual intacta.
+- `cargo clippy --all-targets -- -D warnings`: limpio en AMBOS crates
+  (`src-tauri` y `emurv-cli`).
+- Decisiones fundadas arriba. Núcleo sin tocar (spike en Unicorn crudo).
+
+Área RP31-F1: `src-tauri/tests/spike_sonido.rs` (nuevo), `BITACORA.md`,
+`docs/PLAN-RP31-sprites-sonido.md` (ya existía). Sin merges ni cambios de rama
+(la coordinadora mergea). Commit `rp31-fase-1: spike sonido + decision de sprites`.
