@@ -13,6 +13,7 @@ use crate::core::assembler::{self, AsmError, Program};
 use crate::core::cond::parse_cond;
 use crate::core::keyboard::KeyboardShared;
 use crate::core::machine::{BreakpointSpec, Machine, StopReason, Watchpoint};
+use crate::core::sound::{SoundEvent, SoundShared};
 use crate::core::syscalls::{ConsoleEvent, InputMsg};
 use crate::core::video::VideoShared;
 use crate::core::{Xlen, DATA_BASE, SP_INIT, TEXT_BASE};
@@ -206,6 +207,21 @@ fn emit_stopped(app: &AppHandle, m: &Machine, reason: StopReason) {
     }
 }
 
+/// Drena la cola de tonos pendientes y emite un `emu://sonido` por cada uno
+/// (RP31). A diferencia del video (que PUBLICA un frame conservado), el sonido
+/// es por EVENTO: cada tono se consume y se emite una sola vez. Se drena la
+/// cola a un Vec antes de emitir para no retener el lock durante el emit.
+fn drenar_sonido(app: &AppHandle, sound: &Arc<Mutex<SoundShared>>) {
+    let eventos: Vec<SoundEvent> = match sound.lock() {
+        Ok(mut s) => s.cola.drain(..).collect(),
+        // Lock envenenado: recuperarlo (la cola es POD), no perder los tonos.
+        Err(e) => e.into_inner().cola.drain(..).collect(),
+    };
+    for ev in eventos {
+        let _ = app.emit("emu://sonido", ev);
+    }
+}
+
 /// Bucle del hilo de emulación: atiende órdenes hasta que la sesión muere
 /// (el canal se cierra cuando la UI ensambla de nuevo).
 fn emu_thread(
@@ -225,6 +241,9 @@ fn emu_thread(
             let _ = app.emit("emu://video-activo", ());
         }
     };
+    // Cola de sonido de la sesión (RP31): se drena tras cada tramo y paso,
+    // igual que `check_video`, para emitir los tonos disparados (emu://sonido).
+    let sound = machine.sound_shared();
     while let Ok(cmd) = cmd_rx.recv() {
         match cmd {
             EmuCmd::Step => {
@@ -237,6 +256,7 @@ fn emu_thread(
                 let reason = machine.step();
                 machine.publish_frame();
                 check_video(&mut video_notificado);
+                drenar_sonido(&app, &sound);
                 emit_stopped(&app, &machine, reason);
             }
             EmuCmd::Run => {
@@ -267,6 +287,7 @@ fn emu_thread(
                     // (un Instant extra no paga su complejidad acá).
                     machine.publish_frame();
                     check_video(&mut video_notificado);
+                    drenar_sonido(&app, &sound);
                     match reason {
                         StopReason::Paused => {
                             // Count/timeout agotado: NO es pausa de usuario.
@@ -406,6 +427,7 @@ fn console_thread(
     out_rx: Receiver<ConsoleEvent>,
     waiting: Arc<AtomicBool>,
     video: Arc<Mutex<VideoShared>>,
+    sound: Arc<Mutex<SoundShared>>,
 ) {
     let mut video_notificado = false;
     while let Ok(ev) = out_rx.recv() {
@@ -418,6 +440,10 @@ fn console_thread(
                     video_notificado = true;
                     let _ = app.emit("emu://video-activo", ());
                 }
+                // Si el programa disparó un tono y se bloqueó pidiendo entrada,
+                // el hilo de emulación no va a drenarlo hasta desbloquearse:
+                // se drena acá para que suene ya (espejo del aviso de video).
+                drenar_sonido(&app, &sound);
                 waiting.store(true, Ordering::SeqCst);
                 let _ = app.emit("emu://pedir-entrada", ());
             }
@@ -520,7 +546,11 @@ fn crear_sesion(
     // La máquina se construye DENTRO del hilo: Unicorn no es Send (usa Rc).
     // El canal init confirma la creación (devolviendo la cola de teclado,
     // que la sesión necesita para `push_key`) o devuelve el error.
-    let (init_tx, init_rx) = channel::<Result<Arc<Mutex<KeyboardShared>>, String>>();
+    // El canal init confirma la creación devolviendo la cola de teclado y el
+    // estado de sonido (ambos los crea la máquina y la sesión los necesita), o
+    // el error.
+    type InitDevices = (Arc<Mutex<KeyboardShared>>, Arc<Mutex<SoundShared>>);
+    let (init_tx, init_rx) = channel::<Result<InitDevices, String>>();
     std::thread::spawn({
         let app = app.clone();
         let stop = Arc::clone(&stop_flag);
@@ -531,7 +561,7 @@ fn crear_sesion(
                 // máquina (mismo Arc): la fase del sleep interrumpible la
                 // consultará desde el hook de syscalls.
                 machine.set_stop_request(Arc::clone(&stop));
-                let _ = init_tx.send(Ok(machine.keyboard_shared()));
+                let _ = init_tx.send(Ok((machine.keyboard_shared(), machine.sound_shared())));
                 emu_thread(app, machine, cmd_rx, stop, corriendo_hilo);
             }
             Err(e) => {
@@ -539,14 +569,15 @@ fn crear_sesion(
             }
         }
     });
-    let keyboard = init_rx
+    let (keyboard, sound) = init_rx
         .recv()
         .unwrap_or_else(|_| Err("el hilo de emulación murió al iniciar".into()))?;
 
     std::thread::spawn({
         let waiting = Arc::clone(&waiting_input);
         let video = Arc::clone(&video);
-        move || console_thread(app, out_rx, waiting, video)
+        let sound = Arc::clone(&sound);
+        move || console_thread(app, out_rx, waiting, video, sound)
     });
 
     // Reemplaza la sesión anterior: sus canales se cierran y sus hilos

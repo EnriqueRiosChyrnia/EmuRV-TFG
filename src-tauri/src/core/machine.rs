@@ -15,6 +15,7 @@
 use super::assembler::Program;
 use super::cond::CondAst;
 use super::keyboard::KeyboardShared;
+use super::sound::{SoundEvent, SoundShared};
 use super::syscalls::{self, ConsoleEvent, InputMsg};
 use super::video::{FramebufferRGBA, VideoShared};
 use super::{
@@ -22,8 +23,8 @@ use super::{
     DATA_BASE, FREG_ID_BASE,
     DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE, FRAMEBUFFER_SIZE,
     GP_INIT, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
-    RECEIVER_CONTROL, RECEIVER_DATA, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
-    VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE, Xlen,
+    RECEIVER_CONTROL, RECEIVER_DATA, SOUND_BASE, SOUND_FREQ, SOUND_SIZE, SOUND_TRIGGER, SP_INIT,
+    STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE, Xlen,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -160,6 +161,12 @@ pub struct MachData {
     /// Cola de teclas compartida con la UI (TEC2, espejo de `video_shared`):
     /// la UI empuja con `push_key` y el hook MEM_READ del teclado consume.
     pub keyboard: Arc<Mutex<KeyboardShared>>,
+    /// Estado de sonido compartido con la UI (RP31, espejo de `video_shared`):
+    /// el hook MEM_WRITE de `SOUND_TRIGGER` encola tonos acá y el run loop los
+    /// drena emitiendo `emu://sonido`. Apagado por defecto (RF4): `in_use`
+    /// arranca en false. La máquina lo crea y la GUI lo lee con `sound_shared()`
+    /// (mismo criterio que el teclado).
+    pub sound_shared: Arc<Mutex<SoundShared>>,
     /// Señal de stop de la sesión (mismo `Arc` que mira el hilo de
     /// emulación entre tramos). Por ahora solo se cablea: la fase siguiente
     /// la usará para hacer interrumpible la syscall de sleep.
@@ -234,6 +241,7 @@ impl Machine<'_> {
             video_last: None,
             video_used: false,
             keyboard: Arc::default(),
+            sound_shared: Arc::default(),
             stop_request: Arc::default(),
             heap_next: HEAP_BASE,
         };
@@ -277,6 +285,17 @@ impl Machine<'_> {
             Prot::READ | Prot::WRITE,
         )
         .map_err(|e| format!("no se pudo mapear el registro de control: {e:?}"))?;
+
+        // Página de sonido CON respaldo real de memoria (RP31, mismo criterio
+        // que el teclado): el hook solo reacciona a la ESCRITURA del guest a
+        // SOUND_TRIGGER; las lecturas de host (visor de memoria) no disparan
+        // nada y no tienen efectos colaterales.
+        uc.mem_map(
+            SOUND_BASE as u64,
+            SOUND_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear la página de sonido: {e:?}"))?;
 
         // Página del teclado CON respaldo real de memoria (TEC2): las
         // lecturas de host (visor de memoria de la UI) leen los bytes sin
@@ -343,6 +362,44 @@ impl Machine<'_> {
         )
         .map_err(|e| format!("no se pudo instalar el hook del teclado: {e:?}"))?;
 
+        // Sonido MMIO (RP31, mecanismo validado en tests/spike_sonido.rs): hook
+        // MEM_WRITE sobre los registros de sonido. Solo una escritura a
+        // SOUND_TRIGGER dispara: lee freq/dur/wave (que las `sw` previas ya
+        // dejaron en el respaldo real) y encola un evento que el run loop drena
+        // y emite como `emu://sonido`. Las escrituras de configuración
+        // (freq/dur/wave) pasan por el hook pero NO disparan.
+        uc.add_mem_hook(
+            HookType::MEM_WRITE,
+            SOUND_FREQ as u64,
+            u64::from(SOUND_TRIGGER) + 3,
+            |uc, _tipo, addr, _size, _val| {
+                // Un sb/sh podría caer desalineado dentro del registro: se
+                // normaliza a la palabra base (mismo truco que el teclado).
+                let registro = (addr as u32) & !0x3;
+                if registro == SOUND_TRIGGER {
+                    // freq/dur/wave son contiguos (offset 0/4/8): un solo read
+                    // de 12 bytes los cubre. Ya están en memoria (respaldo
+                    // real); si la lectura fallara, no se encola (mejor sin
+                    // tono que un tono con basura).
+                    let mut buf = [0u8; 12];
+                    if uc.mem_read(SOUND_FREQ as u64, &mut buf).is_ok() {
+                        let ev = SoundEvent {
+                            freq: u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]),
+                            dur_ms: u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]),
+                            wave: u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]),
+                        };
+                        // Clonar el Arc primero suelta el préstamo sobre `uc`
+                        // antes de tomar el lock; lock envenenado se recupera
+                        // (la cola es POD, igual criterio que video/teclado).
+                        let sound = Arc::clone(&uc.get_data().sound_shared);
+                        sound.lock().unwrap_or_else(|e| e.into_inner()).push(ev);
+                    }
+                }
+                true
+            },
+        )
+        .map_err(|e| format!("no se pudo instalar el hook de sonido: {e:?}"))?;
+
         let mut m = Machine {
             uc,
             program,
@@ -367,6 +424,12 @@ impl Machine<'_> {
             // tipeado durante la corrida anterior no debe llegarle al
             // programa reiniciado.
             d.keyboard
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .limpiar();
+            // Sin tonos fantasma entre sesiones/reinicios (RP31): la cola de
+            // sonido se vacía y el uso se apaga (espejo del vaciado del teclado).
+            d.sound_shared
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .limpiar();
@@ -422,6 +485,11 @@ impl Machine<'_> {
         // la cola de más arriba: el respaldo real tampoco conserva restos).
         self.uc
             .mem_write(RECEIVER_CONTROL as u64, &[0u8; 8])
+            .map_err(err)?;
+        // Registros de sonido a 0 (RP31): tras Reiniciar no quedan freq/dur/
+        // wave de la corrida anterior (16 bytes = los 4 registros).
+        self.uc
+            .mem_write(SOUND_BASE as u64, &[0u8; 16])
             .map_err(err)?;
         self.uc
             .mem_write(TEXT_BASE as u64, &self.program.text)
@@ -613,6 +681,12 @@ impl Machine<'_> {
     /// sin pasar por el hilo de emulación (espejo de `video_shared`).
     pub fn keyboard_shared(&self) -> Arc<Mutex<KeyboardShared>> {
         Arc::clone(&self.uc.get_data().keyboard)
+    }
+
+    /// `Arc` del estado de sonido (RP31), para que la GUI lo drene desde el
+    /// run loop sin pasar por el hilo de emulación (espejo de `keyboard_shared`).
+    pub fn sound_shared(&self) -> Arc<Mutex<SoundShared>> {
+        Arc::clone(&self.uc.get_data().sound_shared)
     }
 
     /// Cablea la señal de stop de la sesión dentro de `MachData` (mismo
@@ -1424,5 +1498,58 @@ mod tests {
             }
         }
         assert!(saw_request, "debe emitirse InputRequest antes de bloquear");
+    }
+
+    /// RP31 — round-trip de un evento de sonido: el programa escribe
+    /// freq/dur/wave y dispara; el hook MEM_WRITE encola UN tono en
+    /// `sound_shared`. Antes del disparo el dispositivo está apagado (RF4).
+    #[test]
+    fn sonido_round_trip_un_evento() {
+        let src = "li t1, 0x90040000\n\
+                   li t0, 440\nsw t0, 0(t1)\n\
+                   li t0, 200\nsw t0, 4(t1)\n\
+                   li t0, 1\nsw t0, 8(t1)\n\
+                   li t0, 1\nsw t0, 12(t1)\n\
+                   li a7, 10\necall";
+        let (mut m, _o, _i) = machine_for(src);
+        let sound = m.sound_shared();
+        assert!(
+            !sound.lock().unwrap().in_use,
+            "el sonido arranca apagado (RF4)"
+        );
+        assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+        let s = sound.lock().unwrap();
+        assert!(s.in_use, "el disparo marca el dispositivo en uso");
+        assert_eq!(s.cola.len(), 1, "un disparo encola un tono");
+        let ev = s.cola.front().unwrap();
+        assert_eq!((ev.freq, ev.dur_ms, ev.wave), (440, 200, 1));
+    }
+
+    /// RP31 — escribir los registros SIN disparar no encola nada y deja el
+    /// dispositivo apagado: solo suena si el programa usa el TRIGGER (RF4).
+    #[test]
+    fn sonido_apagado_sin_disparo() {
+        let src = "li t1, 0x90040000\nli t0, 440\nsw t0, 0(t1)\nli a7, 10\necall";
+        let (mut m, _o, _i) = machine_for(src);
+        let sound = m.sound_shared();
+        assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+        let s = sound.lock().unwrap();
+        assert!(s.cola.is_empty(), "sin disparo no se encola ningún tono");
+        assert!(!s.in_use, "sin disparo el dispositivo queda apagado");
+    }
+
+    /// RP31 — Reiniciar limpia la cola de sonido: un tono encolado en la
+    /// corrida anterior no debe sobrevivir al reset (sin tonos fantasma).
+    #[test]
+    fn sonido_reset_limpia_la_cola() {
+        let src = "li t1, 0x90040000\nli t0, 1\nsw t0, 12(t1)\nli a7, 10\necall";
+        let (mut m, _o, _i) = machine_for(src);
+        let sound = m.sound_shared();
+        assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+        assert!(sound.lock().unwrap().in_use, "el disparo marcó uso");
+        m.reset().unwrap();
+        let s = sound.lock().unwrap();
+        assert!(s.cola.is_empty(), "Reiniciar vacía la cola de sonido");
+        assert!(!s.in_use, "Reiniciar apaga el dispositivo");
     }
 }
