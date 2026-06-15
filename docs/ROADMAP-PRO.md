@@ -96,7 +96,7 @@ después continuar con RP-10..RP-16. Modo docente: decisión pospuesta.
 | RP-22 | Desacoplar paneles Registros/Memoria/Depuración a ventanas (modo mover) | Media | DOCUMENTADO |
 | RP-23 | Gestión de archivos (Nuevo, Guardar como, guardar inteligente) + cerrar ventanas hijas al salir | Media | DOCUMENTADO |
 | RP-24 | Find/Replace en el editor (Cmd+F) | Baja | DOCUMENTADO |
-| RP-25 | Indicador de cambios sin guardar + aviso al cerrar | Baja | PENDIENTE |
+| RP-25 | Indicador de cambios sin guardar + aviso al cerrar | Baja | DOCUMENTADO |
 | RP-26 | Búsqueda en el panel de Memoria | Baja | DOCUMENTADO |
 | RP-27 | Persistir workspace/sesión (último archivo, layout, ventanas) | Media | PENDIENTE |
 | RP-28 | Tema de usuario (crear/editar/cargar) | Media | DOCUMENTADO |

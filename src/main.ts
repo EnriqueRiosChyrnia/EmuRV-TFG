@@ -124,6 +124,7 @@ class App {
       (linea) => this.puedeAgregarBreakpoint(linea),
       () => {
         this.programaDesactualizado = true;
+        this.actualizarTitulo(); // RP25: «•» en vivo al teclear
       },
     );
     this.docLimpio = ejHola; // el editor arranca con el ejemplo «Hola mundo»
@@ -399,6 +400,9 @@ class App {
     const hijas = ["panel-registros", "panel-memoria", "panel-depuracion", "pantalla"];
     void principal.onCloseRequested(async (evento) => {
       evento.preventDefault();
+      // RP25: avisar si se cierra con cambios sin guardar (la ventana principal
+      // arrastra a las hijas, así que el aviso va una sola vez, acá).
+      if (this.hayCambiosSinGuardar() && !confirm(t("archivo.cerrarConfirm"))) return;
       for (const label of hijas) {
         const w = await WebviewWindow.getByLabel(label);
         if (w) await w.close().catch(() => {});
@@ -814,6 +818,17 @@ class App {
     return !this.modoBinario && getDoc(this.editor) !== this.docLimpio;
   }
 
+  /** RP25: el título de la ventana refleja el archivo actual y antepone «•»
+   *  cuando hay cambios sin guardar (convención de editor/IDE). Se invoca al
+   *  cargar/guardar (vía setModo y escribirArchivo) y en cada tecla. */
+  private actualizarTitulo(): void {
+    const nombre = this.rutaArchivo
+      ? (this.rutaArchivo.split(/[/\\]/).pop() ?? this.rutaArchivo)
+      : t("titulo.sinTitulo");
+    const punto = this.hayCambiosSinGuardar() ? "• " : "";
+    void getCurrentWindow().setTitle(`${punto}${nombre} — EmuRV`);
+  }
+
   /** Plantilla mínima de un programa nuevo (RP23): un esqueleto runnable
    *  que termina limpio, para que el principiante tenga de dónde partir. */
   private static readonly PLANTILLA_NUEVA =
@@ -937,6 +952,7 @@ class App {
       await api.guardarArchivo(path, getDoc(this.editor));
       this.rutaArchivo = path;
       this.docLimpio = getDoc(this.editor); // recién guardado: limpio
+      this.actualizarTitulo(); // RP25: quita «•» y muestra el nombre guardado
       this.estadoEl.textContent = t("archivo.guardado", { path });
       this.estadoEl.className = "ok";
     } catch (e) {
@@ -983,6 +999,7 @@ class App {
     // b.abrir/b.guardar, que dejaron de existir al agrupar el menú → setModo
     // lanzaba TypeError y la ejecución nunca arrancaba.]
     b.archivo.disabled = modo === "corriendo" || modo === "esperando";
+    this.actualizarTitulo(); // RP25: refresca «•» y nombre tras cargar/cambiar de estado
   }
 }
 

@@ -11,6 +11,7 @@
   "toolbar.guardarComo": "Save as",
   "toolbar.exportar": "Export ELF",
   "archivo.descartarConfirm": "Start a new program? Any unsaved changes will be lost.",
+  "archivo.cerrarConfirm": "Close EmuRV? You have unsaved changes that will be lost.",
   "archivo.nuevo": "New program (unsaved).",
   "toolbar.ejemplos": "Examples",
   "toolbar.ayuda": "Help",
@@ -281,5 +282,6 @@
   "tema.aviso.ok": "AA contrast: all colors read well.",
   "tema.aviso.titulo": "Low contrast — these colors may be hard to read:",
   "tema.aviso.par": "{fg} on {bg}: {ratio}:1",
-  "ayuda.temas.usuario": "You can also build your own theme: «Edit theme» (next to the selector) opens an editor with a color control for each element (backgrounds, text, accent, states and the editor syntax). Changes preview live, are saved on your device and show up as «Custom» in the selector. If a color ends up with low contrast for reading, the editor warns you (it does not block you: it's your theme). You can return to the starting point with «Reset to Educational», and export or import your theme as a JSON file."
+  "ayuda.temas.usuario": "You can also build your own theme: «Edit theme» (next to the selector) opens an editor with a color control for each element (backgrounds, text, accent, states and the editor syntax). Changes preview live, are saved on your device and show up as «Custom» in the selector. If a color ends up with low contrast for reading, the editor warns you (it does not block you: it's your theme). You can return to the starting point with «Reset to Educational», and export or import your theme as a JSON file.",
+  "titulo.sinTitulo": "Untitled"
 }
