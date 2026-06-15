@@ -114,11 +114,13 @@ html, body {
   font-size: 13px;
   cursor: pointer;
 }
-.menu-toolbar .menu-item:hover,
-.menu-toolbar .menu-item:focus-visible {
+.menu-toolbar .menu-item:hover:not(:disabled),
+.menu-toolbar .menu-item:focus-visible:not(:disabled) {
   background: color-mix(in srgb, var(--acento) 12%, transparent);
   outline: none;
 }
+/* Exportar ELF deshabilitado en el menú cuando no hay programa (sync diseño). */
+.menu-toolbar .menu-item:disabled { opacity: 0.45; cursor: default; }
 .menu-toolbar .menu-item .ico { width: 15px; height: 15px; flex: none; }
 /* Recientes (RP30): separador + encabezado + rutas (basename, atenuadas). */
 .menu-toolbar .menu-sep {
@@ -148,7 +150,13 @@ html, body {
   box-shadow: 0 1px 3px color-mix(in srgb, var(--acento) 45%, transparent);
 }
 #toolbar .separador { width: 1px; align-self: stretch; background: var(--borde); margin: 0 4px; }
-#toolbar .espacio { flex: 1; }
+/* Sin espaciador flex (sync diseño): la barra queda alineada a la izquierda y
+   ya no fuerza un salto de línea prematuro en ventana amplia. */
+
+/* Botones solo-ícono (Ayuda, Editar tema): ocultan su etiqueta siempre; el
+   tooltip lo da el `title`. (sync diseño) */
+#toolbar button.icono-solo { padding: 7px 9px; }
+#toolbar button.icono-solo .bl { display: none; }
 
 /* Wordmark de marca en la toolbar (RP19-F3): SVG bi-tono que se adapta al
    tema — «Emu» en el acento, «RV» en el color de texto. */
@@ -165,6 +173,15 @@ html, body {
 #toolbar button.deemph:hover:not(:disabled) {
   background: var(--fondo-claro);
   border-color: var(--borde);
+}
+
+/* Responsive (sync diseño): en ventana angosta los botones se vuelven
+   solo-ícono (la etiqueta `.bl` se oculta) salvo Ensamblar (.principal, la
+   acción primaria conserva su texto), y los <select> se acotan. Así la barra
+   entra prolija en vez de romperse / cruzar el borde derecho. */
+@media (max-width: 900px) {
+  #toolbar button:not(.principal) .bl { display: none; }
+  #toolbar select { max-width: 112px; }
 }
 
 /* Grupo de ejecución segmentado: Ejecutar/Paso/Detener/Reiniciar como UN
@@ -217,6 +234,13 @@ input:focus-visible { border-color: var(--acento); }
   overflow: hidden;
   border: 1px solid var(--borde);
   border-radius: var(--radio-panel);
+  /* Pestañas «conectadas» (sync diseño): el editor sube 10px (el gap del grid)
+     para TOCAR la barra de pestañas y pierde su borde/radio superior → la
+     barra + el editor forman UNA tarjeta continua, sin corte abrupto. */
+  margin-top: -10px;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 /* ---------- barra de pestañas (RP30) ---------- */
@@ -242,14 +266,23 @@ input:focus-visible { border-color: var(--acento); }
   border: 1px solid var(--borde);
   border-radius: var(--radio-panel) var(--radio-panel) 0 0;
   border-bottom: none;
-  /* La pestaña inactiva se atenúa; la activa toma el acento (como el editor). */
+  /* La pestaña inactiva se atenúa. */
   opacity: 0.7;
 }
+/* Pestaña activa «conectada» (sync diseño): toma el color del código
+   (--fondo) para fluir hacia el editor, baja 1px para tapar la costura con el
+   borde superior del editor, y marca el foco con una barra de acento arriba. */
 .pestana.activa {
   opacity: 1;
-  border-color: var(--acento);
+  background: var(--fondo);
+  border-color: var(--borde);
+  margin-bottom: -1px;
+  box-shadow: inset 0 2px 0 var(--acento);
 }
 .pestana-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: transparent;
   border: none;
   color: var(--texto);
@@ -257,10 +290,32 @@ input:focus-visible { border-color: var(--acento); }
   padding: 5px 8px;
   max-width: 190px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
 }
+/* Partes de la etiqueta: ícono de archivo, punto «•» de cambios sin guardar
+   y el nombre (que es el que se trunca con ellipsis). (sync diseño) */
+.pest-ico {
+  display: inline-flex;
+  flex: none;
+  opacity: 0.65;
+}
+.pest-ico .ico {
+  width: 13px;
+  height: 13px;
+}
+.pest-dot {
+  flex: none;
+  color: var(--cambio);
+  font-weight: 700;
+  line-height: 1;
+}
+.pest-nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Cerrar discreto (sync diseño): la «×» aparece al pasar el mouse o en la
+   pestaña activa — menos ruido permanente. Sin layout shift (usa opacity). */
 .pestana-cerrar {
   background: transparent;
   border: none;
@@ -268,8 +323,12 @@ input:focus-visible { border-color: var(--acento); }
   font-size: 14px;
   line-height: 1;
   padding: 2px 6px 4px;
-  opacity: 0.6;
+  opacity: 0;
   cursor: pointer;
+}
+.pestana:hover .pestana-cerrar,
+.pestana.activa .pestana-cerrar {
+  opacity: 0.6;
 }
 .pestana-cerrar:hover {
   opacity: 1;

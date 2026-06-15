@@ -4,6 +4,7 @@
 // abrir una pestaña nueva. Solo UI: la app le pasa la vista (qué pintar) y
 // recibe los clicks por callbacks. No toca el backend ni el editor.
 import { t } from "../i18n";
+import { icono } from "../iconos";
 
 /** Lo que la app le pide pintar a la barra por cada pestaña. */
 export interface PestanaVista {
@@ -51,10 +52,25 @@ export class BarraPestanas {
       etiqueta.className = "pestana-label";
       etiqueta.setAttribute("role", "tab");
       etiqueta.setAttribute("aria-selected", String(activa));
-      // «•» como prefijo (mismo signo que el título de ventana, RP25).
-      etiqueta.textContent = (p.sucio ? "• " : "") + p.nombre;
       etiqueta.title = p.nombre;
       etiqueta.onclick = () => this.cbs.onActivar(i);
+      // Ícono de archivo + «•» de cambios sin guardar (RP25) + nombre. El
+      // nombre va en textContent (dato del usuario; no innerHTML). (sync diseño)
+      const ico = document.createElement("span");
+      ico.className = "pest-ico";
+      ico.innerHTML = icono("documento");
+      etiqueta.appendChild(ico);
+      if (p.sucio) {
+        const punto = document.createElement("span");
+        punto.className = "pest-dot";
+        punto.textContent = "•";
+        punto.setAttribute("aria-hidden", "true");
+        etiqueta.appendChild(punto);
+      }
+      const nom = document.createElement("span");
+      nom.className = "pest-nom";
+      nom.textContent = p.nombre;
+      etiqueta.appendChild(nom);
       tab.appendChild(etiqueta);
 
       if (p.cerrable) {
