@@ -277,7 +277,9 @@ class App {
       // (aria-hidden); el texto da la etiqueta. aria-label explícito por las
       // dudas de lectores de pantalla.
       const svg = icono(id);
-      b.innerHTML = svg ? `${svg}<span>${texto}</span>` : texto;
+      // La etiqueta va en `.bl` (button-label) para poder ocultarla en ventana
+      // angosta (botones solo-ícono) sin tocar el ícono. (sync diseño)
+      b.innerHTML = svg ? `${svg}<span class="bl">${texto}</span>` : texto;
       b.setAttribute("aria-label", texto);
       if (clase) b.className = clase;
       parent.appendChild(b);
@@ -302,9 +304,6 @@ class App {
     const btnEjemplos = boton("ejemplos", "toolbar.ejemplos");
     btnEjemplos.onclick = () => this.ejemplos.abrir(btnEjemplos);
 
-    const espacio = document.createElement("span");
-    espacio.className = "espacio";
-    bar.appendChild(espacio);
     // Secundarios atenuados (RP18-F3): no compiten con Ensamblar (.principal).
     const btnLecciones = boton("lecciones", "toolbar.lecciones", "deemph");
     btnLecciones.onclick = () => this.lecciones.abrir(btnLecciones);
@@ -318,10 +317,11 @@ class App {
     btnArchivo.setAttribute("aria-haspopup", "menu");
     btnArchivo.setAttribute("aria-expanded", "false");
     btnArchivo.onclick = () => this.alternarMenuArchivo(btnArchivo);
+    // Exportar ELF ya NO va suelto: vive dentro del menú Archivo (sync diseño).
     bar.appendChild(this.sep());
-    // Exportar ELF queda aparte: produce un binario, no guarda el fuente.
-    boton("exportar", "toolbar.exportar", "deemph").onclick = () => void this.exportarElf();
-    const btnAyuda = boton("ayuda", "toolbar.ayuda", "deemph");
+    // Ayuda: solo-ícono (sync diseño) para descargar la barra; tooltip por title.
+    const btnAyuda = boton("ayuda", "toolbar.ayuda", "deemph icono-solo");
+    btnAyuda.title = t("toolbar.ayuda");
     btnAyuda.onclick = () => this.ayuda.abrir(btnAyuda);
 
     // Selector de idioma (RP16): es/en. Cambiar persiste y recarga la
@@ -366,6 +366,12 @@ class App {
     };
     bar.appendChild(tema);
 
+    // Editar tema (RP28): solo-ícono pegado al selector de Tema (sync diseño).
+    // Abre el modal «Editar tema» (crea/actualiza el tema «Personalizado»).
+    const btnEditarTema = boton("tema-editar", "tema.editar", "deemph icono-solo");
+    btnEditarTema.title = t("tema.editar");
+    btnEditarTema.onclick = () => this.editorTema.abrir(btnEditarTema);
+
     // Selector de arquitectura RV32/RV64 (RP32): persiste y aplica al PRÓXIMO
     // ensamblado (no recarga ni reensambla, así el usuario puede cambiarlo sin
     // perder la sesión actual). RV32 (default histórico) va primero.
@@ -383,11 +389,6 @@ class App {
       setXlen(arq.value === "rv64" ? "rv64" : "rv32");
     };
     bar.appendChild(arq);
-
-    // Editor de tema de usuario (RP28): botón que abre el modal «Editar
-    // tema». Guardar crea/actualiza el tema «Personalizado» y lo selecciona.
-    const btnEditarTema = boton("tema-editar", "tema.editar");
-    btnEditarTema.onclick = () => this.editorTema.abrir(btnEditarTema);
   }
 
   private sep(): HTMLElement {
@@ -1157,11 +1158,19 @@ class App {
       ancla.setAttribute("aria-expanded", "false");
       return;
     }
-    const items: { id: string; clave: string; accion: () => void }[] = [
+    const items: { id: string; clave: string; accion: () => void; disabled?: boolean }[] = [
       { id: "nuevo", clave: "toolbar.nuevo", accion: () => this.nuevoArchivo() },
       { id: "abrir", clave: "toolbar.abrir", accion: () => void this.abrirArchivo() },
       { id: "guardar", clave: "toolbar.guardar", accion: () => void this.guardarArchivo() },
       { id: "guardarComo", clave: "toolbar.guardarComo", accion: () => void this.guardarComo() },
+      // Exportar ELF (sync diseño): movido del toolbar al menú. Requiere un
+      // programa ensamblado (produce el binario de la sesión activa).
+      {
+        id: "exportar",
+        clave: "toolbar.exportar",
+        accion: () => void this.exportarElf(),
+        disabled: !this.programaVigente(),
+      },
     ];
     const menu = document.createElement("div");
     menu.id = "menu-archivo";
@@ -1188,6 +1197,7 @@ class App {
       b.type = "button";
       b.className = "menu-item";
       b.setAttribute("role", "menuitem");
+      b.disabled = it.disabled === true;
       b.innerHTML = `${icono(it.id)}<span>${t(it.clave)}</span>`;
       b.onclick = () => {
         cerrar();
@@ -1327,7 +1337,8 @@ class App {
     b.paso.disabled = !puedeCorrer || !parado || modo === "terminado";
     b.detener.disabled = modo !== "corriendo" && modo !== "esperando";
     b.reiniciar.disabled = !puedeCorrer || modo === "corriendo" || modo === "esperando";
-    b.exportar.disabled = !puedeCorrer || modo === "corriendo" || modo === "esperando";
+    // Exportar ELF ya no es botón suelto: vive en el menú Archivo y se habilita
+    // ahí según haya programa (ver alternarMenuArchivo). (sync diseño)
     // Menú Archivo (Nuevo/Abrir/Guardar/Guardar como): se deshabilita mientras
     // la ejecución está viva — Abrir reemplazaría el editor y Guardar leería un
     // estado a medias (mismo criterio que Exportar). [Fix: antes referenciaba
