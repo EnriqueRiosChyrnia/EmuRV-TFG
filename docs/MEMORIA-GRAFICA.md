@@ -12,8 +12,12 @@ Extensión del mapa de memoria RARS estándar con soporte para pantalla gráfica
 | **Framebuffer** | **`0x9000_0000`** | **76 800 B** | **128 KB** | Píxeles 320×240 | R/W |
 | **Paleta** | **`0x9002_0000`** | **768 B** | **4 KB** | 256 colores RGB888 | R/W |
 | **Control** | **`0x9003_0000`** | **4 B** | **4 KB** | Marca de uso de pantalla | R/W |
+| **Tabla de sprites** | **`0x9005_0000`** | **512 B** | **4 KB** | 64 sprites × 8 B (RP31) | R/W |
+| **Patrones de sprites** | **`0x9006_0000`** | **16 384 B** | **16 KB** | 64 patrones de 16×16 (RP31) | R/W |
 
 > **Nota (2026-06-12):** la fase de teclado agregó una región más al mapa, ajena al subsistema gráfico: la página del dispositivo de teclado MMIO en `0xFFFF_0000` (4 KB; `RECEIVER_CONTROL` en +0 y `RECEIVER_DATA` en +4, compatibles con RARS/MARS). Está documentada en `TECLADO.md`.
+
+> **Nota (2026-06-15, RP31):** se agregaron dos subsistemas más, espejando el modelo del framebuffer. (1) El **overlay de sprites** (tabla en `0x9005_0000` + patrones en `0x9006_0000`), documentado abajo en la sección «Sprites». (2) El **dispositivo de sonido** en `0x9004_0000` (4 KB), ajeno al subsistema gráfico, documentado en `SONIDO.md`. Todas las regiones nuevas son disjuntas de las anteriores (verificado en `tests/spike_sonido.rs`).
 
 ## Framebuffer (0x9000_0000 — 0x9001_FFFF)
 
@@ -84,6 +88,76 @@ li t0, 0x9003_0000
 li t1, 1
 sw t1, 0(t0)
 ```
+
+## Sprites — overlay por hardware (RP31)
+
+Capa de **sprites** compuesta sobre el framebuffer indexado **antes** de
+convertirlo a RGBA (en `publicar_frame`, usando `core/sprites.rs`). Permite
+"cosas tipo juego": el programa **mueve** un sprite actualizando su `(x, y)` en
+la tabla, sin redibujar a mano. Dos regiones MMIO:
+
+### Tabla de sprites (`0x9005_0000`, `SPRITE_TABLE_BASE`)
+
+64 entradas de 8 bytes (little-endian). Entrada `i` en el desplazamiento `8·i`:
+
+| Offset | Campo | Tipo | Significado |
+|--------|-------|------|-------------|
+| +0 | `x` | i16 | columna de la esquina superior izquierda (con signo: permite recorte por la izquierda) |
+| +2 | `y` | i16 | fila de la esquina superior izquierda (con signo: recorte por arriba) |
+| +4 | `pattern` | u8 | índice de patrón (0–63) en la memoria de patrones |
+| +5 | `flags` | u8 | bit 0 = habilitado; el resto reservado |
+| +6 | — | u16 | reservado |
+
+### Memoria de patrones (`0x9006_0000`, `SPRITE_PATTERN_BASE`)
+
+64 patrones de 16×16 píxeles indexados, 256 bytes cada uno. El patrón `p` arranca
+en el desplazamiento `256·p`; el píxel `(col, fila)` del patrón está en
+`256·p + 16·fila + col`. Cada byte es un índice de paleta, **igual que el
+framebuffer**. El **índice 0 es TRANSPARENTE** (color-key): no se pinta, deja ver
+el fondo.
+
+### Semántica de composición
+
+- Para cada sprite **habilitado** (flags bit 0 = 1), su patrón se compone sobre
+  el framebuffer en `(x, y)`. Los píxeles de índice 0 se saltan (transparencia);
+  lo que cae fuera de `320×240` se recorta.
+- **Orden de pintado:** sprite 0 al fondo, sprite 63 arriba (los de índice mayor
+  tapan a los menores donde se solapan).
+- Los sprites cuentan como **uso de pantalla** (RB-4/RF4): un programa que solo
+  dibuja sprites sobre negro también enciende el panel de video.
+- **Costo cero sin sprites:** si ningún sprite está habilitado, la composición se
+  saltea y el framebuffer se convierte tal cual (camino bit-idéntico al de antes
+  de RP31; el video queda intacto).
+
+### Uso típico
+
+```asm
+# Patrón 0: cuadrado amarillo (color 14) de 16×16 = 256 bytes
+li t0, 0x9006_0000     # base de patrones (patrón 0)
+li t1, 0
+li t2, 256
+li t3, 14              # color 14 = amarillo
+pat:
+  bge t1, t2, fin_pat
+  add t4, t0, t1
+  sb  t3, 0(t4)
+  addi t1, t1, 1
+  j pat
+fin_pat:
+
+# Sprite 0: patrón 0 en (152, 112), habilitado
+li t0, 0x9005_0000     # base de la tabla de sprites (entrada 0)
+li t1, 152
+sh t1, 0(t0)           # x
+li t1, 112
+sh t1, 2(t0)           # y
+li t1, 0
+sb t1, 4(t0)           # patrón = 0
+li t1, 1
+sb t1, 5(t0)           # flags = habilitado
+```
+
+Ver el ejemplo completo en `ejemplos/17-sprites.asm`.
 
 ## Ventajas de este diseño
 

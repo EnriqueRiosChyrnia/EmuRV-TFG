@@ -4042,3 +4042,59 @@ manual de la compuerta final F5 (no automatizable headless), igual que las demá
 verificaciones visuales. El ejemplo `.asm` (y su ensamblado RV32/RV64) es F5.
 Área: `core/sprites.rs` (nuevo), `core/mod.rs`, `core/machine.rs`. Commit
 `rp31-fase-4: sprites sobre el framebuffer`.
+
+## 2026-06-15 — RP31-F5: ejemplos, docs y cierre
+
+[Seguro] EJEMPLOS. `ejemplos/16-sonido.asm` (acorde de Do mayor por el
+dispositivo de sonido: tres disparos seguidos que suenan juntos) y
+`ejemplos/17-sprites.asm` (fondo azul + un sprite amarillo de 16×16 en el centro
+con el overlay). Registrados en `src/main.ts` (imports + array `EJEMPLOS`) e
+i18n: claves nuevas AL FINAL de es/en (`ejemplo.sonido`, `ejemplo.sprites` y sus
+`.desc`), idénticas en ambos idiomas (anti-drift verde). Tests de integración:
+`ejemplo_16_sonido` (encola do-mi-sol = 262/330/392 Hz, `in_use` arranca en
+false), `ejemplo_17_sprites` (el centro del RGBA publicado es amarillo, el fondo
+azul) y `ejemplos_de_dispositivos_ensamblan_en_rv32_y_rv64` (ambos ejemplos
+ensamblan en los dos anchos).
+
+[Seguro] DOCS. `docs/MEMORIA-GRAFICA.md`: dos filas nuevas en la tabla de
+regiones (tabla y patrones de sprites), una nota 2026-06-15 (sonido + sprites,
+disjuntos) y una sección «Sprites — overlay por hardware» (layout de tabla y
+patrones, transparencia por índice 0, orden de pintado, costo cero sin sprites,
+ejemplo). `docs/SONIDO.md` (nuevo, espejo de `TECLADO.md`): región, registros
+FREQ/DUR/WAVE/TRIGGER, mecanismo (hook MEM_WRITE, como el teclado), emisión y
+reproducción WebAudio, y lo fuera de alcance. NO se tocó `docs/ROADMAP-PRO.md`
+ni el Cap. VI (regla del plan).
+
+[Seguro] CRITERIOS DE ACEPTACIÓN (del plan RP-31) — TODOS cumplidos:
+- Un programa emite sonido vía MMIO y se reproduce (WebAudio) ✓ (F2 backend +
+  F3 frontend; `emu://sonido` cableado de punta a punta).
+- Soporte de sprites (overlay HW) con ejemplo visible ✓ (F4 composición +
+  `17-sprites.asm`; test de integración confirma el sprite en el frame).
+- Video y teclado intactos; regiones MMIO no se pisan ✓ (todas las fases; el
+  camino sin-sprites de `publicar_frame` es bit-idéntico; S4 del spike verifica
+  la disjunción; los 235 tests previos siguen verdes).
+- Bundle ≤30 MB; cero dependencias npm nuevas ✓ (22 MB; WebAudio es nativo).
+- Huella en `main.ts` mínima (instanciar `Audio` + conectar el evento; el modelo
+  de buffer/editor/pestañas queda para RP-30) ✓.
+
+[Seguro] COMPUERTA F5 (CIERRE) — TODO VERDE:
+- `cargo test` src-tauri **257 passed / 0 failed**; `emurv-cli` **50 / 0**.
+- `cargo clippy --all-targets -- -D warnings` limpio en AMBOS crates.
+- `npx tsc --noEmit` limpio · `npm run test:ui` **100 / 100**.
+- `scripts/ci-local.sh --skip-bundle`: **TODO VERDE**.
+- `npx tauri build`: construyó **EmuRV.app y EmuRV_0.1.0_aarch64.dmg**;
+  `scripts/check-bundle-size.sh` da **22 MB ≤ 30** (RNF-04).
+
+[PENDIENTE HUMANO] Verificación auditiva/visual (no automatizable headless):
+cargar `16-sonido` y Ejecutar → debe oírse un acorde; cargar `17-sprites` y
+Ejecutar → debe verse un cuadrado amarillo centrado sobre fondo azul. Las
+cadenas disparo→evento (sonido) y tabla→composición→RGBA (sprites) ya están
+cubiertas por tests de ambos lados; falta solo el click-through humano.
+
+[Seguro] ÁREA RP-31 (todas las fases): `src-tauri/src/core/` (sound.rs,
+sprites.rs nuevos; mod.rs, machine.rs), `src-tauri/src/commands.rs`,
+`src-tauri/tests/` (spike_sonido.rs nuevo, integracion_ejemplos.rs),
+frontend (`src/paneles/audio.ts`+test nuevos, `src/api.ts`, `src/main.ts`,
+i18n), `ejemplos/16-sonido.asm` y `17-sprites.asm`, `docs/MEMORIA-GRAFICA.md`
+y `docs/SONIDO.md`. Sin merges ni cambios de rama (la coordinadora mergea).
+Commit `rp31-fase-5: ejemplos y docs de sprites/sonido`.

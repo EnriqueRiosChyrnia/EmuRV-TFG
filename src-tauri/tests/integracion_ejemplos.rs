@@ -96,3 +96,72 @@ fn ejemplo_05_pila_funciones() {
     assert_eq!(out, "5! = 120\n"); // 120 impreso desde a0
     assert_eq!(regs[2], u64::from(SP_INIT)); // sp balanceado: la pila quedó limpia
 }
+
+/// RP31 — el ejemplo de sonido dispara tres tonos (acorde Do mayor) por el
+/// dispositivo MMIO; quedan encolados en `SoundShared` para que el run loop los
+/// emita como `emu://sonido`. `sound` arranca apagado (RF4).
+#[test]
+fn ejemplo_16_sonido() {
+    let program = assemble(include_str!("../../ejemplos/16-sonido.asm"))
+        .expect("el ejemplo de sonido debe ensamblar");
+    let (out_tx, _out_rx) = channel();
+    let (_in_tx, in_rx) = channel();
+    let mut m = Machine::new(program, out_tx, in_rx).expect("máquina");
+    let sound = m.sound_shared();
+    assert!(!sound.lock().unwrap().in_use, "arranca apagado (RF4)");
+    assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+    let s = sound.lock().unwrap();
+    assert!(s.in_use, "el ejemplo usa el dispositivo de sonido");
+    let freqs: Vec<u32> = s.cola.iter().map(|e| e.freq).collect();
+    assert_eq!(freqs, vec![262, 330, 392], "tres tonos: do-mi-sol");
+}
+
+/// RP31 — el ejemplo de sprites pinta un fondo azul y un sprite amarillo en el
+/// centro; tras publicar el frame, el RGBA tiene el centro amarillo (overlay
+/// compuesto) y el fondo azul.
+#[test]
+fn ejemplo_17_sprites() {
+    let program = assemble(include_str!("../../ejemplos/17-sprites.asm"))
+        .expect("el ejemplo de sprites debe ensamblar");
+    let (out_tx, _out_rx) = channel();
+    let (_in_tx, in_rx) = channel();
+    let mut m = Machine::new(program, out_tx, in_rx).expect("máquina");
+    assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+    m.publish_frame();
+    let video = m.video_shared();
+    let v = video.lock().unwrap();
+    let rgba = v.rgba.as_ref().expect("frame publicado con el sprite");
+    // Centro (160,120): dentro del sprite (152..168 × 112..128) → amarillo (14).
+    let centro = (120 * 320 + 160) * 4;
+    assert_eq!(
+        &rgba[centro..centro + 4],
+        &[0xFF, 0xFF, 0x55, 0xFF],
+        "el centro es el sprite amarillo"
+    );
+    // Esquina (0,0): fondo azul (color 1 = 0x0000AA).
+    assert_eq!(&rgba[0..4], &[0x00, 0x00, 0xAA, 0xFF], "el fondo es azul");
+}
+
+/// RP31 — los ejemplos de sonido y sprites usan solo el repertorio base, así
+/// que ensamblan tanto en RV32 como en RV64 (RP32 ya está integrado).
+#[test]
+fn ejemplos_de_dispositivos_ensamblan_en_rv32_y_rv64() {
+    use emurv_lib::core::assembler::assemble_with_xlen;
+    use emurv_lib::core::Xlen;
+    for (nombre, src) in [
+        ("16-sonido", include_str!("../../ejemplos/16-sonido.asm")),
+        ("17-sprites", include_str!("../../ejemplos/17-sprites.asm")),
+    ] {
+        for xlen in [Xlen::Rv32, Xlen::Rv64] {
+            assemble_with_xlen(src, xlen).unwrap_or_else(|errs| {
+                panic!(
+                    "{nombre} debe ensamblar en {xlen:?}: {}",
+                    errs.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                )
+            });
+        }
+    }
+}
