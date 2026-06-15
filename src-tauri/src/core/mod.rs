@@ -13,6 +13,7 @@ pub mod keyboard;
 pub mod machine;
 pub mod preprocess;
 pub mod sound;
+pub mod sprites;
 pub mod syscalls;
 pub mod video;
 
@@ -116,6 +117,32 @@ pub const SOUND_WAVE: u32 = SOUND_BASE + 0x08;
 /// SOUND_TRIGGER: escribir cualquier valor emite un tono con la frecuencia,
 /// duración y forma de onda vigentes. Leerlo consume nada (no es entrada).
 pub const SOUND_TRIGGER: u32 = SOUND_BASE + 0x0C;
+
+/// Overlay de SPRITES por hardware (RP31, decisión (a) del spike F1). Dos
+/// regiones MMIO nuevas, compuestas sobre el framebuffer indexado antes de
+/// convertir a RGBA (ver `core/sprites.rs` y `machine::publicar_frame`).
+/// Disjuntas de todo lo anterior (S4 del spike): tabla en `0x9005_0000`,
+/// patrones en `0x9006_0000`.
+pub const SPRITE_TABLE_BASE: u32 = 0x9005_0000;
+/// Tamaño mapeado de la tabla de sprites (4 KB; los datos ocupan 512 B).
+pub const SPRITE_TABLE_SIZE: u32 = 0x0000_1000;
+/// Base de la memoria de patrones de sprites.
+pub const SPRITE_PATTERN_BASE: u32 = 0x9006_0000;
+/// Tamaño mapeado de la memoria de patrones (16 KB = 64 × 256 B, exacto).
+pub const SPRITE_PATTERN_SIZE: u32 = 0x0000_4000;
+/// Cantidad de sprites de la tabla.
+pub const SPRITE_COUNT: usize = 64;
+/// Tamaño en bytes de una entrada de la tabla (x:i16, y:i16, pattern:u8,
+/// flags:u8, 2 reservados).
+pub const SPRITE_ENTRY_SIZE: usize = 8;
+/// Lado de un patrón de sprite (16×16 píxeles indexados).
+pub const SPRITE_PATTERN_DIM: usize = 16;
+/// Bytes de un patrón (16 × 16 = 256, 1 byte/píxel indexado).
+pub const SPRITE_PATTERN_BYTES: usize = SPRITE_PATTERN_DIM * SPRITE_PATTERN_DIM;
+/// Bytes de datos de la tabla de sprites (64 × 8 = 512).
+pub const SPRITE_TABLE_DATA_SIZE: usize = SPRITE_COUNT * SPRITE_ENTRY_SIZE;
+/// Bytes de datos de la memoria de patrones (64 × 256 = 16384).
+pub const SPRITE_PATTERN_DATA_SIZE: usize = SPRITE_COUNT * SPRITE_PATTERN_BYTES;
 
 /// Base de la página MMIO del teclado (TEC2). Misma dirección que el
 /// receptor del teclado de RARS/MARS, a propósito: el material didáctico

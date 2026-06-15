@@ -23,8 +23,10 @@ use super::{
     DATA_BASE, FREG_ID_BASE,
     DATA_REGION_BASE, DATA_REGION_SIZE, FRAMEBUFFER_BASE, FRAMEBUFFER_DATA_SIZE, FRAMEBUFFER_SIZE,
     GP_INIT, HEAP_BASE, KEYBOARD_BASE, KEYBOARD_SIZE, PALETTE_BASE, PALETTE_DATA_SIZE, PALETTE_SIZE,
-    RECEIVER_CONTROL, RECEIVER_DATA, SOUND_BASE, SOUND_FREQ, SOUND_SIZE, SOUND_TRIGGER, SP_INIT,
-    STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE, VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE, Xlen,
+    RECEIVER_CONTROL, RECEIVER_DATA, SOUND_BASE, SOUND_FREQ, SOUND_SIZE, SOUND_TRIGGER,
+    SPRITE_PATTERN_BASE, SPRITE_PATTERN_DATA_SIZE, SPRITE_PATTERN_SIZE, SPRITE_TABLE_BASE,
+    SPRITE_TABLE_DATA_SIZE, SPRITE_TABLE_SIZE, SP_INIT, STACK_SIZE, STACK_TOP, TEXT_BASE, TEXT_SIZE,
+    VIDEO_CONTROL_BASE, VIDEO_CONTROL_SIZE, Xlen,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -297,6 +299,23 @@ impl Machine<'_> {
         )
         .map_err(|e| format!("no se pudo mapear la página de sonido: {e:?}"))?;
 
+        // Sprites (RP31): tabla + memoria de patrones. Se componen sobre el
+        // framebuffer indexado en `publicar_frame` (sin hooks: la lectura
+        // pasiva basta, como el framebuffer). El programa escribe (x,y,patrón,
+        // flags) y los patrones; el overlay aparece en el frame publicado.
+        uc.mem_map(
+            SPRITE_TABLE_BASE as u64,
+            SPRITE_TABLE_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear la tabla de sprites: {e:?}"))?;
+        uc.mem_map(
+            SPRITE_PATTERN_BASE as u64,
+            SPRITE_PATTERN_SIZE as u64,
+            Prot::READ | Prot::WRITE,
+        )
+        .map_err(|e| format!("no se pudo mapear la memoria de patrones: {e:?}"))?;
+
         // Página del teclado CON respaldo real de memoria (TEC2): las
         // lecturas de host (visor de memoria de la UI) leen los bytes sin
         // disparar hooks, así inspeccionar memoria NO consume teclas. La
@@ -490,6 +509,17 @@ impl Machine<'_> {
         // wave de la corrida anterior (16 bytes = los 4 registros).
         self.uc
             .mem_write(SOUND_BASE as u64, &[0u8; 16])
+            .map_err(err)?;
+        // Sprites a 0 (RP31): tabla y patrones limpios tras Reiniciar, sin
+        // overlay fantasma de la corrida anterior.
+        self.uc
+            .mem_write(SPRITE_TABLE_BASE as u64, &vec![0u8; SPRITE_TABLE_DATA_SIZE])
+            .map_err(err)?;
+        self.uc
+            .mem_write(
+                SPRITE_PATTERN_BASE as u64,
+                &vec![0u8; SPRITE_PATTERN_DATA_SIZE],
+            )
             .map_err(err)?;
         self.uc
             .mem_write(TEXT_BASE as u64, &self.program.text)
@@ -1288,11 +1318,20 @@ pub fn publicar_frame(uc: &mut Unicorn<'_, MachData>) {
     let Ok(fb) = uc.mem_read_as_vec(FRAMEBUFFER_BASE as u64, FRAMEBUFFER_DATA_SIZE as usize) else {
         return;
     };
+    // Sprites (RP31): la tabla decide si hay overlay. Leerla (512 B) es barato
+    // frente al framebuffer (76800 B) que ya se lee siempre.
+    let tabla = uc
+        .mem_read_as_vec(SPRITE_TABLE_BASE as u64, SPRITE_TABLE_DATA_SIZE)
+        .unwrap_or_default();
+    let sprites_activos = super::sprites::hay_sprites(&tabla);
     if !uc.get_data().video_used {
         let ctrl = uc
             .mem_read_as_vec(VIDEO_CONTROL_BASE as u64, 4)
             .unwrap_or_default();
-        let usado = ctrl.iter().any(|&b| b != 0) || fb.iter().any(|&b| b != 0);
+        // Los sprites cuentan como uso de pantalla: un juego que solo dibuja
+        // sprites sobre negro también enciende el panel de video (RF4).
+        let usado =
+            ctrl.iter().any(|&b| b != 0) || fb.iter().any(|&b| b != 0) || sprites_activos;
         if !usado {
             return;
         }
@@ -1301,14 +1340,33 @@ pub fn publicar_frame(uc: &mut Unicorn<'_, MachData>) {
     let Ok(pal) = uc.mem_read_as_vec(PALETTE_BASE as u64, PALETTE_DATA_SIZE as usize) else {
         return;
     };
-    let mut snap = fb;
-    snap.extend_from_slice(&pal);
+    // Snapshot para el flag sucio (RF2) e índice a convertir. El camino SIN
+    // sprites queda BIT-IDÉNTICO al original (snapshot = fb+pal, se convierte el
+    // framebuffer tal cual): video intacto cuando no hay overlay. Con sprites,
+    // el snapshot incluye además tabla+patrones, así MOVER un sprite cambia el
+    // snapshot y re-publica.
+    let (snap, indexado): (Vec<u8>, Vec<u8>) = if sprites_activos {
+        let patrones = uc
+            .mem_read_as_vec(SPRITE_PATTERN_BASE as u64, SPRITE_PATTERN_DATA_SIZE)
+            .unwrap_or_default();
+        let compuesto = super::sprites::componer(&fb, &tabla, &patrones);
+        let mut s = Vec::with_capacity(fb.len() + pal.len() + tabla.len() + patrones.len());
+        s.extend_from_slice(&fb);
+        s.extend_from_slice(&pal);
+        s.extend_from_slice(&tabla);
+        s.extend_from_slice(&patrones);
+        (s, compuesto)
+    } else {
+        let mut s = Vec::with_capacity(fb.len() + pal.len());
+        s.extend_from_slice(&fb);
+        s.extend_from_slice(&pal);
+        (s, fb)
+    };
     if uc.get_data().video_last.as_deref() == Some(snap.as_slice()) {
         return;
     }
-    let (fb_data, pal_data) = snap.split_at(FRAMEBUFFER_DATA_SIZE as usize);
     let mut rgba = FramebufferRGBA::new();
-    rgba.convert(fb_data, pal_data);
+    rgba.convert(&indexado, &pal);
     {
         // Si otro hilo entró en pánico con el lock tomado, el mutex queda
         // envenenado: lo recuperamos igual porque los datos del frame son
@@ -1536,6 +1594,39 @@ mod tests {
         let s = sound.lock().unwrap();
         assert!(s.cola.is_empty(), "sin disparo no se encola ningún tono");
         assert!(!s.in_use, "sin disparo el dispositivo queda apagado");
+    }
+
+    /// RP31 — un sprite habilitado aparece en el frame PUBLICADO (compuesto
+    /// sobre el framebuffer indexado). El programa escribe un patrón de un
+    /// píxel (color 15 = blanco en la paleta por defecto) y una entrada de la
+    /// tabla en (5,7); tras `publish_frame` el RGBA tiene ese píxel en blanco y
+    /// el resto en negro.
+    #[test]
+    fn sprite_aparece_en_el_frame_publicado() {
+        let src = "li t1, 0x90060000\n\
+                   li t0, 15\nsb t0, 0(t1)\n\
+                   li t2, 0x90050000\n\
+                   li t0, 5\nsh t0, 0(t2)\n\
+                   li t0, 7\nsh t0, 2(t2)\n\
+                   li t0, 0\nsb t0, 4(t2)\n\
+                   li t0, 1\nsb t0, 5(t2)\n\
+                   li a7, 10\necall";
+        let (mut m, _o, _i) = machine_for(src);
+        assert_eq!(m.run(0), StopReason::Exited { code: 0 });
+        m.publish_frame();
+        let video = m.video_shared();
+        let v = video.lock().unwrap();
+        assert!(v.in_use, "un programa con sprites enciende el video (RF4)");
+        let rgba = v.rgba.as_ref().expect("se publicó un frame con el sprite");
+        // Píxel del sprite en (5,7): índice 15 → blanco opaco.
+        let off = (7 * 320 + 5) * 4;
+        assert_eq!(
+            &rgba[off..off + 4],
+            &[0xFF, 0xFF, 0xFF, 0xFF],
+            "el píxel del sprite es blanco (índice 15)"
+        );
+        // (0,0) sigue negro: el patrón solo pintó un píxel.
+        assert_eq!(&rgba[0..4], &[0, 0, 0, 0xFF], "el fondo sigue negro");
     }
 
     /// RP31 — Reiniciar limpia la cola de sonido: un tono encolado en la
