@@ -197,6 +197,7 @@ export class Ayuda {
       <section id="ay-editor">
         <h3>${t("ayuda.editor.titulo")}</h3>
         <p>${t("ayuda.editor.texto")}</p>
+        <p class="compacto">${t("ayuda.pestanas")}</p>
       </section>
 
       <section id="ay-depuracion">

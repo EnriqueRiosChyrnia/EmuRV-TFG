@@ -144,6 +144,16 @@ resaltan todos sus usos. Con Cmd/Ctrl+F se abre el panel de búsqueda y
 reemplazo (resalta las coincidencias); en modo binario solo busca. Los errores
 se siguen viendo al «Ensamblar».
 
+Podés tener varios archivos abiertos a la vez en pestañas (la barra sobre el
+editor): «+» abre una en blanco, «Abrir» abre el archivo en su propia pestaña (o
+salta a ella si ya estaba abierto) y «×» la cierra (avisa si tiene cambios sin
+guardar, marcados con «•»). El menú «Archivo» lista los últimos archivos usados
+en «Recientes». Al cerrar y reabrir EmuRV se restauran las pestañas y cuál
+estaba activa (RP-27 ahora multi-pestaña; RP-25 «•» es por pestaña). Solo la
+pestaña activa ejecuta: la sesión del backend es única y sigue a la pestaña que
+está al frente (cambiar de pestaña con una ejecución viva queda bloqueado;
+ejecutar en otra pestaña pide re-ensamblar).
+
 ## Breakpoints
 Click en el margen izquierdo del editor (a la izquierda del número de línea) para
 poner o sacar un punto rojo. «Ejecutar» se detiene al llegar a esa línea, antes de
