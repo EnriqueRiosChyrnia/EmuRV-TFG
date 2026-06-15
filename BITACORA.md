@@ -4232,3 +4232,88 @@ estrategia setState mantiene la huella en lo conocido y barato.
 - Rust no se toca (se confirmará intacto en el cierre F5).
 
 Commit `rp30-fase-1: spike pestanas (estrategia de editor + modelo)`.
+
+## 2026-06-15 — RP30-F2: infraestructura de pestañas (paridad single-tab)
+
+Implementa la decisión del spike (F1): editor de 1 vista + N estados, modelo
+`Documento` y barra de pestañas, refactorizando los campos doc-céntricos de
+`App` a la pestaña activa **sin cambiar el comportamiento con una sola pestaña**.
+
+### Editor: extensiones reutilizables (`src/editor/index.ts`) [Seguro]
+
+Se extrajo de `createEditor` un `construirExtensiones(cbs)` + un
+`crearEstadoEditor(doc, cbs)` que produce un `EditorState` independiente de
+cualquier `EditorView`. Clave del swap por pestaña: el `updateListener` ahora usa
+`u.view` (no la vista capturada por clausura), así un mismo juego de extensiones
+sirve para el estado de cualquier pestaña. `createEditor(parent, doc, cbs)`
+construye la vista desde ese estado inicial. Firma nueva: las callbacks
+(`onBreakpointsChanged`, `puedeAgregarBreakpoint`, `onDocChanged`) viajan en un
+objeto `EditorCallbacks`. Único consumidor: `main.ts`. Los tests del editor
+(helpers puros) no tocan `createEditor`: siguen verdes.
+
+### Modelo `Documento` (`src/documento.ts` + test) [Seguro]
+
+`Documento = { id, rutaArchivo, docLimpio, modoBinario, programa,
+programaDesactualizado, estado: EditorState, scrollTop }`. `crearDocumento` y
+`nombreDocumento(rutaArchivo, sinTitulo)` (PURA: basename POSIX/Windows o «Sin
+título»). Test `documento.test.ts` (4 casos del nombre). El `estado` es la fuente
+de verdad de una pestaña INACTIVA; para la activa lo es `view.state`, que se
+vuelca al desactivar (`guardarEstadoActivo`).
+
+### Barra de pestañas (`src/paneles/pestanas.ts`, HTML, CSS) [Seguro]
+
+`BarraPestanas`: una fila `#pestanas` anclada entre `#toolbar` y `#editor` (grid
+de `#app` con una fila nueva; el lateral se extiende para cubrirla). Por pestaña:
+nombre, «•» si está sucia (RP25 ahora POR pestaña) y «×» (oculto si es la única);
+al final, «+». Solo UI: recibe la vista a pintar y emite clicks por callbacks.
+i18n: claves nuevas AL FINAL de es/en (`pestana.nueva`, `pestana.cerrar`),
+idénticas (anti-drift verde).
+
+### Refactor de `App` por accessors [Seguro]
+
+Para no reescribir ~50 referencias `this.programa/rutaArchivo/docLimpio/
+modoBinario/programaDesactualizado` (y arriesgar la paridad), esos 5 campos se
+volvieron **getters/setters** que enrutan al `Documento` activo
+(`this.documentos[this.activaIdx]`). El resto de `App` sigue escribiendo
+`this.programa = ...` igual que antes; ahora opera sobre la pestaña activa.
+`bannerBinario` NO es per-documento: es chrome compartido del editor que se
+muestra/oculta según el modo del documento activo (`sincronizarUIactiva`).
+`actualizarTitulo` reusa `nombreDocumento` y repinta la barra (el «•» en vivo del
+título y de la pestaña comparten señal).
+
+### Swap de pestaña [Seguro, mecánica] / [Probable, regla de backend]
+
+`activarPestana/nuevaPestana/cerrarPestana`: `guardarEstadoActivo` (estado +
+scrollTop) → `view.setState(entrante.estado)` → restaurar scrollTop →
+`sincronizarUIactiva`. Como `setState` NO dispara el `updateListener` (verificado
+en F1 contra el fuente CM6), el swap no ensucia el documento entrante. Al cerrar
+una pestaña NO activa, la vista no se toca (su estado vivo sigue ahí); solo se
+ajusta el índice. **Bloqueo con ejecución viva**: con `corriendo`/`esperando` los
+tres se cancelan (se guarda `modoActual` en `setModo`) — la sesión de backend es
+única y sigue a la activa (regla F1).
+
+### Alcance entregado en F2 vs F3 (decisión registrada)
+
+F2 entrega la **infraestructura completa y funcional**: modelo, editor N-estados,
+barra, refactor por accessors y `activar/nueva/cerrar` operativos (la barra es
+funcional, no decorativa). Lo que NO cambia en F2 (queda para F3, para no mezclar
+fases): `Abrir`/`Nuevo` siguen con el comportamiento de HOY (reemplazan el buffer
+activo, no abren pestaña); el aviso «•» al cerrar; el re-ensamblado al correr en
+una pestaña que no es la dueña de la sesión; e i18n de esos flujos. Con UNA sola
+pestaña (el caso por defecto), ensamblar/ejecutar/paso/depurar/guardar/abrir/
+nuevo/binario se comportan idénticos a antes — la paridad es el invariante de F2.
+
+### Compuerta F2 — VERDE
+
+- `npx tsc --noEmit` limpio.
+- `npm run test:ui` **104 / 104** (100 previos + 4 de `documento.test.ts`).
+- `npm run build` (`tsc && vite build`) OK (el aviso de chunk >500 kB es previo:
+  CodeMirror; no lo introduce RP-30).
+- Rust intacto (no se tocó; se confirmará en F5).
+- [PENDIENTE HUMANO] Verificación visual: abrir la app muestra 1 pestaña con el
+  nombre/«•» y el «+»; con una pestaña todo se comporta como antes.
+
+Área F2: `src/editor/index.ts`, `src/documento.ts`(+test), `src/paneles/
+pestanas.ts` (nuevos), `src/main.ts`, `index.html`, `src/styles.css`,
+`src/i18n/{es,en}.json`. Sin merges ni cambios de rama.
+Commit `rp30-fase-2: infraestructura de pestanas (paridad single-tab)`.
