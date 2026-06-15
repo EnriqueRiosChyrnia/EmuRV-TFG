@@ -15,6 +15,7 @@ import {
 } from "./api";
 import {
   createEditor,
+  crearEstadoEditor,
   getBreakpointLines,
   getDoc,
   setDoc,
@@ -22,7 +23,10 @@ import {
   setExecLine,
   setReadOnly,
   toggleBreakpointAtLine,
+  type EditorCallbacks,
 } from "./editor";
+import { crearDocumento, nombreDocumento, type Documento } from "./documento";
+import { BarraPestanas } from "./paneles/pestanas";
 import { getLang, setLang, t } from "./i18n";
 import { icono } from "./iconos";
 // Wordmark de marca (RP19-F3): SVG bi-tono inline; sus clases .logo-emu/.logo-rv
@@ -97,26 +101,28 @@ class App {
   private lecciones: Lecciones;
   private ejemplos!: Ejemplos;
   private editorTema: EditorTema;
-  private programa: AssembleOk | null = null;
-  /** El texto del editor cambió desde el último ensamblado exitoso:
-   *  line_to_addr ya no es confiable para validar breakpoints. */
-  private programaDesactualizado = false;
+  /** Documentos abiertos (RP30): una pestaña = un documento. Los campos
+   *  doc-céntricos (programa/ruta/docLimpio/modoBinario/desactualizado) viven
+   *  en el `Documento` activo; `App` los expone con accessors (más abajo) para
+   *  no reescribir las ~50 referencias `this.X` y conservar la paridad. */
+  private documentos: Documento[] = [];
+  private activaIdx = 0;
+  private barra!: BarraPestanas;
+  /** Callbacks del editor (estables): construyen el `EditorState` de cada
+   *  pestaña nueva (1 vista + N estados, ver BITACORA RP30-F1). */
+  private editorCbs!: EditorCallbacks;
+  /** Último modo seteado (RP30): para bloquear el cambio de pestaña con una
+   *  ejecución viva (corriendo/esperando). */
+  private modoActual: Modo = "sin_programa";
   /** Depuración está en su ventana aparte (RP22-F3): main DELEGA el envío de
    *  breakpoints a la ventana (que tiene las condiciones) para no pisarlas;
    *  solo le manda la lista por evento. */
   private depDesacoplada = false;
-  /** Ruta en disco del buffer (RP5): base de resolución de .include.
-   *  null = buffer nunca guardado (ejemplos embebidos incluidos). */
-  private rutaArchivo: string | null = null;
-  /** Contenido del editor en el último guardado/carga (RP23): el buffer está
-   *  «sucio» si difiere del actual. Lo usa «Nuevo» para confirmar descartar. */
-  private docLimpio = "";
   /** RP27: timer de debounce del guardado de workspace (undefined = sin pendiente). */
   private timerWorkspace: number | undefined;
   private reinicioPedido = false;
-  /** Modo binario (RP11): el editor muestra el listado desensamblado de
-   *  un ELF importado, solo lectura; Ensamblar queda deshabilitado. */
-  private modoBinario = false;
+  /** Banner del modo binario (RP11): chrome COMPARTIDO del editor (no es
+   *  per-documento); se muestra/oculta según el modo del documento activo. */
   private bannerBinario: HTMLElement | null = null;
   /** Cancelaciones de los listen() de Tauri (evita fugas al re-suscribir). */
   private unlisteners: UnlistenFn[] = [];
@@ -124,22 +130,70 @@ class App {
   private botones: Record<string, HTMLButtonElement> = {};
   private estadoEl: HTMLElement;
 
+  // --- documento activo (RP30): los campos doc-céntricos enrutan a la pestaña
+  //     activa, así el resto de App sigue escribiendo `this.programa`, etc. ---
+  private get doc(): Documento {
+    return this.documentos[this.activaIdx];
+  }
+  private get programa(): AssembleOk | null {
+    return this.doc.programa;
+  }
+  private set programa(v: AssembleOk | null) {
+    this.doc.programa = v;
+  }
+  /** El texto cambió desde el último ensamblado (line_to_addr obsoleto). */
+  private get programaDesactualizado(): boolean {
+    return this.doc.programaDesactualizado;
+  }
+  private set programaDesactualizado(v: boolean) {
+    this.doc.programaDesactualizado = v;
+  }
+  /** Ruta en disco del buffer (RP5): base de resolución de `.include`. */
+  private get rutaArchivo(): string | null {
+    return this.doc.rutaArchivo;
+  }
+  private set rutaArchivo(v: string | null) {
+    this.doc.rutaArchivo = v;
+  }
+  /** Contenido del último guardado/carga (RP23): base del «•». */
+  private get docLimpio(): string {
+    return this.doc.docLimpio;
+  }
+  private set docLimpio(v: string) {
+    this.doc.docLimpio = v;
+  }
+  /** Modo binario (RP11): listado desensamblado, solo lectura. */
+  private get modoBinario(): boolean {
+    return this.doc.modoBinario;
+  }
+  private set modoBinario(v: boolean) {
+    this.doc.modoBinario = v;
+  }
+
   constructor() {
     this.construirToolbar();
     this.traducirTitulos();
     this.estadoEl = document.getElementById("estado")!;
-    this.editor = createEditor(
-      document.getElementById("editor")!,
-      ejHola,
-      () => this.alCambiarBreakpoints(),
-      (linea) => this.puedeAgregarBreakpoint(linea),
-      () => {
+    // Callbacks del editor, estables (sirven para todo `EditorState` nuevo).
+    this.editorCbs = {
+      onBreakpointsChanged: () => this.alCambiarBreakpoints(),
+      puedeAgregarBreakpoint: (linea) => this.puedeAgregarBreakpoint(linea),
+      onDocChanged: () => {
         this.programaDesactualizado = true;
-        this.actualizarTitulo(); // RP25: «•» en vivo al teclear
+        this.actualizarTitulo(); // RP25: «•» en vivo al teclear (título + barra)
         this.programarGuardadoWorkspace(); // RP27: persistir el buffer (debounced)
       },
-    );
-    this.docLimpio = ejHola; // el editor arranca con el ejemplo «Hola mundo»
+    };
+    this.editor = createEditor(document.getElementById("editor")!, ejHola, this.editorCbs);
+    // Primera pestaña (RP30): el documento arranca con el ejemplo «Hola mundo».
+    this.documentos = [crearDocumento(this.editor.state, { docLimpio: ejHola })];
+    this.activaIdx = 0;
+    // Barra de pestañas (RP30): entre la toolbar y el editor.
+    this.barra = new BarraPestanas(document.getElementById("pestanas")!, {
+      onActivar: (i) => this.activarPestana(i),
+      onCerrar: (i) => this.cerrarPestana(i),
+      onNueva: () => this.nuevaPestana(),
+    });
     this.consola = new Consola(document.getElementById("consola")!);
     this.registros = new Registros(document.getElementById("registros")!);
     this.memoria = new Memoria(document.getElementById("memoria")!);
@@ -864,11 +918,130 @@ class App {
    *  cuando hay cambios sin guardar (convención de editor/IDE). Se invoca al
    *  cargar/guardar (vía setModo y escribirArchivo) y en cada tecla. */
   private actualizarTitulo(): void {
-    const nombre = this.rutaArchivo
-      ? (this.rutaArchivo.split(/[/\\]/).pop() ?? this.rutaArchivo)
-      : t("titulo.sinTitulo");
+    const nombre = nombreDocumento(this.rutaArchivo, t("titulo.sinTitulo"));
     const punto = this.hayCambiosSinGuardar() ? "• " : "";
     void getCurrentWindow().setTitle(`${punto}${nombre} — EmuRV`);
+    this.refrescarBarra(); // RP30: el «•»/nombre de la pestaña activa también
+  }
+
+  // ----- pestañas (RP30) -----
+
+  /** ¿La ejecución está viva? (corriendo o esperando entrada). Con ejecución
+   *  viva NO se cambia/abre/cierra pestaña (la sesión de backend es única y
+   *  sigue a la activa; ver BITACORA RP30-F1). */
+  private estaVivo(): boolean {
+    return this.modoActual === "corriendo" || this.modoActual === "esperando";
+  }
+
+  /** ¿El documento tiene cambios sin guardar? Para la activa, la fuente de
+   *  verdad es el editor; para una inactiva, su `estado` guardado. (RP25 por
+   *  pestaña). En modo binario nunca (el listado es solo lectura). */
+  private docSucio(doc: Documento, esActiva: boolean): boolean {
+    if (doc.modoBinario) return false;
+    const contenido = esActiva ? getDoc(this.editor) : doc.estado.doc.toString();
+    return contenido !== doc.docLimpio;
+  }
+
+  /** Repinta la barra con el estado actual de los documentos. */
+  private refrescarBarra(): void {
+    if (!this.barra) return; // aún no construida (primeras llamadas del ctor)
+    const sinTitulo = t("titulo.sinTitulo");
+    this.barra.render(
+      this.documentos.map((d, i) => ({
+        id: d.id,
+        nombre: nombreDocumento(d.rutaArchivo, sinTitulo),
+        sucio: this.docSucio(d, i === this.activaIdx),
+        cerrable: this.documentos.length > 1,
+      })),
+      this.activaIdx,
+    );
+  }
+
+  /** Vuelca el estado vivo del editor (estado + scroll) al documento activo,
+   *  antes de intercambiarlo por otro (setState resetea el scroll). */
+  private guardarEstadoActivo(): void {
+    const a = this.doc;
+    a.estado = this.editor.state;
+    a.scrollTop = this.editor.scrollDOM.scrollTop;
+  }
+
+  /** Carga el `estado` de un documento en la única `EditorView` y restaura su
+   *  scroll. NO toca el backend (la sesión sigue a quien ensambló). */
+  private cargarEstado(doc: Documento): void {
+    this.editor.setState(doc.estado);
+    this.editor.scrollDOM.scrollTop = doc.scrollTop;
+  }
+
+  /** Sincroniza el chrome dependiente del documento activo tras un swap:
+   *  banner binario (compartido), panel de Depuración y modo/estado. readOnly,
+   *  breakpoints, errores y línea actual ya viajan en el `EditorState`. */
+  private sincronizarUIactiva(): void {
+    if (this.modoBinario) {
+      if (!this.bannerBinario) {
+        this.bannerBinario = document.createElement("div");
+        this.bannerBinario.id = "binario-banner";
+        const editorEl = document.getElementById("editor")!;
+        editorEl.parentElement!.insertBefore(this.bannerBinario, editorEl);
+      }
+      this.bannerBinario.textContent = t("binario.banner");
+      this.bannerBinario.hidden = false;
+    } else if (this.bannerBinario) {
+      this.bannerBinario.hidden = true;
+    }
+    this.sincronizarPanelDepuracion(); // breakpoints del documento activo
+    // Estado según el programa del documento entrante (setModo recalcula los
+    // botones, refresca el título/barra y persiste el workspace).
+    if (this.programa) {
+      this.setModo("listo", t("estado.ensamblado", { n: this.programa.text_len }), "ok");
+    } else {
+      this.setModo("sin_programa", t("estado.sin_programa"));
+    }
+  }
+
+  /** Trae al frente la pestaña `idx` preservando el estado de la saliente. */
+  private activarPestana(idx: number): void {
+    if (idx === this.activaIdx || idx < 0 || idx >= this.documentos.length) return;
+    if (this.estaVivo()) return; // no cambiar con ejecución viva
+    this.guardarEstadoActivo();
+    this.activaIdx = idx;
+    this.cargarEstado(this.doc);
+    this.sincronizarUIactiva();
+  }
+
+  /** Abre una pestaña nueva en blanco (plantilla mínima) y la activa. */
+  private nuevaPestana(): void {
+    if (this.estaVivo()) return;
+    this.guardarEstadoActivo();
+    const estado = crearEstadoEditor(App.PLANTILLA_NUEVA, this.editorCbs);
+    const doc = crearDocumento(estado, { docLimpio: App.PLANTILLA_NUEVA });
+    this.documentos.push(doc);
+    this.activaIdx = this.documentos.length - 1;
+    this.cargarEstado(doc);
+    this.sincronizarUIactiva();
+    this.programarGuardadoWorkspace();
+  }
+
+  /** Cierra la pestaña `idx`. No cierra la última (siempre queda una). En F2 el
+   *  cierre es directo; RP30-F3 añade el aviso «•» antes de descartar. */
+  private cerrarPestana(idx: number): void {
+    if (this.estaVivo()) return;
+    if (this.documentos.length <= 1) return;
+    if (idx < 0 || idx >= this.documentos.length) return;
+    const cerrabaActiva = idx === this.activaIdx;
+    this.documentos.splice(idx, 1);
+    if (cerrabaActiva) {
+      // Activar el vecino (misma posición, o el último si se cerró el último);
+      // su estado debe cargarse en la vista (la activa cambió de documento).
+      this.activaIdx = Math.min(idx, this.documentos.length - 1);
+      this.cargarEstado(this.doc);
+      this.sincronizarUIactiva();
+    } else {
+      // La activa sigue siendo el mismo documento (su estado vivo está en la
+      // vista, no se toca); solo se corrige su índice y se repinta la barra.
+      if (idx < this.activaIdx) this.activaIdx -= 1;
+      this.refrescarBarra();
+    }
+    this.programarGuardadoWorkspace();
   }
 
   /** Plantilla mínima de un programa nuevo (RP23): un esqueleto runnable
@@ -1025,6 +1198,7 @@ class App {
   // ----- estado de la UI -----
 
   private setModo(modo: Modo, mensaje: string, clase: "" | "ok" | "error" = ""): void {
+    this.modoActual = modo; // RP30: para bloquear cambio de pestaña con ejecución viva
     this.estadoEl.textContent = mensaje;
     this.estadoEl.className = clase;
     const b = this.botones;

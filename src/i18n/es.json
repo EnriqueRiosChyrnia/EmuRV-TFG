@@ -287,5 +287,7 @@
   "ejemplo.sonido": "Sonido (acorde)",
   "ejemplo.sprites": "Sprites (overlay)",
   "ejemplo.sonido.desc": "Reproduce un acorde por el dispositivo de sonido (MMIO + WebAudio).",
-  "ejemplo.sprites.desc": "Dibuja un sprite sobre un fondo con el overlay de sprites por hardware."
+  "ejemplo.sprites.desc": "Dibuja un sprite sobre un fondo con el overlay de sprites por hardware.",
+  "pestana.nueva": "Nueva pestaña",
+  "pestana.cerrar": "Cerrar pestaña"
 }

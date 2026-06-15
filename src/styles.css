@@ -31,9 +31,10 @@ html, body {
   height: 100vh;
   display: grid;
   grid-template-columns: minmax(420px, 1.4fr) minmax(340px, 1fr);
-  grid-template-rows: auto 1fr 230px auto;
+  grid-template-rows: auto auto 1fr 230px auto;
   grid-template-areas:
     "toolbar  toolbar"
+    "pestanas lateral"
     "editor   lateral"
     "consola  lateral"
     "estado   estado";
@@ -196,6 +197,72 @@ input:focus-visible { border-color: var(--acento); }
   overflow: hidden;
   border: 1px solid var(--borde);
   border-radius: var(--radio-panel);
+}
+
+/* ---------- barra de pestañas (RP30) ---------- */
+#pestanas {
+  grid-area: pestanas;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  overflow-x: auto;
+  min-height: 0;
+}
+.pestana {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  background: var(--fondo-panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-panel) var(--radio-panel) 0 0;
+  border-bottom: none;
+  /* La pestaña inactiva se atenúa; la activa toma el acento (como el editor). */
+  opacity: 0.7;
+}
+.pestana.activa {
+  opacity: 1;
+  border-color: var(--acento);
+}
+.pestana-label {
+  background: transparent;
+  border: none;
+  color: var(--texto);
+  font: inherit;
+  padding: 5px 8px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pestana-cerrar {
+  background: transparent;
+  border: none;
+  color: var(--texto);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px 4px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.pestana-cerrar:hover {
+  opacity: 1;
+  color: var(--error);
+}
+.pestana-nueva {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--texto);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 9px;
+  border-radius: var(--radio-panel);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.pestana-nueva:hover {
+  opacity: 1;
+  border-color: var(--acento);
 }
 
 #editor .cm-editor { height: 100%; font-size: 14px; }

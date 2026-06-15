@@ -5,7 +5,14 @@ import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
+import {
+  Compartment,
+  EditorState,
+  RangeSet,
+  StateEffect,
+  StateField,
+  type Extension,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -228,13 +235,23 @@ const irADefinicionEtiqueta = EditorView.domEventHandlers({
 // Construcción del editor
 // ---------------------------------------------------------------------------
 
-export function createEditor(
-  parent: HTMLElement,
-  doc: string,
-  onBreakpointsChanged: (lineas: number[]) => void,
-  puedeAgregarBreakpoint: (linea: number) => boolean = () => true,
-  onDocChanged?: () => void,
-): EditorView {
+/** Callbacks que conectan el editor con la app (RP30: estables, no atados a una
+ *  instancia de vista — así un mismo juego de extensiones sirve para CUALQUIER
+ *  `EditorState`, que es lo que permite 1 vista + N estados por pestaña). */
+export interface EditorCallbacks {
+  /** Cambió el juego de breakpoints (margen). */
+  onBreakpointsChanged: (lineas: number[]) => void;
+  /** ¿Se puede poner un breakpoint nuevo en esa línea? (default: sí). */
+  puedeAgregarBreakpoint?: (linea: number) => boolean;
+  /** El texto cambió por edición del usuario (no por swap de estado). */
+  onDocChanged?: () => void;
+}
+
+/** Extensiones del editor (RP30): se construyen una vez por estado y NO
+ *  capturan una `EditorView` concreta — el `updateListener` usa `u.view`, así
+ *  que el mismo juego vale para el estado de cualquier pestaña. */
+function construirExtensiones(cbs: EditorCallbacks): Extension[] {
+  const puedeAgregarBreakpoint = cbs.puedeAgregarBreakpoint ?? (() => true);
   const bpGutter = gutter({
     class: "cm-breakpoint-gutter",
     markers: (v) => v.state.field(breakpointField),
@@ -253,65 +270,71 @@ export function createEditor(
           if (!puedeAgregarBreakpoint(linea)) return true;
         }
         view.dispatch({ effects: toggleBreakpoint.of(lineaBloque.from) });
-        onBreakpointsChanged(getBreakpointLines(view));
+        cbs.onBreakpointsChanged(getBreakpointLines(view));
         return true;
       },
     },
   });
 
-  const view = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        readOnlyComp.of([EditorState.readOnly.of(false), EditorView.editable.of(true)]),
-        breakpointField,
-        bpGutter,
-        lineNumbers(),
-        execLineField,
-        highlightActiveLine(),
-        highlightActiveLineGutter(),
-        history(),
-        keymap.of([...defaultKeymap, ...completionKeymap, ...historyKeymap, indentWithTab]),
-        // Búsqueda/reemplazo (RP-24): Cmd/Ctrl+F abre el panel arriba, con
-        // resaltado de las coincidencias de la selección y etiquetas en el
-        // idioma activo. En modo binario (read-only) CodeMirror oculta los
-        // controles de reemplazo, así que el panel solo busca.
-        keymap.of(searchKeymap),
-        search({ top: true }),
-        highlightSelectionMatches(),
-        EditorState.phrases.of(frasesBusqueda()),
-        riscvLanguage,
-        // Autocompletado contextual (RP14): mnemónicos, registros y
-        // etiquetas del buffer, con descripción del diccionario en el info.
-        autocompletion({ override: [(ctx) => fuenteAutocompletado(ctx, descripcionInstr)] }),
-        // Hover de ayuda, resaltado de usos e ir-a-definición (RP14-F3).
-        hoverAyuda,
-        resaltarUsosEtiqueta,
-        irADefinicionEtiqueta,
-        // Tema del editor por tokens (RP17B-F2): chrome + sintaxis siguen el
-        // tema activo en vivo. Reemplaza al tema fijo que había antes.
-        temaEditor,
-        // Al editar: limpiar diagnósticos viejos y reportar breakpoints
-        // (sus posiciones se mueven con el texto).
-        // El setTimeout(0) es necesario: CodeMirror prohíbe despachar una
-        // transacción dentro del updateListener (el update sigue en curso)
-        // y setErrors hace view.dispatch; se difiere hasta que termine.
-        EditorView.updateListener.of((u) => {
-          if (u.docChanged) {
-            // Aviso sincrónico a la app: el texto cambió, así que el
-            // programa ensamblado (si lo hay) quedó desactualizado.
-            onDocChanged?.();
-            setTimeout(() => {
-              setErrors(view, []);
-              onBreakpointsChanged(getBreakpointLines(view));
-            }, 0);
-          }
-        }),
-      ],
+  return [
+    readOnlyComp.of([EditorState.readOnly.of(false), EditorView.editable.of(true)]),
+    breakpointField,
+    bpGutter,
+    lineNumbers(),
+    execLineField,
+    highlightActiveLine(),
+    highlightActiveLineGutter(),
+    history(),
+    keymap.of([...defaultKeymap, ...completionKeymap, ...historyKeymap, indentWithTab]),
+    // Búsqueda/reemplazo (RP-24): Cmd/Ctrl+F abre el panel arriba, con
+    // resaltado de las coincidencias de la selección y etiquetas en el
+    // idioma activo. En modo binario (read-only) CodeMirror oculta los
+    // controles de reemplazo, así que el panel solo busca.
+    keymap.of(searchKeymap),
+    search({ top: true }),
+    highlightSelectionMatches(),
+    EditorState.phrases.of(frasesBusqueda()),
+    riscvLanguage,
+    // Autocompletado contextual (RP14): mnemónicos, registros y
+    // etiquetas del buffer, con descripción del diccionario en el info.
+    autocompletion({ override: [(ctx) => fuenteAutocompletado(ctx, descripcionInstr)] }),
+    // Hover de ayuda, resaltado de usos e ir-a-definición (RP14-F3).
+    hoverAyuda,
+    resaltarUsosEtiqueta,
+    irADefinicionEtiqueta,
+    // Tema del editor por tokens (RP17B-F2): chrome + sintaxis siguen el
+    // tema activo en vivo. Reemplaza al tema fijo que había antes.
+    temaEditor,
+    // Al editar: limpiar diagnósticos viejos y reportar breakpoints
+    // (sus posiciones se mueven con el texto).
+    // El setTimeout(0) es necesario: CodeMirror prohíbe despachar una
+    // transacción dentro del updateListener (el update sigue en curso)
+    // y setErrors hace view.dispatch; se difiere hasta que termine.
+    // RP30: `setState` (swap de pestaña) NO dispara este listener — solo lo
+    // hacen las transacciones de edición real (docChanged) — así que cambiar
+    // de pestaña nunca ensucia el documento entrante.
+    EditorView.updateListener.of((u) => {
+      if (u.docChanged) {
+        // Aviso sincrónico a la app: el texto cambió, así que el
+        // programa ensamblado (si lo hay) quedó desactualizado.
+        cbs.onDocChanged?.();
+        setTimeout(() => {
+          setErrors(u.view, []);
+          cbs.onBreakpointsChanged(getBreakpointLines(u.view));
+        }, 0);
+      }
     }),
-  });
-  return view;
+  ];
+}
+
+/** Crea un `EditorState` con el contenido y las extensiones del editor (RP30):
+ *  un estado por documento/pestaña, intercambiables con `view.setState`. */
+export function crearEstadoEditor(doc: string, cbs: EditorCallbacks): EditorState {
+  return EditorState.create({ doc, extensions: construirExtensiones(cbs) });
+}
+
+export function createEditor(parent: HTMLElement, doc: string, cbs: EditorCallbacks): EditorView {
+  return new EditorView({ parent, state: crearEstadoEditor(doc, cbs) });
 }
 
 /** Modo binario (RP11): el listado desensamblado es solo-lectura. */
