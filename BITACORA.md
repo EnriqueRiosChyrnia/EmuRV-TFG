@@ -4477,3 +4477,73 @@ null, y acotado/truncado de `activa`.
 Área F4: `src/recientes.ts`(+test) nuevo, `src/workspace.ts`(+test reescrito),
 `src/main.ts`, `src/styles.css`, `src/i18n/{es,en}.json`. Sin merges ni cambios
 de rama. Commit `rp30-fase-4: archivos recientes + workspace v2`.
+
+## 2026-06-15 — RP30-F5: docs de pestañas y recientes + cierre
+
+### Documentación [Seguro]
+
+Ayuda integrada (la real, resuelta de i18n): clave nueva `ayuda.pestanas` (es/en,
+AL FINAL, anti-drift verde) en la sección «Editor» del modal de Ayuda
+(`src/paneles/ayuda.ts`): qué hacen «+»/«Abrir»/«×», el «•» por pestaña, la lista
+«Recientes» del menú Archivo, la restauración de pestañas al reabrir y que solo
+la pestaña activa ejecuta. `docs/AYUDA-CONTENIDO.md` (espejo de diseño)
+actualizado en paralelo, anotando explícitamente que **RP-25 («•») es por
+pestaña** y **RP-27 (persistencia) es multi-pestaña (workspace v2)**, más el
+bloqueo de cambio de pestaña con ejecución viva y el re-ensamblado. NO se tocó
+`docs/ROADMAP-PRO.md` ni el Cap. VI (regla del plan).
+
+### RP-25 y RP-27 «por pestaña» — estado consolidado [Seguro]
+
+- **RP-25 («•»)**: el indicador es POR pestaña (la barra pinta «•» en cada
+  pestaña sucia; el título de la ventana refleja la activa). El aviso al cerrar
+  una pestaña usa `archivo.cerrarConfirm`; el aviso al cerrar la VENTANA avisa si
+  CUALQUIER pestaña está sucia (`hayAlgunCambioSinGuardar`).
+- **RP-27 (workspace)**: subido a v2 `{pestanas, activa}`; persiste todas las
+  pestañas + la activa, migra v1 a una pestaña, conserva el debounce de 400 ms.
+- **RP-32 (xlen)**: sigue GLOBAL (decisión F1); sin cambios.
+
+### Criterios de aceptación (plan RP-30) — cumplidos
+
+- Varias pestañas, cambiar sin perder estado, cerrar con aviso «•». ✓ (F2-F3)
+- «+»/Nuevo abren pestaña en blanco; abrir archivo abre/enfoca pestaña. ✓ (F3)
+- «•» por pestaña (RP-25 extendido). ✓ (F2-F3)
+- Recientes persistida y usable desde el menú Archivo. ✓ (F4)
+- Workspace v2 (todas las pestañas + activa), migrando v1. ✓ (F4)
+- Con 1 pestaña, el núcleo es idéntico; suite verde; Rust intacto. ✓ (todas)
+
+### Compuerta F5 (CIERRE) — TODO VERDE
+
+- `scripts/ci-local.sh --skip-bundle`: **TODO VERDE** — incluye:
+  - Frontend: `npm ci`, `tsc --noEmit` limpio, `npm run test:ui` **119 / 119**,
+    `vite build` OK.
+  - `cargo test` + `cargo clippy --all-targets -- -D warnings` en **AMBOS**
+    crates (`src-tauri`, `emurv-cli`): verdes (Rust no se tocó en RP-30 — el
+    diff `d227a58..HEAD` no toca ningún `.rs`/`Cargo`/`tauri.conf`).
+- `npx tauri build`: construyó **EmuRV.app y EmuRV_0.1.0_aarch64.dmg** (exit 0).
+- `scripts/check-bundle-size.sh`: **EmuRV.app = 22 MB ≤ 30** (RNF-04).
+- CERO dependencias npm nuevas (todo con CodeMirror 6 + Tauri ya presentes).
+
+### Veredicto del spike (F1) confirmado en la práctica
+
+La estrategia 1 vista + N `EditorState` con `view.setState` se sostuvo en las 4
+fases sin sorpresas: undo/cursor/selección/breakpoints/errores/línea-actual y
+modo binario (readOnly por `Compartment`) viajan en el estado; solo el scroll se
+guarda/restaura a mano; `setState` no dispara el `updateListener`, así que el
+swap nunca ensucia el documento entrante. La sesión de backend única que sigue a
+la activa (con bloqueo en ejecución viva y re-ensamblado al cambiar de dueño) se
+mostró suficiente; xlen GLOBAL y recientes sin per-doc evitaron alcance de más.
+
+### [PENDIENTE HUMANO] Verificación manual (no automatizable headless)
+
+Abrir la app y comprobar: (1) abrir 2-3 archivos → pestañas distintas, alternar
+sin perder contenido/cursor/scroll/«•»; (2) cerrar una pestaña sucia avisa,
+cerrar la ventana con alguna sucia avisa; (3) «+»/Nuevo abren pestaña en blanco;
+abrir un archivo ya abierto la enfoca; (4) ejecutar solo en la activa; cambiar de
+pestaña mientras corre está bloqueado; ejecutar en otra pestaña pide
+re-ensamblar; (5) menú Archivo lista «Recientes» y abrirlos funciona; (6) cerrar
+con varias pestañas y reabrir las restaura (contenido + activa); una sesión v1
+previa se migra a una sola pestaña.
+
+Área F5: `src/paneles/ayuda.ts`, `src/i18n/{es,en}.json`,
+`docs/AYUDA-CONTENIDO.md`, `BITACORA.md`. Sin merges ni cambios de rama (la
+coordinadora mergea). Commit `rp30-fase-5: docs de pestanas y recientes`.
