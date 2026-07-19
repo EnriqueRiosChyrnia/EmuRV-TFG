@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=EmuRV
+Comment=Entorno educativo RISC-V
+Exec=emurv
+Icon=emurv
+Terminal=false
+Categories=Development;Education;
+StartupWMClass=EmuRV

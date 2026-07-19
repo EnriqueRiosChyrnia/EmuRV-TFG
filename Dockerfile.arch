@@ -1,0 +1,58 @@
+# Compila EmuRV para Arch Linux x86_64 (paquete pacman .pkg.tar.zst) desde macOS.
+# Compila DENTRO de Arch real -> el binario linkea contra webkit2gtk-4.1/glibc
+# de Arch, así corre nativo (no como el .deb, que es de Ubuntu).
+#
+#   docker build --platform linux/amd64 -f Dockerfile.arch \
+#       --target export --output type=local,dest=arch-dist .
+#
+# En host arm64 (Apple Silicon) corre emulado (qemu) -> lento pero funciona.
+# Instalar en Arch:  sudo pacman -U arch-dist/emurv-0.1.0-1-x86_64.pkg.tar.zst
+
+FROM --platform=linux/amd64 archlinux:base-devel AS builder
+
+# Toolchain + deps de build/runtime de Tauri 2 en Arch.
+# cmake/ninja/clang -> unicorn-engine se compila con CMake y bindgen (libclang).
+# --disable-sandbox: el sandbox seccomp/landlock de pacman 7 falla bajo qemu
+#   (amd64 emulado en host arm64): "error restricting syscalls via seccomp: 22".
+RUN pacman -Syu --noconfirm --needed --disable-sandbox \
+      git rust nodejs npm \
+      webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg libsoup3 \
+      openssl cmake ninja clang pkgconf patchelf \
+    && pacman -Scc --noconfirm --disable-sandbox
+
+WORKDIR /app
+COPY . .
+
+# node_modules de Linux (binarios nativos por-plataforma; los de macOS no entran).
+RUN npm ci
+
+# -latomic: Unicorn (cputlb.c, helpers s390x/ppc64) usa atómicos de 128 bits
+#   (__atomic_*_16). El linker de Arch es lld (-fuse-ld=lld) y NO autoenlaza
+#   libatomic como hace bfd en Ubuntu -> "undefined symbol __atomic_load_16".
+ENV RUSTFLAGS="-Clink-arg=-latomic"
+
+# Compila el binario release con el frontend embebido (corre beforeBuildCommand
+# = npm run build) pero SIN empaquetar: tauri no genera .pkg.tar.zst nativo.
+# Capa pesada (Unicorn + Tauri): se cachea.
+RUN npx tauri build --no-bundle --verbose
+
+# --- Empaquetado pacman: makepkg NO corre como root -> usuario 'builder'. ---
+RUN useradd -m builder \
+ && mkdir -p /pkg \
+ && cp src-tauri/target/release/emurv          /pkg/emurv \
+ && cp src-tauri/icons/128x128.png             /pkg/128x128.png \
+ && cp src-tauri/icons/icon.png                /pkg/512x512.png \
+ && cp packaging/arch/PKGBUILD                 /pkg/PKGBUILD \
+ && cp packaging/arch/emurv-launcher           /pkg/emurv-launcher \
+ && cp packaging/arch/emurv.desktop            /pkg/emurv.desktop \
+ && chown -R builder:builder /pkg
+
+USER builder
+WORKDIR /pkg
+# --nodeps: las deps son de runtime, no hace falta instalarlas para empaquetar.
+# --skipinteg: sumas SKIP (artefactos locales, no descargas).
+RUN makepkg -f --noconfirm --nodeps --skipinteg
+
+# Stage de salida: solo el .pkg.tar.zst.
+FROM scratch AS export
+COPY --from=builder /pkg/*.pkg.tar.zst /

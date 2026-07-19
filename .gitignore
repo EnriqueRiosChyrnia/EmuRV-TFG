@@ -31,3 +31,6 @@ docs/diseno-ui/uploads/
 
 # Artefactos de build Linux (Docker)
 linux-dist/
+
+# Artefactos de build Arch (Docker)
+arch-dist/
