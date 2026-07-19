@@ -1,0 +1,26 @@
+# Maintainer: EmuRV-TFG
+# PKGBUILD estilo "-bin": empaqueta el binario ya compilado dentro de un
+# contenedor Arch (ver Dockerfile.arch), NO recompila aquí. makepkg solo arma
+# el .pkg.tar.zst a partir de los artefactos colocados junto a este archivo.
+pkgname=emurv
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="EmuRV — Entorno educativo RISC-V (emulador con GUI Tauri)"
+arch=('x86_64')
+url="https://github.com/EmuRV-TFG"
+license=('custom')
+# Dependencias en runtime de una app Tauri 2 en Arch.
+depends=('webkit2gtk-4.1' 'gtk3' 'libappindicator-gtk3' 'librsvg' 'openssl')
+# El binario ya viene compilado/optimizado: no re-stripear ni generar debug.
+options=('!strip' '!debug')
+source=('emurv' 'emurv-launcher' 'emurv.desktop' '128x128.png' '512x512.png')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+  # Binario real bajo /usr/lib; el ejecutable en PATH es el wrapper.
+  install -Dm755 "$srcdir/emurv"          "$pkgdir/usr/lib/emurv/emurv"
+  install -Dm755 "$srcdir/emurv-launcher" "$pkgdir/usr/bin/emurv"
+  install -Dm644 "$srcdir/emurv.desktop"  "$pkgdir/usr/share/applications/emurv.desktop"
+  install -Dm644 "$srcdir/128x128.png"    "$pkgdir/usr/share/icons/hicolor/128x128/apps/emurv.png"
+  install -Dm644 "$srcdir/512x512.png"    "$pkgdir/usr/share/icons/hicolor/512x512/apps/emurv.png"
+}

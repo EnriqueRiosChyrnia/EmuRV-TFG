@@ -34,4 +34,10 @@ udbserver = { path = "../vendor/udbserver", optional = true }
 [features]
 gdb = ["dep:udbserver"]
 
+# Copia vendorizada de unicorn-engine-sys 2.1.5 con un parche mínimo en su
+# CMakeLists.txt para permitir el cross-compile macOS -> Windows (cargo-xwin);
+# ver comentario "EmuRV patch" en vendor/unicorn-engine-sys/CMakeLists.txt.
+[patch.crates-io]
+unicorn-engine-sys = { path = "../vendor/unicorn-engine-sys" }
+
 

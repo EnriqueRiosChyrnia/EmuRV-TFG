@@ -9,3 +9,6 @@ entrega-tester
 linux-dist
 *.dmg
 *.app
+
+# Build Arch en Docker.
+arch-dist

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Wrapper de EmuRV.
+# Workaround pantalla en blanco con webkitgtk (renderer DMABUF), frecuente en
+# Arch con driver NVIDIA propietario. Inofensivo en GPUs que ya renderizan bien.
+# Para desactivarlo: WEBKIT_DISABLE_DMABUF_RENDERER=0 emurv
+export WEBKIT_DISABLE_DMABUF_RENDERER="${WEBKIT_DISABLE_DMABUF_RENDERER:-1}"
+exec /usr/lib/emurv/emurv "$@"
