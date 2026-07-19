@@ -378,6 +378,31 @@ puntos que tocan ÁREAS DISJUNTAS se ejecutan en paralelo, cada uno en su worktr
 Roce menor entre paralelos: claves i18n (es/en) y BITACORA — conflicto de merge
 trivial; los prompts agregan claves al final y secciones propias en BITACORA.
 
+## Fase de cierre de tesis (RT) — aprobada por el autor 2026-07-19
+
+Origen: `Tesis/REPORTE-ANALISIS-2026-07-19.md` (auditoría del repo + investigación
+de mercado). Con RP-1..RP-32 completos, el camino crítico ya no es código sino
+**evidencia** (compliance, benchmark, usabilidad) y **consolidación** (git, CI,
+Windows). Orden fijado por el autor: la entrega al tester y la escritura del
+Capítulo V van AL FINAL. Mismo protocolo de trabajo que los RP (plan → prompt →
+otra terminal → verificación), planes como `docs/PLAN-RT<N>-<slug>.md`, commits
+`rt<N>-fase-M: descripción`.
+
+| ID | Título | Estado |
+|---|---|---|
+| RT-1 | Consolidación git: commitear packaging pendiente, merge `feature/teclado` → `main`, crear remote GitHub, CI en verde | PENDIENTE |
+| RT-2 | riscv-tests oficiales integrados a la suite/CI | PENDIENTE |
+| RT-3 | Compliance formal: riscv-arch-test vía RISCOF contra Sail, resultados documentados | PENDIENTE |
+| RT-4 | Benchmark de rendimiento (CoreMark/Embench) vs QEMU, Spike, RARS + caso Tetris vs emu8086 | PENDIENTE |
+| RT-5 | Windows smoke test en máquina real (instalador NSIS del cross-compile) | PENDIENTE |
+| RT-6 | Prueba de usabilidad SUS con estudiantes (instalación autónoma + primer programa + cuestionario) | PENDIENTE |
+| RT-7 | Entrega a tester (.dmg / instalador) — al final por decisión del autor | PENDIENTE |
+| RT-8 | Escritura del Capítulo V (Resultados) con datos de RT-2..RT-6 + sync Cap. VI — al final por decisión del autor | PENDIENTE |
+
+Fuera de la fase RT (siguen diferidos): firma/notarización, auto-update,
+AppImage, interrupciones (CLINT/PLIC), semihosting, record/replay, modo docente
+— candidatos a "trabajo futuro" en la memoria.
+
 ## Fuera de este roadmap (decisión explícita)
 
 - Datapath/pipeline: cedido a Ripes por posicionamiento de tesis. No se reabre.
@@ -385,7 +410,8 @@ trivial; los prompts agregan claves al final y secciones propias en BITACORA.
   del autor 2026-06-12 — se verá a futuro, no entra al roadmap.
 - Port Windows/Linux: diferido junto con la creación del remote (las piernas
   experimentales de la CI de RP-4 son la sonda); requiere además hardware/runner
-  de esas plataformas para verificar de verdad.
+  de esas plataformas para verificar de verdad. **Actualización 2026-07-19:** el
+  remote y la verificación Windows entran ahora como RT-1 y RT-5 (fase RT).
 - Sprites/sonido (Cap. VI §6.2.4) y gamificación de lecciones: propuestas
   registradas, sin compromiso.
 - Modo docente (definición de tareas + corrección automática en lote): en
