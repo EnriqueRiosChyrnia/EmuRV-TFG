@@ -7,6 +7,8 @@
 [package]
 name = "emurv-cli"
 version = "0.1.0"
+description = "CLI headless de EmuRV: ensamblar, ejecutar y depurar RISC-V sin GUI"
+authors = ["Enrique Ríos Chyrnia"]
 edition = "2021"
 
 [dependencies]
