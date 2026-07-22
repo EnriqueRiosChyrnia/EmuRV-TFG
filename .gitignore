@@ -38,3 +38,4 @@ tests-riscv/.upstream/
 tests-riscv/.venv/
 tests-riscv/.tools/
 tests-riscv/.riscof-work/
+__pycache__/

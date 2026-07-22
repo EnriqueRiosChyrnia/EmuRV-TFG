@@ -104,9 +104,12 @@ fn correr(args: Vec<String>) -> Result<(), String> {
     std::fs::write(&sig_path, sig).map_err(|e| format!("no se pudo escribir {sig_path}: {e}"))
 }
 
-/// Direcciones de la región de signature. riscv-arch-test define
-/// `rvtest_sig_begin`/`rvtest_sig_end`; las RVMODEL_DATA_* clásicas usan
-/// `begin_signature`/`end_signature` — se aceptan ambos pares.
+/// Direcciones de la región de signature. `begin_signature`/`end_signature`
+/// (las RVMODEL_DATA_* del env) van PRIMERO: son las que Sail vuelca y las
+/// que RISCOF compara — incluyen el padding de alineación final.
+/// `rvtest_sig_begin/end` (labels internas de arch_test.h) son el fallback:
+/// terminan ANTES de ese padding y desalinean la comparación (verificado en
+/// sub-01: 594 vs 596 palabras).
 fn simbolos_signature(bytes: &[u8]) -> Result<(u32, u32), String> {
     let file: ElfFile32<Endianness> =
         ElfFile32::parse(bytes).map_err(|e| format!("el ELF no se pudo interpretar: {e}"))?;
@@ -116,8 +119,8 @@ fn simbolos_signature(bytes: &[u8]) -> Result<(u32, u32), String> {
             .map(|s| s.address() as u32)
     };
     for (ini, fin) in [
-        ("rvtest_sig_begin", "rvtest_sig_end"),
         ("begin_signature", "end_signature"),
+        ("rvtest_sig_begin", "rvtest_sig_end"),
     ] {
         if let (Some(a), Some(b)) = (buscar(ini), buscar(fin)) {
             return Ok((a, b));

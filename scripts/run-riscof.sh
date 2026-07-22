@@ -59,19 +59,23 @@ setup() {
 }
 
 run() {
+    # $1 = sub-suite de rv32i_m (I, M, C, ...). Se corre de a una para no
+    # arrastrar suites fuera de alcance (privilege ejercita M-mode que EmuRV
+    # delega en políticas didácticas — ver PLAN-RT3).
+    local suite="${1:?uso: run <I|M|C|...>}"
     [ -x "$VENV/bin/riscof" ] || { echo "falta setup" >&2; exit 1; }
     mkdir -p "$WORK_DIR"
     cd "$PLUGIN_DIR"
     "$VENV/bin/riscof" run \
         --config config.ini \
-        --suite "$ARCH_TEST/riscv-test-suite" \
+        --suite "$ARCH_TEST/riscv-test-suite/rv32i_m/$suite" \
         --env "$ARCH_TEST/riscv-test-suite/env" \
-        --work-dir "$WORK_DIR" \
+        --work-dir "$WORK_DIR/$suite" \
         --no-browser
 }
 
 case "${1:-}" in
     setup) setup ;;
-    run) run ;;
-    *) echo "uso: $0 setup|run" >&2; exit 1 ;;
+    run) shift; run "${1:-}" ;;
+    *) echo "uso: $0 setup|run <suite>" >&2; exit 1 ;;
 esac
