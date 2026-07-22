@@ -4594,3 +4594,50 @@ El harness corre dentro de `cargo test` (~0.2 s), sin cambios en ci.yml.
 **RV64 diferido.** [Seguro] `elf_import` es ELF32 por diseño (RP-11); los
 rv64 tests producen ELF64. Fricción real ⇒ se difiere según la compuerta F5
 del plan (`docs/PLAN-RT2-riscv-tests.md`), anotado como trabajo futuro.
+
+## 2026-07-22 — RT-3: compliance formal RISCOF (riscv-arch-test vs Sail)
+
+**Decisión.** Correr riscv-arch-test (`ctp-release-e9514aa`, commit
+`281d71ef`) con RISCOF 1.25.3, EmuRV como DUT contra el modelo dorado Sail
+(binario oficial prebuilt 0.13 Mac-arm64, sha256 pineado — sin build OCaml).
+Resultado: **72/72 tests compatibles con signatures idénticas a Sail
+(100 %)** sobre 74 ejecutados (suites I, M, C, Zifencei); los 2 mismatches
+son incompatibilidades por diseño verificadas, no defectos de semántica.
+Tabla y método en `docs/RESULTADOS-RISCOF.md`; reportes HTML en
+`docs/evidencia/riscof/`.
+
+**Arquitectura de la corrida.** [Seguro]
+- DUT: binario nuevo `riscof_runner` (src-tauri/src/bin/) sobre emurv_lib —
+  símbolos de signature con `object`, carga por `elf_import` (camino del
+  producto), Machine hasta EbreakPause, volcado hex granularidad 4. Contrato
+  cubierto por tests (`rt3_riscof_runner.rs`, CARGO_BIN_EXE_ + fixture).
+- Plugins RISCOF propios (`tests-riscv/riscof-plugin-emurv/`): el del DUT
+  con el env de EmuRV (mapa TEXT/DATA de RT-2, HALT = ebreak 32 bits); el de
+  referencia adaptado del template sail_cSim a la CLI unificada de Sail 0.13
+  (`sail_riscv_sim --rv32 --test-signature`, ya no `riscv_sim_RV32`).
+- march con `_zicsr_zifencei` agregado (GCC 16, mismo ajuste que RT-2).
+- RISCOF no corre en la CI de GitHub (toolchain Python+Sail pesada);
+  `scripts/run-riscof.sh` es el procedimiento reproducible pineado.
+
+**Hallazgo del volcado.** [Seguro] La signature comparable es EXACTAMENTE
+`begin_signature`/`end_signature` (incluye padding final de alineación); las
+labels internas `rvtest_sig_begin/end` de arch_test.h terminan antes del
+padding — el runner las usaba con prioridad y desalineaba la comparación
+(594 vs 596 palabras en sub-01). Prioridad invertida y documentada en el
+código.
+
+**Robustez del harness.** [Seguro] Un test cuyo runner aborta dejaba a
+RISCOF sin signature del DUT y abortaba la comparación de TODA la suite; el
+plugin ahora escribe una signature-marcador en el fallo (el motivo queda en
+runner.log del test) y RISCOF reporta Failed solo ahí.
+
+**Mismatches por diseño (no defectos):**
+- `cebreak-01` (C): espera Breakpoint delegado al trap handler del guest;
+  en EmuRV `ebreak` es la pausa del depurador (RP-1) y nunca se delega.
+- `Fencei` (Zifencei): escribe en `.text` + `fence.i` — W^X didáctico,
+  misma familia que fence_i/rvc de RT-2.
+
+**Fuera de alcance/diferido.** [Seguro] `privilege` (M-mode didáctico,
+BITACORA RP-8), F/D (ya evidenciadas en RT-2 incl. hallazgo fmin de
+Unicorn; extender ISA/ABI del plugin no aporta información nueva), RV64
+(elf_import ELF32).
