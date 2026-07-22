@@ -4641,3 +4641,39 @@ runner.log del test) y RISCOF reporta Failed solo ahí.
 BITACORA RP-8), F/D (ya evidenciadas en RT-2 incl. hallazgo fmin de
 Unicorn; extender ISA/ABI del plugin no aporta información nueva), RV64
 (elf_import ELF32).
+
+## 2026-07-22 — RT-4: benchmark de rendimiento vs QEMU/Spike/RARS + Tetris
+
+**Decisión.** Benchmark con el MISMO algoritmo en los 4 emuladores: 4
+kernels RV32IM propios (`bench/kernels/`: aritmética, memoria, llamadas,
+mixto) con cuenta nominal de instrucciones documentada en el fuente, ~500 M
+instr por corrida, mediana de 5, equivalencia verificada (mismo resultado
+numérico en los 4). Resultados en `docs/RESULTADOS-BENCHMARK.md`, CSV en
+`docs/evidencia/rt4-benchmark.csv`. Números clave (M instr/s, mediana):
+EmuRV 129–309 · QEMU 1069–4304 · Spike 893–965 · RARS 4,8–6,0.
+**Titular de tesis: EmuRV es 23–64× RARS y del mismo orden que Spike.**
+
+**Decisiones y hallazgos:** [Seguro]
+- Los syscalls RARS-compatibles de EmuRV permitieron correr EL MISMO fuente
+  .asm en RARS y EmuRV (sin reescritura) — la comparación de posicionamiento
+  más limpia posible. QEMU/Spike llevan wrappers bare-metal.
+- brew qemu en macOS NO trae emuladores user-mode (Linux-only): se usó
+  `qemu-system-riscv32 -M virt` con semihosting (SYS_WRITE0/SYS_EXIT); la
+  salida de semihosting llega por stderr (capturar 2>&1).
+- Spike vía tap oficial riscv-software-src (brew trust + riscv-isa-sim);
+  su +signature sirvió para extraer el resultado en bare-metal.
+- RARS 1.6 jar (sha256 780f730e…) con baseline JVM+ensamblado (0,133 s con
+  programa vacío) descontado; iteraciones ÷100 con factor documentado.
+- gas rechaza `andi/addi` con inmediatos >2047 que RARS expande solo —
+  kernels ajustados (máscara en registro, constante LCG 1013).
+- Caso Tetris: fb4_fps release = **797 FPS** lado Rust con repintado
+  completo (UI consume ~30 Hz → margen 26×). emu8086: documental (no
+  publica cifras; correrlo exige Windows — nota para RT-5).
+- CoreMark diferido por compuerta de esfuerzo F5 del plan (port bare-metal
+  por target sin cambio esperable en la conclusión).
+
+**Honestidad metodológica** (en el doc): EmuRV medido en su condición real
+(tramos de 1 M instr por interrumpibilidad, proceso completo con ensamblado);
+techo interno RNF-03 en la misma máquina: 1504 M instr/s sin tramos, 327 con
+tramos — coherente con lo observado. Dispersión de EmuRV (warm-up JIT de
+Unicorn) publicada en el CSV.
