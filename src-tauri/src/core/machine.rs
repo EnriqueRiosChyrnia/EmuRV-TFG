@@ -30,7 +30,7 @@ use super::{
 };
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use unicorn_engine::Arch;
@@ -163,6 +163,12 @@ pub struct MachData {
     /// Cola de teclas compartida con la UI (TEC2, espejo de `video_shared`):
     /// la UI empuja con `push_key` y el hook MEM_READ del teclado consume.
     pub keyboard: Arc<Mutex<KeyboardShared>>,
+    /// Contador de actividad observable del guest: syscalls atendidas +
+    /// lecturas del teclado MMIO. Solo crece. El lazo de ejecución lo lee
+    /// entre tramos para la pista de «posible bucle infinito» (un programa
+    /// que computa segundos enteros sin NINGUNA actividad observable
+    /// amerita el aviso; uno que hace E/S o duerme, no).
+    pub actividad: Arc<AtomicU64>,
     /// Estado de sonido compartido con la UI (RP31, espejo de `video_shared`):
     /// el hook MEM_WRITE de `SOUND_TRIGGER` encola tonos acá y el run loop los
     /// drena emitiendo `emu://sonido`. Apagado por defecto (RF4): `in_use`
@@ -243,6 +249,7 @@ impl Machine<'_> {
             video_last: None,
             video_used: false,
             keyboard: Arc::default(),
+            actividad: Arc::default(),
             sound_shared: Arc::default(),
             stop_request: Arc::default(),
             heap_next: HEAP_BASE,
@@ -361,6 +368,10 @@ impl Machine<'_> {
                 // pánico con el lock tomado, se recupera igual: la cola es
                 // POD, no hay invariantes a medio romper.
                 let keyboard = Arc::clone(&uc.get_data().keyboard);
+                // Leer el teclado ES actividad observable: exime al programa
+                // de la pista de «posible bucle infinito» (p.ej. un juego
+                // encuestando RECEIVER_CONTROL sin syscalls).
+                uc.get_data().actividad.fetch_add(1, Ordering::Relaxed);
                 let mut k = keyboard.lock().unwrap_or_else(|e| e.into_inner());
                 // Un lb puede caer desalineado dentro del registro: se
                 // normaliza a la palabra base (mismo truco del spike).
@@ -711,6 +722,13 @@ impl Machine<'_> {
     /// sin pasar por el hilo de emulación (espejo de `video_shared`).
     pub fn keyboard_shared(&self) -> Arc<Mutex<KeyboardShared>> {
         Arc::clone(&self.uc.get_data().keyboard)
+    }
+
+    /// `Arc` del contador de actividad observable (syscalls + lecturas del
+    /// teclado MMIO), para que el lazo de ejecución detecte silencio
+    /// prolongado (pista de «posible bucle infinito»).
+    pub fn actividad(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.uc.get_data().actividad)
     }
 
     /// `Arc` del estado de sonido (RP31), para que la GUI lo drene desde el

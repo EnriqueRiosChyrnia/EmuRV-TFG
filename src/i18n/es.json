@@ -86,6 +86,7 @@
   "estado.ensamblado": "Programa ensamblado: {n} bytes de código. Listo para ejecutar.",
   "estado.errores": "El programa tiene {n} error(es). Revisá las líneas marcadas.",
   "estado.corriendo": "Ejecutando…",
+  "estado.posible_bucle": "⚠ Ejecutando… hace varios segundos sin actividad — ¿bucle infinito? Podés usar «Detener»",
   "estado.esperando_entrada": "El programa espera entrada en la consola",
   "estado.paso": "Paso ejecutado. Próxima línea: {line}",
   "estado.paso_sin_linea": "Paso ejecutado",

@@ -4677,3 +4677,50 @@ EmuRV 129–309 · QEMU 1069–4304 · Spike 893–965 · RARS 4,8–6,0.
 techo interno RNF-03 en la misma máquina: 1504 M instr/s sin tramos, 327 con
 tramos — coherente con lo observado. Dispersión de EmuRV (warm-up JIT de
 Unicorn) publicada en el CSV.
+
+## 2026-07-22 — Tramo adaptativo + pista de «posible bucle infinito»
+
+**Decisión (pedido del autor tras leer RT-4).** El count fijo de 1 M
+instr/tramo (TEC1) pagaba interrumpibilidad con ~4,6× de rendimiento
+(RNF-03: 1504 sin tramos vs 327 con tramos). Se reemplaza por **tramo
+adaptativo**: apunta a ~40 ms de pared por chequeo (imperceptible para
+«Detener»), duplica el count si el tramo duró < 20 ms y lo reduce a la
+mitad si duró > 60 ms (piso 1 M, techo 64 M — converge en pocos tramos y
+no oscila). Sin botón de modo: es automático.
+
+**Por qué es seguro:** [Seguro]
+- El teclado MMIO NO depende del tramo: la UI empuja a la cola compartida
+  y el hook MEM_READ consume DURANTE el tramo (TEC2) — latencia intacta.
+- Con la pantalla gráfica en uso (`video.in_use`) el tramo vuelve al piso:
+  los frames se publican entre tramos y un juego necesita esa cadencia.
+  fb4_fps re-medido tras el cambio: 832 FPS (igual que antes).
+- Breakpoints/watchpoints son hooks de Unicorn: disparan dentro del tramo,
+  el tamaño no los afecta. «Detener» pasa de ~2 ms a ≤ ~40 ms de latencia:
+  imperceptible (umbral humano ~100 ms).
+- El timeout de respaldo (RUN_SLICE_MS=100) sigue: si una build lenta
+  (debug) hace tramos de 64 M eternos, Unicorn corta y el adaptativo baja.
+
+**Pista de bucle infinito** (idea del autor, análoga a los safepoints de
+Java): detección formal es el problema de la parada — NO se detecta, se
+AVISA. Nuevo contador `Machine::actividad` (AtomicU64 en MachData) que
+crece con cada syscall atendida y cada lectura del teclado MMIO; si el
+guest ejecuta 3 s seguidos sin actividad observable y sin video activo,
+el lazo emite `emu://posible-bucle` UNA vez y la barra de estado muestra
+«⚠ … ¿bucle infinito? Podés usar Detener» (i18n es/en). Falsos positivos
+aceptados a conciencia (un cómputo puro largo lo dispara): es una pista
+pedagógica, no un veredicto — el programa sigue corriendo.
+
+**Implementación:** structs puros `TramoAdaptativo` y `DetectorBucle` en
+commands.rs con tests unitarios (6); espejo del tramo adaptativo en
+emurv-cli (mismo criterio, sin video). Suite completa verde (271 Rust +
+10 CLI + 119 UI), clippy limpio, equivalencia del bench re-verificada.
+
+**Impacto medido (bench RT-4 re-corrido, mismos kernels):**
+| kernel | antes | después |
+|---|---|---|
+| aritmética | 308,5 | **718,4** (2,3×; dispersión 0,688–0,706 s) |
+| memoria | 139,5 | **257,1** (1,8×) |
+| llamadas | 162,6 | **299,4** (1,8×) |
+| mixto | 129,5 | **160,2** (1,2×) |
+EmuRV queda al 81 % de Spike en ALU pura y 28–120× sobre RARS.
+RESULTADOS-BENCHMARK.md y el CSV de evidencia actualizados.

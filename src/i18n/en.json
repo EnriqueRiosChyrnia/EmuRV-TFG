@@ -86,6 +86,7 @@
   "estado.ensamblado": "Program assembled: {n} bytes of code. Ready to run.",
   "estado.errores": "The program has {n} error(s). Check the marked lines.",
   "estado.corriendo": "Running…",
+  "estado.posible_bucle": "⚠ Running… several seconds with no activity — infinite loop? You can press «Stop»",
   "estado.esperando_entrada": "The program is waiting for input in the console",
   "estado.paso": "Step executed. Next line: {line}",
   "estado.paso_sin_linea": "Step executed",

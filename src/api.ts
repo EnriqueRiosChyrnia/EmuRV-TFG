@@ -157,4 +157,9 @@ export const events = {
   /** El programa pidió limpiar la consola (syscall 60, extensión EmuRV). */
   onConsoleClear: (cb: () => void): Promise<UnlistenFn> =>
     listen("emu://consola-limpiar", () => cb()),
+  /** Pista didáctica: el programa lleva segundos ejecutando sin ninguna
+   *  actividad observable (syscalls, teclado, pantalla) — posible bucle
+   *  infinito. Se emite UNA vez por período de silencio. */
+  onPosibleBucle: (cb: () => void): Promise<UnlistenFn> =>
+    listen("emu://posible-bucle", () => cb()),
 };

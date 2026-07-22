@@ -155,9 +155,14 @@ fn subcomando_asm(args: &[String]) -> u8 {
 /// proceso se trabaría — el hilo puente drena `out_rx` y alimenta `in_tx`
 /// mientras el principal corre la máquina (espejo del modelo GUI).
 fn subcomando_run(args: &[String]) -> u8 {
-    // Espejo de RUN_SLICE_COUNT (privado en commands.rs; mismo criterio que
-    // tests/tec1_detener.rs): ~2-3 ms por tramo en release.
+    // Espejo del tramo adaptativo de commands.rs (2026-07-22): SLICE es el
+    // PISO; sin UI que refrescar, el tramo crece hasta ~40 ms de pared
+    // (SLICE_MAX) y recupera el rendimiento que el slicing fijo dejaba en
+    // la mesa (RNF-03: 327 → ~1500 M instr/s de techo). Ctrl-C (stop) y
+    // --timeout-s se siguen atendiendo entre tramos: 40 ms es imperceptible.
     const SLICE: u64 = 1_000_000;
+    const SLICE_MAX: u64 = 64_000_000;
+    const SLICE_OBJETIVO: Duration = Duration::from_millis(40);
     const SLICE_MS: u64 = 100;
 
     let mut entrada: Option<PathBuf> = None;
@@ -260,6 +265,9 @@ fn subcomando_run(args: &[String]) -> u8 {
     let inicio = Instant::now();
     let mut restante = max_instr;
     let mut primer_tramo = true;
+    // Tramo adaptativo: duplica si el tramo duró < objetivo/2, mitad si
+    // duró > objetivo*3/2 (converge rápido, no oscila con el ruido).
+    let mut slice_actual: u64 = SLICE;
     let codigo: u8 = loop {
         if stop.load(Ordering::SeqCst)
             || timeout_s.is_some_and(|s| inicio.elapsed() >= Duration::from_secs(s))
@@ -272,15 +280,22 @@ fn subcomando_run(args: &[String]) -> u8 {
                 eprintln!("emurv-cli run: se agotó --max-instr sin que el programa termine");
                 break 124;
             }
-            Some(r) => r.min(SLICE),
-            None => SLICE,
+            Some(r) => r.min(slice_actual),
+            None => slice_actual,
         };
+        let inicio_tramo = Instant::now();
         let razon = if primer_tramo {
             maquina.run_slice(SLICE_MS, tramo)
         } else {
             maquina.run_slice_continuation(SLICE_MS, tramo)
         };
         primer_tramo = false;
+        let duro = inicio_tramo.elapsed();
+        if duro < SLICE_OBJETIVO / 2 {
+            slice_actual = (slice_actual * 2).min(SLICE_MAX);
+        } else if duro > SLICE_OBJETIVO * 3 / 2 {
+            slice_actual = (slice_actual / 2).max(SLICE);
+        }
         if let Some(r) = restante.as_mut() {
             *r -= tramo;
         }

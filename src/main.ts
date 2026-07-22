@@ -561,6 +561,16 @@ class App {
     // El programa disparó un tono: reproducirlo (RP31). Apagado por defecto:
     // solo llega este evento si el programa usó el dispositivo de sonido.
     this.unlisteners.push(await events.onSonido((ev) => this.audio.reproducir(ev)));
+    // Pista de posible bucle infinito: segundos de ejecución sin actividad
+    // observable. Solo cambia el texto de la barra de estado (el próximo
+    // setModo — Detener, breakpoint, fin — lo pisa naturalmente).
+    this.unlisteners.push(
+      await events.onPosibleBucle(() => {
+        if (this.modoActual === "corriendo") {
+          this.setModo("corriendo", t("estado.posible_bucle"));
+        }
+      }),
+    );
   }
 
   /** Cancela todas las suscripciones a eventos del backend. */

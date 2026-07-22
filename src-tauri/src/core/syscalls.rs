@@ -86,6 +86,10 @@ pub fn handle_trap(uc: &mut Unicorn<'_, MachData>, intno: u32) {
     let pc = uc.reg_read(RegisterRISCV::PC).unwrap_or(0);
     match intno {
         CAUSE_ECALL_U | CAUSE_ECALL_S | CAUSE_ECALL_M => {
+            // Toda syscall es actividad observable del guest: exime al
+            // programa de la pista de «posible bucle infinito» (E/S,
+            // sleep, etc. — ver Machine::actividad).
+            uc.get_data().actividad.fetch_add(1, Ordering::Relaxed);
             dispatch(uc, pc.wrapping_sub(4));
         }
         CAUSE_BREAKPOINT => {

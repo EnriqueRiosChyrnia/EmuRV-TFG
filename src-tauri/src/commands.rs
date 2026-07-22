@@ -33,7 +33,93 @@ const RUN_SLICE_MS: u64 = 100;
 /// (tests/spike_count.rs, release) midió ~430 M instr/s con slicing y
 /// ~4,2 µs de overhead por re-entrada: 1 M instr ≈ 2,3 ms por tramo, así
 /// «Detener» se atiende con esa latencia incluso en bucles apretados.
+///
+/// Desde 2026-07-22 este valor es el PISO del tramo adaptativo (ver
+/// `TramoAdaptativo`): con video activo la cadencia de frames manda y el
+/// tramo queda acá; sin video, el tramo crece hasta ~40 ms de pared
+/// (imperceptible para Detener) y recupera el rendimiento perdido por el
+/// slicing (RNF-03: 327 → ~1500 M instr/s de techo).
 const RUN_SLICE_COUNT: u64 = 1_000_000;
+
+/// Techo del tramo adaptativo: aun a ~1500 M instr/s son ~40 ms de pared.
+const TRAMO_MAX: u64 = 64_000_000;
+
+/// Duración objetivo de un tramo del modo adaptativo.
+const TRAMO_OBJETIVO: Duration = Duration::from_millis(40);
+
+/// Silencio observable continuo antes de avisar «posible bucle infinito».
+const BUCLE_SILENCIO: Duration = Duration::from_secs(3);
+
+/// Tramo de ejecución adaptativo (2026-07-22): apunta a ~40 ms de pared
+/// por tramo — imperceptible para «Detener» — en vez de un count fijo.
+/// Con la pantalla gráfica en uso vuelve al piso (RUN_SLICE_COUNT): los
+/// frames se publican entre tramos y un juego necesita esa cadencia.
+/// El teclado NO depende del tramo (la cola MMIO es asíncrona, TEC2).
+struct TramoAdaptativo {
+    count: u64,
+}
+
+impl TramoAdaptativo {
+    fn new() -> Self {
+        Self {
+            count: RUN_SLICE_COUNT,
+        }
+    }
+
+    fn count(&self) -> u64 {
+        self.count
+    }
+
+    /// Ajusta el próximo tramo según lo que duró el último. Duplicar/mitad
+    /// (no proporcional): converge en pocos tramos y no oscila con el
+    /// ruido de medición.
+    fn ajustar(&mut self, duracion: Duration, video_activo: bool) {
+        if video_activo {
+            self.count = RUN_SLICE_COUNT;
+        } else if duracion < TRAMO_OBJETIVO / 2 {
+            self.count = (self.count * 2).min(TRAMO_MAX);
+        } else if duracion > TRAMO_OBJETIVO * 3 / 2 {
+            self.count = (self.count / 2).max(RUN_SLICE_COUNT);
+        }
+    }
+}
+
+/// Pista didáctica de «posible bucle infinito» (2026-07-22): si el guest
+/// ejecuta BUCLE_SILENCIO seguidos sin NINGUNA actividad observable
+/// (syscalls, lectura de teclado — `Machine::actividad` — ni pantalla
+/// gráfica activa), amerita avisar UNA vez. No es detección formal (el
+/// problema de la parada no se resuelve): es el equivalente humano de
+/// «esto viene calculando mucho sin decir nada, ¿no querías Detener?».
+struct DetectorBucle {
+    ultima_actividad: u64,
+    silencio_desde: Instant,
+    avisado: bool,
+}
+
+impl DetectorBucle {
+    fn new(actividad_inicial: u64, ahora: Instant) -> Self {
+        Self {
+            ultima_actividad: actividad_inicial,
+            silencio_desde: ahora,
+            avisado: false,
+        }
+    }
+
+    /// Devuelve `true` exactamente una vez por período de silencio.
+    fn evaluar(&mut self, actividad: u64, video_activo: bool, ahora: Instant) -> bool {
+        if actividad != self.ultima_actividad || video_activo {
+            self.ultima_actividad = actividad;
+            self.silencio_desde = ahora;
+            self.avisado = false;
+            return false;
+        }
+        if !self.avisado && ahora.duration_since(self.silencio_desde) >= BUCLE_SILENCIO {
+            self.avisado = true;
+            return true;
+        }
+        false
+    }
+}
 
 /// Cadencia mínima entre refrescos de registros a la UI (~10 Hz, RNF-03).
 /// Va desacoplada del tramo: con tramos de ~2 ms, emitir por tramo
@@ -274,13 +360,28 @@ fn emu_thread(
                 // agotó su count justo sobre un bp, suprimirlo en el
                 // próximo lo haría pasar de largo sin reportarse.
                 let mut primer_tramo = true;
+                // Tramo adaptativo + pista de bucle infinito (2026-07-22).
+                let actividad = machine.actividad();
+                let mut tramo = TramoAdaptativo::new();
+                let mut detector =
+                    DetectorBucle::new(actividad.load(Ordering::Relaxed), Instant::now());
                 loop {
+                    let inicio_tramo = Instant::now();
                     let reason = if primer_tramo {
-                        machine.run_slice(RUN_SLICE_MS, RUN_SLICE_COUNT)
+                        machine.run_slice(RUN_SLICE_MS, tramo.count())
                     } else {
-                        machine.run_slice_continuation(RUN_SLICE_MS, RUN_SLICE_COUNT)
+                        machine.run_slice_continuation(RUN_SLICE_MS, tramo.count())
                     };
                     primer_tramo = false;
+                    let video_activo = video.lock().map(|v| v.in_use).unwrap_or(false);
+                    tramo.ajustar(inicio_tramo.elapsed(), video_activo);
+                    if detector.evaluar(
+                        actividad.load(Ordering::Relaxed),
+                        video_activo,
+                        Instant::now(),
+                    ) {
+                        let _ = app.emit("emu://posible-bucle", ());
+                    }
                     // publish_frame queda por tramo a propósito: el flag
                     // sucio corta enseguida si la VRAM no cambió, y así el
                     // último frame nunca queda sin publicar al detenerse
@@ -1023,4 +1124,68 @@ pub fn read_framebuffer(
         }
     })?;
     Ok(tauri::ipc::Response::new(respuesta))
+}
+
+#[cfg(test)]
+mod tests_tramo_adaptativo {
+    use super::*;
+
+    #[test]
+    fn crece_hasta_el_techo_con_tramos_rapidos() {
+        let mut t = TramoAdaptativo::new();
+        for _ in 0..20 {
+            t.ajustar(Duration::from_millis(2), false);
+        }
+        assert_eq!(t.count(), TRAMO_MAX);
+    }
+
+    #[test]
+    fn video_activo_vuelve_al_piso() {
+        let mut t = TramoAdaptativo::new();
+        for _ in 0..10 {
+            t.ajustar(Duration::from_millis(2), false);
+        }
+        assert!(t.count() > RUN_SLICE_COUNT);
+        t.ajustar(Duration::from_millis(2), true);
+        assert_eq!(t.count(), RUN_SLICE_COUNT);
+    }
+
+    #[test]
+    fn tramo_lento_reduce_y_respeta_el_piso() {
+        let mut t = TramoAdaptativo::new();
+        t.ajustar(Duration::from_millis(2), false); // 2M
+        t.ajustar(Duration::from_millis(500), false); // 1M
+        t.ajustar(Duration::from_millis(500), false); // piso
+        assert_eq!(t.count(), RUN_SLICE_COUNT);
+    }
+
+    #[test]
+    fn duracion_en_banda_objetivo_no_cambia_el_tramo() {
+        let mut t = TramoAdaptativo::new();
+        t.ajustar(Duration::from_millis(40), false);
+        assert_eq!(t.count(), RUN_SLICE_COUNT);
+    }
+
+    #[test]
+    fn detector_avisa_una_sola_vez_tras_el_silencio() {
+        let t0 = Instant::now();
+        let mut d = DetectorBucle::new(7, t0);
+        assert!(!d.evaluar(7, false, t0 + Duration::from_secs(1)));
+        assert!(d.evaluar(7, false, t0 + BUCLE_SILENCIO));
+        // Mismo silencio: no repite el aviso.
+        assert!(!d.evaluar(7, false, t0 + BUCLE_SILENCIO * 2));
+    }
+
+    #[test]
+    fn actividad_o_video_reinician_el_silencio() {
+        let t0 = Instant::now();
+        let mut d = DetectorBucle::new(0, t0);
+        // Syscall a mitad de camino: el reloj de silencio arranca de nuevo.
+        assert!(!d.evaluar(1, false, t0 + Duration::from_secs(2)));
+        assert!(!d.evaluar(1, false, t0 + Duration::from_secs(4)));
+        assert!(d.evaluar(1, false, t0 + Duration::from_secs(2) + BUCLE_SILENCIO));
+        // Video activo también cuenta como actividad.
+        let mut v = DetectorBucle::new(0, t0);
+        assert!(!v.evaluar(0, true, t0 + BUCLE_SILENCIO * 3));
+    }
 }

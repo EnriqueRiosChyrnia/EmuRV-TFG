@@ -20,33 +20,40 @@ real (Tetris) y la comparación con emu8086. Material citable del Capítulo V.
 
 ## Tabla: M instr/s (mediana de 5)
 
+Con el **tramo adaptativo** (2026-07-22, misma fecha): el lazo de ejecución
+apunta a ~40 ms de pared por chequeo de interrumpibilidad en vez de un count
+fijo de 1 M instrucciones; con la pantalla gráfica activa vuelve al piso
+(cadencia de frames). El teclado no depende del tramo (cola MMIO asíncrona).
+
 | Kernel | EmuRV | QEMU (TCG) | Spike | RARS |
 |---|---:|---:|---:|---:|
-| aritmética (ALU pura) | **308,5** | 3 496,5 | 892,9 | 6,0 |
-| memoria (lw/sw 4 KiB) | **139,5** | 4 090,9 | 951,9 | 4,8 |
-| llamadas (call/ret + pila) | **162,6** | 1 069,3 | 950,0 | 5,5 |
-| mixto (LCG + memoria + mul) | **129,5** | 4 304,3 | 964,9 | 5,5 |
+| aritmética (ALU pura) | **718,4** | 3 289,5 | 881,8 | 6,0 |
+| memoria (lw/sw 4 KiB) | **257,1** | 4 342,1 | 992,0 | 5,6 |
+| llamadas (call/ret + pila) | **299,4** | 1 090,5 | 982,1 | 5,8 |
+| mixto (LCG + memoria + mul) | **160,2** | 4 805,8 | 992,0 | 5,7 |
+
+Con el tramo fijo original de 1 M (medición previa del mismo día, archivada
+en el historial de git de este CSV): EmuRV 129,5–308,5 — el tramo adaptativo
+recuperó entre 1,2× y 2,3× sin perder interrumpibilidad perceptible.
 
 ## Lectura
 
-- **EmuRV vs RARS (su categoría: emulador educativo RISC-V): 23–64× más
+- **EmuRV vs RARS (su categoría: emulador educativo RISC-V): 28–120× más
   rápido.** Es la comparación de posicionamiento: misma función didáctica,
   motores de distinta clase (JIT heredado de QEMU vía Unicorn vs intérprete
   Java).
 - **EmuRV está en el mismo orden de magnitud que Spike**, el simulador ISS
-  de referencia del ecosistema (×0,15–0,35), y 1–1,5 órdenes por debajo de
-  QEMU puro. Ese costo es explicable y deliberado: EmuRV ejecuta por
-  **tramos de 1 M instrucciones** para mantener la interrumpibilidad del
-  teclado/depurador (TEC/RP), paga la publicación de estado didáctico y el
-  wall-time incluye arranque de proceso + ensamblado del fuente. El techo
-  interno del motor sin tramos, medido por RNF-03 en la misma máquina, es
-  ~1 500 M instr/s (y ~327 M instr/s con tramos) — coherente con la columna
-  EmuRV.
-- **Dispersión:** EmuRV muestra la mayor varianza (p.ej. memoria mín 1,98 s
-  / máx 6,86 s; el mínimo implica ráfagas de ~250 M instr/s) — calentamiento
-  del JIT de Unicorn entre corridas. La mediana es la cifra reportada; el
-  CSV trae mín/máx.
-- **Cumplimiento RNF-03 (≥10 M instr/s): 13–30× por encima** del requisito
+  de referencia del ecosistema (81 % de Spike en ALU pura; ×0,16–0,81 según
+  kernel), y 0,7–1,5 órdenes por debajo de QEMU puro. El costo restante es
+  deliberado: chequeo de interrumpibilidad cada ~40 ms, hooks de
+  observación didáctica (teclado MMIO, video, syscalls) y el wall-time
+  incluye arranque de proceso + ensamblado del fuente. Techo interno del
+  motor sin tramos (RNF-03, misma máquina): ~1 500 M instr/s.
+- **Dispersión:** con el tramo adaptativo la varianza de EmuRV bajó
+  drásticamente en ALU (0,688–0,706 s); en los kernels con memoria persiste
+  algo de calentamiento del JIT de Unicorn (mín/máx en el CSV). La mediana
+  es la cifra reportada.
+- **Cumplimiento RNF-03 (≥10 M instr/s): 16–72× por encima** del requisito
   en el peor kernel.
 
 ## Caso Tetris / tiempo real
