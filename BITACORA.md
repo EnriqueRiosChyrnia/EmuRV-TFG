@@ -4724,3 +4724,14 @@ emurv-cli (mismo criterio, sin video). Suite completa verde (271 Rust +
 | mixto | 129,5 | **160,2** (1,2×) |
 EmuRV queda al 81 % de Spike en ALU pura y 28–120× sobre RARS.
 RESULTADOS-BENCHMARK.md y el CSV de evidencia actualizados.
+
+### Ratificación del autor (2026-07-22, cierre de sesión)
+
+El autor revisó los resultados RT-4 y el análisis de la brecha con Spike
+(hooks de memoria = paneles/teclado/video/errores didácticos) y RATIFICÓ el
+trade-off: EmuRV queda como está, con hooks y valor agregado — no se
+persigue más rendimiento. Fundamento registrado en la conversación: la
+velocidad del emulador no afecta al binario en silicio (corre a velocidad
+del chip); lo que importa para el chip es la corrección, garantizada por
+RT-2 (78/78 riscv-tests) y RT-3 (72/72 signatures = Sail). Velocidad actual
+sobra para el uso educativo (16–72× RNF-03, 26× margen en Tetris).
