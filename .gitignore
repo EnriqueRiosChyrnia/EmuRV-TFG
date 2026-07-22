@@ -34,3 +34,4 @@ linux-dist/
 
 # Artefactos de build Arch (Docker)
 arch-dist/
+tests-riscv/.upstream/
