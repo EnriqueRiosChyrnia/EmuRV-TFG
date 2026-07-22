@@ -391,7 +391,7 @@ otra terminal → verificación), planes como `docs/PLAN-RT<N>-<slug>.md`, commi
 | ID | Título | Estado |
 |---|---|---|
 | RT-1 | Consolidación git: commitear packaging pendiente, merge `feature/teclado` → `main`, crear remote GitHub, CI en verde | COMPLETO 2026-07-19 |
-| RT-2 | riscv-tests oficiales integrados a la suite/CI | PENDIENTE |
+| RT-2 | riscv-tests oficiales integrados a la suite/CI | COMPLETO 2026-07-22 — 78/78 ejecutables PASS (82 vendorizados, 4 exclusiones con causa raíz; ver docs/RESULTADOS-RISCV-TESTS.md); RV64 diferido (elf_import es ELF32) |
 | RT-3 | Compliance formal: riscv-arch-test vía RISCOF contra Sail, resultados documentados | PENDIENTE |
 | RT-4 | Benchmark de rendimiento (CoreMark/Embench) vs QEMU, Spike, RARS + caso Tetris vs emu8086 | PENDIENTE |
 | RT-5 | Windows smoke test en máquina real (instalador NSIS del cross-compile) | PENDIENTE |

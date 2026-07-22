@@ -4547,3 +4547,50 @@ previa se migra a una sola pestaña.
 Área F5: `src/paneles/ayuda.ts`, `src/i18n/{es,en}.json`,
 `docs/AYUDA-CONTENIDO.md`, `BITACORA.md`. Sin merges ni cambios de rama (la
 coordinadora mergea). Commit `rp30-fase-5: docs de pestanas y recientes`.
+
+## 2026-07-22 — RT-2: riscv-tests oficiales integrados a la suite/CI
+
+**Decisión.** Integrar las suites user-level RV32 de
+riscv-software-src/riscv-tests (commit `34e6b6d1`, 2026-06-03) como test de
+integración (`src-tauri/tests/rt2_riscv_tests.rs`), con entorno de enlace
+propio y binarios vendorizados. Resultado: **78/78 tests ejecutables PASS
+(100 %)** sobre 82 vendorizados; 4 exclusiones con causa raíz verificada.
+Tabla citable en `docs/RESULTADOS-RISCV-TESTS.md`.
+
+**Env propio (`tests-riscv/env-emurv/`) en vez del env `p` oficial.**
+[Seguro] riscv-tests separa tests de entorno a propósito; el env `p` enlaza
+en `0x8000_0000` (fuera del mapa de EmuRV) y usa HTIF/tohost. El nuestro:
+`link.ld` con `.text` en TEXT_BASE y datos en DATA_BASE (los ELFs entran por
+`elf_import`, el camino real del producto) y veredicto por `gp` + `ebreak`
+(RVTEST_PASS → gp=1; FAIL/trap → gp=(subtest<<1)|1; `ebreak` detiene la
+Machine vía EbreakPause, RP-1). Alternativa considerada: emular HTIF con un
+watchpoint sobre `tohost` — descartada, más maquinaria para el mismo
+diagnóstico.
+
+**`ebreak` siempre en 32 bits.** [Seguro] Bajo `-march=...c` gas emite
+`c.ebreak` (0x9002) y el rescate de la Machine (BITACORA RP1-F2) solo
+reconoce la palabra 0x00100073 → RuntimeError en vez de EbreakPause. El env
+envuelve todo `ebreak` en `.option norvc` (macro `EBREAK_32`). Se descubrió
+ejecutando rv32uc.
+
+**Binarios vendorizados, no toolchain en CI.** [Seguro] La CI consume los 82
+ELFs commiteados en `src-tauri/tests/fixtures/riscv-tests/` (~800 KB, no
+entran al bundle); `scripts/build-riscv-tests.sh` los regenera con commit
+pineado + riscv64-elf-gcc 16.1.0 (brew) y escribe MANIFEST.txt con sha256 y
+procedencia. Motivo: determinismo y cero dependencia de toolchain en runners.
+El harness corre dentro de `cargo test` (~0.2 s), sin cambios en ci.yml.
+
+**Exclusiones (causa raíz analizada, no tapada):**
+- `fence_i` (rv32ui) y `rvc` subtest 6 (rv32uc): requieren escribir/ejecutar
+  código fuera de `.text` (el env `p` mapea todo RWX); EmuRV es W^X por
+  política didáctica — fallan por el modelo de memoria, no por semántica de
+  instrucciones. Las comprimidas quedan cubiertas por RP-13 + oráculo GNU.
+- `fmin` (rv32uf/ud): defecto heredado del motor, verificado con sonda
+  aislada — Unicorn 2.1.5 (QEMU 5.0.1) implementa fmin/fmax con semántica
+  IEEE 754-2008: `fmax(1.0, sNaN)` → qNaN canónico en vez de 1.0 (flag NV
+  correcto); QEMU lo corrigió en 6.0. Hallazgo documentado como limitación
+  upstream.
+
+**RV64 diferido.** [Seguro] `elf_import` es ELF32 por diseño (RP-11); los
+rv64 tests producen ELF64. Fricción real ⇒ se difiere según la compuerta F5
+del plan (`docs/PLAN-RT2-riscv-tests.md`), anotado como trabajo futuro.
