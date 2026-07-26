@@ -6,6 +6,8 @@ Entorno educativo de programación en ensamblador **RISC-V (RV32IM, conmutable a
 
 Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
+![EmuRV — editor, consola, panel de registros y pantalla gráfica](docs/capturas/hero-emurv.png)
+
 ## Características
 
 - Editor con resaltado de sintaxis **RV32IMAFDC** (incluye coma flotante, atómicas y comprimidas), números de línea y breakpoints por click en el margen.
