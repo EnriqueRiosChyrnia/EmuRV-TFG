@@ -31,6 +31,14 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
 ![Registros en ventana aparte](docs/capturas/registros-ventana-aparte.png)
 
+**Coma flotante** — registros `f` en su propia ventana, con el valor interpretado como F32 y F64.
+
+![Registros de coma flotante](docs/capturas/registros-flotante.png)
+
+**Archivo** — abrir y guardar programas, y exportar el binario ensamblado a ELF32 RISC-V.
+
+![Menú Archivo con exportación a ELF](docs/capturas/menu-archivo.png)
+
 **Temas** — la interfaz viene con varios temas; acá «Educativo» y «Retro Kawaii».
 
 ![Tema Educativo](docs/capturas/tema-educativo.png)
