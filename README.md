@@ -6,7 +6,38 @@ Entorno educativo de programación en ensamblador **RISC-V (RV32IM, conmutable a
 
 Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
-![EmuRV — editor, consola, panel de registros y pantalla gráfica](docs/capturas/hero-emurv.png)
+![EmuRV — editor, consola, registros y pantalla gráfica](docs/capturas/hero-emurv.png)
+
+<details>
+<summary>Más capturas</summary>
+
+**Pantalla gráfica** — Tetris corriendo sobre el framebuffer, dibujado desde ensamblador.
+
+![Pantalla gráfica con Tetris](docs/capturas/pantalla-grafica.png)
+
+**Lecciones** — diez lecciones guiadas, con lo que se aprende y qué paneles mirar en cada una.
+
+![Lecciones guiadas](docs/capturas/lecciones.png)
+
+**Ejemplos** — programas listos para cargar, de «Hola mundo» a Tetris en tiempo real.
+
+![Catálogo de ejemplos](docs/capturas/ejemplos.png)
+
+**Memoria** — vista navegable con accesos rápidos a `.text`, `.data` y la pila, y búsqueda por byte o texto.
+
+![Panel de memoria](docs/capturas/panel-memoria.png)
+
+**Paneles desacoplables** — cada panel puede salir a su propia ventana, sincronizada con la ejecución.
+
+![Registros en ventana aparte](docs/capturas/registros-ventana-aparte.png)
+
+**Temas** — la interfaz viene con varios temas; acá «Educativo» y «Retro Kawaii».
+
+![Tema Educativo](docs/capturas/tema-educativo.png)
+
+![Tema Retro Kawaii](docs/capturas/tema-retro-kawaii.png)
+
+</details>
 
 ## Características
 
