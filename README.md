@@ -8,42 +8,6 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
 ![EmuRV — editor, consola, registros y pantalla gráfica](docs/capturas/hero-emurv.png)
 
-### Capturas
-
-**Pantalla gráfica** — Tetris corriendo sobre el framebuffer, dibujado desde ensamblador.
-
-![Pantalla gráfica con Tetris](docs/capturas/pantalla-grafica.png)
-
-**Lecciones** — diez lecciones guiadas, con lo que se aprende y qué paneles mirar en cada una.
-
-![Lecciones guiadas](docs/capturas/lecciones.png)
-
-**Ejemplos** — programas listos para cargar, de «Hola mundo» a Tetris en tiempo real.
-
-![Catálogo de ejemplos](docs/capturas/ejemplos.png)
-
-**Memoria** — vista navegable con accesos rápidos a `.text`, `.data` y la pila, y búsqueda por byte o texto.
-
-![Panel de memoria](docs/capturas/panel-memoria.png)
-
-**Paneles desacoplables** — cada panel puede salir a su propia ventana, sincronizada con la ejecución.
-
-![Registros en ventana aparte](docs/capturas/registros-ventana-aparte.png)
-
-**Coma flotante** — registros `f` en su propia ventana, con el valor interpretado como F32 y F64.
-
-![Registros de coma flotante](docs/capturas/registros-flotante.png)
-
-**Archivo** — abrir y guardar programas, y exportar el binario ensamblado a ELF32 RISC-V.
-
-![Menú Archivo con exportación a ELF](docs/capturas/menu-archivo.png)
-
-**Temas** — la interfaz viene con varios temas; acá «Educativo» y «Retro Kawaii».
-
-![Tema Educativo](docs/capturas/tema-educativo.png)
-
-![Tema Retro Kawaii](docs/capturas/tema-retro-kawaii.png)
-
 
 ## Características
 
@@ -70,6 +34,31 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - **Temas**: selector en la barra con cinco temas — «Educativo» (oscuro sobrio, acento violeta, por defecto), «Retro-CRT» (fósforo ámbar con scanlines), «Pergamino» (papel cálido claro), «Retro Kawaii» (pastel vaporwave) y «Disquete 90s» (beige noventero). El cambio se aplica al instante (sin recargar), se recuerda y recolorea también la sintaxis del editor y el wordmark (CodeMirror sigue los tokens `--sx-*` del tema). Toda la estética vive en design tokens CSS (`src/temas/tokens.css`); el contraste de los cinco temas cumple WCAG AA (texto y sintaxis, verificado por test).
 - **Tema personalizado** (crear/editar/cargar): además de los cinco temas listos, con **«Editar tema»** (junto al selector) el usuario arma el suyo. El editor da un control de color por cada token principal (fondos, texto, acento, estados y la sintaxis del editor), con **preview en vivo** y **«Restaurar Educativo»**; el tema se guarda en el equipo (`localStorage`) y queda como «Personalizado» en el selector. Si un par de colores no llega a WCAG AA, el editor **avisa sin bloquear** (es tu tema). Se puede **exportar/importar** como JSON. A diferencia de los built-in, sus valores no viven en `tokens.css`: son variables CSS aplicadas en vivo sobre `:root`.
 
+### La interfaz, en detalle
+
+**Registros y memoria.** El panel de memoria navega por `.text`, `.data` y la pila, y busca un byte o un texto ASCII dentro de la región de datos.
+
+<img src="docs/capturas/panel-memoria.png" alt="Panel de memoria con búsqueda y accesos rápidos" width="480">
+
+**Cada panel, en su propia ventana.** Registros, Memoria y Depuración se desacoplan con el botón ⧉ y siguen sincronizados con la ejecución.
+
+<img src="docs/capturas/registros-ventana-aparte.png" alt="Registros abiertos en una ventana aparte" width="480">
+
+**Coma flotante.** Los registros `f0`–`f31` con el valor interpretado como F32 y F64 a la vez.
+
+<img src="docs/capturas/registros-flotante.png" alt="Registros de coma flotante con valores F32 y F64" width="480">
+
+**Trece ejemplos comentados**, de «Hola mundo» al Tetris jugable con el teclado.
+
+<img src="docs/capturas/ejemplos.png" alt="Catálogo de ejemplos" width="440">
+
+**Cinco temas**, más la posibilidad de crear uno propio. Acá «Educativo» y «Retro Kawaii».
+
+<img src="docs/capturas/tema-educativo.png" alt="Tema Educativo" width="400">
+
+<img src="docs/capturas/tema-retro-kawaii.png" alt="Tema Retro Kawaii" width="400">
+
+
 ## Modo gráfico (Framebuffer VGA 13h)
 
 **Rama `feature/framebuffer`** — Extensión experimental: pantalla gráfica estilo VGA modo 13h (320×240, paleta indexada de 256 colores), visible en el panel «Pantalla» de la app.
@@ -80,6 +69,8 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 - **Panel en la UI:** aparece solo cuando el programa usa la VRAM (o con el botón «Pantalla»); canvas con `image-rendering: pixelated`, refresco a ~30 Hz con flag sucio y bytes crudos por el puente (sin JSON).
 - **Ejemplos:** «Franjas de color» (mínimo) y **«Tetris gráfico»**: el mismo Tetris port del 8086 de v0.1, ahora dibujando el tablero como bloques de color en la pantalla (la lógica de juego —LCG, colisiones, líneas, puntaje— es idéntica y está verificada por el mismo oráculo de tests).
 - **Compatibilidad:** los programas sin gráficos no pagan ningún costo (RF4).
+
+<img src="docs/capturas/pantalla-grafica.png" alt="Tetris dibujado sobre el framebuffer" width="520">
 
 Detalles: ver [`docs/MEMORIA-GRAFICA.md`](docs/MEMORIA-GRAFICA.md) y [`BITACORA.md`](BITACORA.md) (decisiones técnicas, mediciones RF1-RF4).
 
@@ -177,6 +168,8 @@ Probá después «Suma interactiva» (Ejemplos → escribe en la consola cuando 
 ¿Nunca programaste en ensamblador? EmuRV trae un **curso de 10 lecciones** pensado para un principiante absoluto sin docente al lado. Abrilo desde el botón **«Lecciones»** de la app: un modal de dos columnas con el currículo ordenado y tu progreso (barra + tildes de completadas, persistido) a la izquierda; al elegir una lección ves sus objetivos y qué paneles mirar a la derecha (con navegación anterior/siguiente) y **«Abrir lección»** carga el código al editor para recorrerlo con «Paso». También está en la carpeta [`lecciones/`](lecciones/README.md) para leerlo o correrlo por terminal. Cada lección es un programa comentado — el texto te dice qué mirar en cada panel ANTES de que pase, y cierra con 3 ejercicios.
 
 El recorrido: registros → aritmética (con el complemento a 2 demostrado) → memoria (endianness ante tus ojos) → condicionales → bucles (con breakpoints condicionales) → funciones y pila → syscalls → proyectos multi-archivo → MMIO y tiempo real → traps (tu primer mini-kernel). El [índice](lecciones/README.md) tiene el mapa de aprendizaje y los prerrequisitos de cada una. Todas las lecciones corren también por terminal (`emurv-cli run lecciones/01-registros/leccion.s`) y están vigiladas por tests en la CI.
+
+<img src="docs/capturas/lecciones.png" alt="Las 10 lecciones guiadas, con objetivos y qué paneles mirar" width="520">
 
 ## Syscalls (convención RARS)
 
@@ -308,6 +301,9 @@ cd src-tauri && cargo test     # suite completa (núcleo + integración de ejemp
 ```
 
 ## Abrir binarios ELF (import y desensamblador)
+
+<img src="docs/capturas/menu-archivo.png" alt="Menú Archivo: abrir, guardar y exportar a ELF" width="380">
+
 
 EmuRV carga ejecutables **ELF32 RISC-V** además de fuentes (RP11): en la app,
 **«Abrir»** acepta `.elf` (la detección es por la firma del archivo, no por la
