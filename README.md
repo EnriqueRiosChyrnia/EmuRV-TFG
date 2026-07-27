@@ -8,8 +8,7 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
 ![EmuRV — editor, consola, registros y pantalla gráfica](docs/capturas/hero-emurv.png)
 
-<details>
-<summary>Más capturas</summary>
+### Capturas
 
 **Pantalla gráfica** — Tetris corriendo sobre el framebuffer, dibujado desde ensamblador.
 
@@ -45,7 +44,6 @@ Prototipo técnico de TFG — FIUNI, Ingeniería en Computación.
 
 ![Tema Retro Kawaii](docs/capturas/tema-retro-kawaii.png)
 
-</details>
 
 ## Características
 
