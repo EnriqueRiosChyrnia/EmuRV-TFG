@@ -1,5 +1,6 @@
 [package]
 name = "emurv"
+default-run = "emurv"
 version = "0.1.0"
 description = "EmuRV — entorno educativo de programación en ensamblador RISC-V (TFG FIUNI)"
 authors = ["Enrique Ríos Chyrnia"]
@@ -31,7 +32,13 @@ tauri-plugin-dialog = "2.7.1"
 # compila sin ella y su build/bundle no cambian un byte (gate RNF-04).
 udbserver = { path = "../vendor/udbserver", optional = true }
 
+[[bin]]
+name = "riscof_runner"
+path = "tools/riscof_runner.rs"
+required-features = ["riscof-runner"]
+
 [features]
+riscof-runner = []
 gdb = ["dep:udbserver"]
 
 # Copia vendorizada de unicorn-engine-sys 2.1.5 con un parche mínimo en su

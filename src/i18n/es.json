@@ -293,5 +293,8 @@
   "pestana.cerrar": "Cerrar pestaña",
   "pestana.reensamblar": "Ensamblá esta pestaña para ejecutarla (la sesión es de otra pestaña).",
   "archivo.recientes": "Recientes",
-  "ayuda.pestanas": "Podés tener varios archivos abiertos a la vez en pestañas (la barra sobre el editor): «+» abre una en blanco, «Abrir» abre el archivo en su propia pestaña (o salta a ella si ya estaba abierto) y «×» la cierra (avisa si tiene cambios sin guardar, marcados con «•»). El menú «Archivo» lista los últimos archivos usados en «Recientes». Al cerrar y reabrir EmuRV se restauran las pestañas y cuál estaba activa. Solo la pestaña activa ejecuta: la sesión sigue a la pestaña que está al frente."
+  "ayuda.pestanas": "Podés tener varios archivos abiertos a la vez en pestañas (la barra sobre el editor): «+» abre una en blanco, «Abrir» abre el archivo en su propia pestaña (o salta a ella si ya estaba abierto) y «×» la cierra (avisa si tiene cambios sin guardar, marcados con «•»). El menú «Archivo» lista los últimos archivos usados en «Recientes». Al cerrar y reabrir EmuRV se restauran las pestañas y cuál estaba activa. Solo la pestaña activa ejecuta: la sesión sigue a la pestaña que está al frente.",
+  "inicio.omitir": "Omitir animación",
+  "inicio.titulo": "EmuRV: inicio",
+  "inicio.reproducir": "Repetir presentación"
 }

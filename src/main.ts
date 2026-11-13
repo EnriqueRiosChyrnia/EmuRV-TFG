@@ -1,6 +1,7 @@
 // EmuRV — punto de entrada del frontend.
 // Conecta toolbar, editor, consola y (en F3) los paneles de estado con
 // los comandos y eventos del backend.
+import { mostrarInicio } from "./marca/inicio";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -264,8 +265,11 @@ class App {
   private construirToolbar(): void {
     const bar = document.getElementById("toolbar")!;
     // Wordmark de marca al inicio, antes del primer separador (RP19-F3).
-    const marca = document.createElement("span");
+    const marca = document.createElement("button");
     marca.className = "toolbar-marca";
+    marca.title = t("inicio.reproducir");
+    marca.setAttribute("aria-label", t("inicio.reproducir"));
+    marca.addEventListener("click", () => void mostrarInicio());
     marca.innerHTML = wordmark;
     bar.appendChild(marca);
     bar.appendChild(this.sep());
@@ -1366,4 +1370,5 @@ class App {
 window.addEventListener("DOMContentLoaded", () => {
   inicializarTema(); // aplica el tema guardado antes de construir la UI (RP17)
   new App();
+  void mostrarInicio();
 });

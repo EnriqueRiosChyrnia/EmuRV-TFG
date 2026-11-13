@@ -4735,3 +4735,23 @@ velocidad del emulador no afecta al binario en silicio (corre a velocidad
 del chip); lo que importa para el chip es la corrección, garantizada por
 RT-2 (78/78 riscv-tests) y RT-3 (72/72 signatures = Sail). Velocidad actual
 sobra para el uso educativo (16–72× RNF-03, 26× margen en Tetris).
+
+## 2026-11-13 · Identidad de marca e inicio
+
+**Decisión [Seguro]:** se integra A / Paso, elegida por el autor, en la barra, la ayuda y los iconos de escritorio. Se incorpora el paquete completo en `marca/emurv/`, con vectores, fuentes y licencias, animaciones, efectos originales renombrados y scripts. El inventario registra los hashes importados del portafolio.
+
+**Decisión [Seguro]:** la presentación vigente es Ensamble mecánico, con seis piezas y encastre final de V en R. Se reutiliza su reproductor SVG local; no se sustituyó por una aproximación CSS ni por el montaje sonoro anterior. Un único reproductor atiende inicio y repetición. Escape o el botón permiten salir, y movimiento reducido omite la presentación. La interfaz se inicializa antes de mostrarla; un límite de 6,5 s evita bloquear el editor si falla un recurso o se pausa la ventana.
+
+**Alternativas y alcance [Seguro]:** se conserva el motor de emulación, los controles y los temas existentes. El tema educativo adopta superficies cálidas y texto papel; los acentos funcionales claros conservan su contraste. Se descartó usar el púrpura original como texto pequeño sobre papel. El inicio solicitado dura 5,4 s, por lo que no se presenta como cumplimiento del objetivo histórico de arranque visible inferior a 2 s. Solo se compila y revisa macOS Apple Silicon; no se atribuye validación a Windows o Linux.
+
+**Hallazgo de compilación [Seguro]:** la primera ejecución de Tauri generó una `.app` cuyo `CFBundleExecutable` era `riscof_runner`, el runner headless agregado al proyecto. Se fija `mainBinaryName = emurv` en Tauri y `default-run = emurv` en Cargo para que la entrega y el arranque seleccionen la interfaz, conservando el runner para las pruebas. Se comprueba el plist de la nueva entrega antes de abrirla.
+
+**Empaquetado [Seguro]:** el runner RISCOF se compila con la feature explícita `riscof-runner`; el script `scripts/run-riscof.sh setup` la activa. Así el paquete de escritorio incluye solo `emurv` y no agrega el runner de pruebas. Los vectores y las alternativas permanecen en el repositorio.
+
+**Causa de inclusión del runner [Seguro]:** la versión local de Tauri vuelve a descubrir los archivos de `src/bin` aunque estén limitados por una feature. Se reproduce el fallo descrito en https://github.com/tauri-apps/tauri/issues/15325. El fuente del runner pasa a `src-tauri/tools/riscof_runner.rs`, sin cambios en su lógica, y Cargo conserva el nombre mediante `[[bin]]`.
+
+**Recursos de distribución [Seguro]:** el paquete completo se guarda en `marca/emurv/`. El script de frontend copia al build únicamente los módulos SVG y el audio usados por el reproductor. Así las láminas de revisión, las fuentes de generación y los MP4 alternativos quedan en Git sin aumentar el instalador. `npm run dev` y `npm run build` sincronizan esa selección.
+
+**Verificación [Seguro]:** `npm run build` y 119 pruebas de interfaz completadas sin fallos; contraste AA en los cinco temas incluido. `cargo test` completó 271 pruebas sin fallos; `cargo clippy --all-targets -- -D warnings` finalizó sin advertencias. La app macOS abrió la presentación y después el editor, conservando el workspace y el tema guardados. La revisión automática no completó una ejecución manual del programa cargado y no se atribuye una comprobación de audio nativo por escucha. Se verificaron 21 entregables por SHA-256 frente a la copia del portafolio y los ocho recursos runtime frente a sus fuentes. La `.app` compilada queda en `compilados/EmuRV.app`, fuera de Git.
+
+**Entrega local [Seguro]:** el paquete final pesa 23 MiB según `du -sm`, por debajo de la compuerta de 30 MB, contiene únicamente el ejecutable `emurv` y lleva firma ad hoc local verificada con `codesign --verify --deep --strict`. No es una release notarizada. El runner optativo pasó `cargo check --features riscof-runner --bin riscof_runner`.

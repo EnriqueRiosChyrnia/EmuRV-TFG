@@ -1,0 +1,730 @@
+{
+  "origen": "Portafolio, marca A / Paso y Ensamble mecánico aprobados por Enrique",
+  "fecha": "2026-11-13",
+  "archivos": [
+    {
+      "archivo": "LEEME.md",
+      "sha256": "a3e78947b9847f1fbb04e256a2e5c9237916802129f6361066ea643872b27c79"
+    },
+    {
+      "archivo": "README.md",
+      "sha256": "da4b1f9e847ef6393b951af6a517e65fb70f848edce73406191c68389bd93b4a"
+    },
+    {
+      "archivo": "brief.md",
+      "sha256": "922d6f33aa178cf988ca9ef59a8590d8fb6a27c2a486313644ea8ad8170336a0"
+    },
+    {
+      "archivo": "comparacion-monocromo.png",
+      "sha256": "95c0713f09399b6398b7cb82054fdc9e9f128c95a02c07dcdfafd09ba71a15a8"
+    },
+    {
+      "archivo": "comparacion.png",
+      "sha256": "d8c912b9377b00056a8b194edde26a6303510ad95296e0badbcd413a7cf831fa"
+    },
+    {
+      "archivo": "criterio-visual.md",
+      "sha256": "d1572034abc0d8a9c4668aed693b6c2df2b4947377fa014fd43f00697ec46362"
+    },
+    {
+      "archivo": "entregables/README.md",
+      "sha256": "17aa6a0e596b8349eef7811151cebf1fedb34e5452066bf68d29993a0abdc776"
+    },
+    {
+      "archivo": "entregables/alternativas/emurv-cursor-con-sonido.mp4",
+      "sha256": "4c092734b4e3fd6b6bee7eb08a3dfec0fa7727435726068d953cd40144754af8"
+    },
+    {
+      "archivo": "entregables/alternativas/emurv-cursor-sin-sonido.mp4",
+      "sha256": "a2938e25cb8017b94dd90a7b5c56e11f52c33a0e7b6d5d1f9952b5c435d95544"
+    },
+    {
+      "archivo": "entregables/alternativas/emurv-ensamble-previo-con-sonido.mp4",
+      "sha256": "0d4279018816cee7d104a2291a8a545cfa43a085bbc18fb4c5ae4e0467539b2a"
+    },
+    {
+      "archivo": "entregables/alternativas/emurv-ensamble-previo-sin-sonido.mp4",
+      "sha256": "fa417255e4d48a9d8c72a7061c5b6d08dd091f3f6724c05802c70b09ca328e85"
+    },
+    {
+      "archivo": "entregables/alternativas/emurv-trazo-con-sonido.mp4",
+      "sha256": "748d5e68638165bbee009d6c574fd629aa1f50ed814add613cf208c878607f17"
+    },
+    {
+      "archivo": "entregables/alternativas/emurv-trazo-sin-sonido.mp4",
+      "sha256": "cbeb3b27310440b9fa95f2f9a7ccc8f98f1eda107b50e2ec557152489a853b37"
+    },
+    {
+      "archivo": "entregables/animacion-elegida/emurv-ensamble-mecanico-con-sonido.mp4",
+      "sha256": "580dc303b78c5175ec9cff1617f8f0c52baf30b93aee89383db18a9e6d237dc1"
+    },
+    {
+      "archivo": "entregables/animacion-elegida/emurv-ensamble-mecanico-preview.gif",
+      "sha256": "f459496289cb6e049ba9dcf3b0cde063923c63938e324fe925355c043d63a808"
+    },
+    {
+      "archivo": "entregables/animacion-elegida/emurv-ensamble-mecanico-sin-sonido.mp4",
+      "sha256": "9be97715af74b504ef4cb449c3a2681049e81df2483c6899ed1d1f09e31bd136"
+    },
+    {
+      "archivo": "entregables/manifest.json",
+      "sha256": "b25132c277a30b64c7248dba844c075188d628cf5f480db102eae700f827b2d4"
+    },
+    {
+      "archivo": "entregables/marca/emurv-icono-app.svg",
+      "sha256": "2fb1683c74de1f54f86403e340fa646ef7d702be529a4d410e07171af5501949"
+    },
+    {
+      "archivo": "entregables/marca/emurv-imagotipo-horizontal.svg",
+      "sha256": "7dff425f744525385f080ba6041aa938ff9d29e5b27a9019cc349cae4d6631f4"
+    },
+    {
+      "archivo": "entregables/marca/emurv-isotipo-purpura-negro.svg",
+      "sha256": "32182cb5cbfd882b22311b2a1a176a9d8f2fa6fd648c6ba69316c4b7efd48c23"
+    },
+    {
+      "archivo": "entregables/marca/emurv-logotipo.svg",
+      "sha256": "8e6bb9b2b895bd73b9f5b285f17b9a393a54114b2021594605151c431a63d022"
+    },
+    {
+      "archivo": "entregables/sonidos/alternativas/emurv-cursor-5400ms.mp3",
+      "sha256": "13033dbb12cccaad63d84369c775861275ee7d0874e1e43c896ac50c3f1eb844"
+    },
+    {
+      "archivo": "entregables/sonidos/alternativas/emurv-ensamble-suave-5400ms.mp3",
+      "sha256": "43c562d7d1295a433a7c3add4c0ad26dfe2769cf5d556d30211b10401de8dd7c"
+    },
+    {
+      "archivo": "entregables/sonidos/alternativas/emurv-trazo-5400ms.mp3",
+      "sha256": "ed255a0b3b4d4607de5aa4d302a29ae927d8a2cafd44d4d6d5f38bcad04464d2"
+    },
+    {
+      "archivo": "entregables/sonidos/efectos/cierre-mecanico-final-0900ms.mp3",
+      "sha256": "b69c630f73ec9414a5024faa995684d8f09387ddada81fb90a6497fb0ca1ea25"
+    },
+    {
+      "archivo": "entregables/sonidos/efectos/desplazamiento-servo-0700ms.mp3",
+      "sha256": "ea9ca71a6a2b6bd426783dded1bedaaa2fa59f26aeabb1b0afb63dafdd1ff3c7"
+    },
+    {
+      "archivo": "entregables/sonidos/efectos/encaje-metal-grande-0500ms.mp3",
+      "sha256": "a572682e1e8191118dcc3d51edac28e7431528ec2bc091da15a0861aaf1f8c63"
+    },
+    {
+      "archivo": "entregables/sonidos/efectos/encaje-metal-pequeno-0300ms.mp3",
+      "sha256": "f92016a109f0b5d66dc3d46eb0d332cfd094152e4664c972ec0de3ae41095243"
+    },
+    {
+      "archivo": "entregables/sonidos/mezclas/emurv-ensamble-mecanico-5400ms.wav",
+      "sha256": "a06cfb033e2e3bb2f0e6c3707e703088c07bcc8e0ec458ec957481d6169ec377"
+    },
+    {
+      "archivo": "fuentes/BricolageGrotesque-OFL.txt",
+      "sha256": "5e05b8660583ceed50e84e9d3290dfb8f2ec8ddaf4116a46e1d74e65175c9110"
+    },
+    {
+      "archivo": "fuentes/IBMPlexMono-OFL.txt",
+      "sha256": "65fc2f0dd4812f7a323b363ec014786a12ef5e56703ce1f677830cde4399408b"
+    },
+    {
+      "archivo": "fuentes/IBMPlexMono-Regular.woff2",
+      "sha256": "e2afd124cae48053c2cb6d8acd432bb9c3675e1c86d660b69a46f8548e434252"
+    },
+    {
+      "archivo": "fuentes/InstrumentSans-OFL.txt",
+      "sha256": "d772141ef2499f6fbd6780dbb1be06a1bc21817a75d4a060e7cb5262a145e12b"
+    },
+    {
+      "archivo": "fuentes/InstrumentSans-Regular.woff2",
+      "sha256": "5480e0c0253cbc9e598e65bc1114f3b2c793e54990e233393f96b43c017b524e"
+    },
+    {
+      "archivo": "fuentes/PixelifySans-OFL.txt",
+      "sha256": "8c40aa0dd8021aa5e501e6c1328d89f40f88f9fbf63aa1d30f0943701c2dfcda"
+    },
+    {
+      "archivo": "fuentes/build.py",
+      "sha256": "9cc2896dea8a90ec11a5858c17d3326abbc835c496b2098c980cde5f41cb94e5"
+    },
+    {
+      "archivo": "fuentes/componer.py",
+      "sha256": "9424ba724243987d6ab92b02a5c75da5fff98e72af78055d4dd69ad858ef2a1b"
+    },
+    {
+      "archivo": "fuentes/exportar-inicio.mjs",
+      "sha256": "19587d55c090e3c7a4908fe36b5eff2f7dad3ab6b6bec9a0054a55df22d0e6a2"
+    },
+    {
+      "archivo": "fuentes/exportar-inicio.py",
+      "sha256": "ebaee14bccf5cf79f49b08514c5e231db37110c1a71414f16c3ce42741e8a2cf"
+    },
+    {
+      "archivo": "fuentes/mezclar-inicio.py",
+      "sha256": "6fc1b158a0c32d3493a1a527f7a148c5a0e0415e91e341e9d4d613833af0b56d"
+    },
+    {
+      "archivo": "fuentes/montar-industrial.py",
+      "sha256": "15bc34bde0c3587b8566b753d0fc6b5576ffa00c9e8b188ebef870bdfcca3f94"
+    },
+    {
+      "archivo": "fuentes/preparar-inicio.py",
+      "sha256": "0ae41123e091463acfc58b5bbff27f8a6b52ac58aa9cb72d75c0eaa19136a949"
+    },
+    {
+      "archivo": "index.html",
+      "sha256": "ed3f72bfe2514ddf750042e0c9a221acd11fc75e8d97cc39dec79794fbec5663"
+    },
+    {
+      "archivo": "inicio/README.md",
+      "sha256": "45e43fbff1f9b6b98e6b5c1b4a72ec35172494352c86828e985adcbb26e66989"
+    },
+    {
+      "archivo": "inicio/animacion-cursor-con-sonido.mp4",
+      "sha256": "4c092734b4e3fd6b6bee7eb08a3dfec0fa7727435726068d953cd40144754af8"
+    },
+    {
+      "archivo": "inicio/animacion-cursor.gif",
+      "sha256": "0604558f5c63355f0accf1f4290666b83d60a7329ebae80149b576c657e5f924"
+    },
+    {
+      "archivo": "inicio/animacion-cursor.mp4",
+      "sha256": "a2938e25cb8017b94dd90a7b5c56e11f52c33a0e7b6d5d1f9952b5c435d95544"
+    },
+    {
+      "archivo": "inicio/animacion-emurv-con-sonido.mp4",
+      "sha256": "748d5e68638165bbee009d6c574fd629aa1f50ed814add613cf208c878607f17"
+    },
+    {
+      "archivo": "inicio/animacion-emurv.gif",
+      "sha256": "ff5513296c204b5e4b3a0f76be63faab6da68809f968298415ff5ea2abc0bdb0"
+    },
+    {
+      "archivo": "inicio/animacion-emurv.mp4",
+      "sha256": "cbeb3b27310440b9fa95f2f9a7ccc8f98f1eda107b50e2ec557152489a853b37"
+    },
+    {
+      "archivo": "inicio/animacion-ensamble-anterior.mp4",
+      "sha256": "fa417255e4d48a9d8c72a7061c5b6d08dd091f3f6724c05802c70b09ca328e85"
+    },
+    {
+      "archivo": "inicio/animacion-ensamble-con-sonido-anterior.mp4",
+      "sha256": "0d4279018816cee7d104a2291a8a545cfa43a085bbc18fb4c5ae4e0467539b2a"
+    },
+    {
+      "archivo": "inicio/animacion-ensamble-con-sonido.mp4",
+      "sha256": "580dc303b78c5175ec9cff1617f8f0c52baf30b93aee89383db18a9e6d237dc1"
+    },
+    {
+      "archivo": "inicio/animacion-ensamble.gif",
+      "sha256": "f459496289cb6e049ba9dcf3b0cde063923c63938e324fe925355c043d63a808"
+    },
+    {
+      "archivo": "inicio/animacion-ensamble.mp4",
+      "sha256": "9be97715af74b504ef4cb449c3a2681049e81df2483c6899ed1d1f09e31bd136"
+    },
+    {
+      "archivo": "inicio/assets.js",
+      "sha256": "c03d708b68242d8e51a4547ed09db5fcf2f2f4f4e357fe474ff6d7038798b114"
+    },
+    {
+      "archivo": "inicio/audio/cursor.mp3",
+      "sha256": "13033dbb12cccaad63d84369c775861275ee7d0874e1e43c896ac50c3f1eb844"
+    },
+    {
+      "archivo": "inicio/audio/ensamble-industrial.wav",
+      "sha256": "a06cfb033e2e3bb2f0e6c3707e703088c07bcc8e0ec458ec957481d6169ec377"
+    },
+    {
+      "archivo": "inicio/audio/ensamble.mp3",
+      "sha256": "43c562d7d1295a433a7c3add4c0ad26dfe2769cf5d556d30211b10401de8dd7c"
+    },
+    {
+      "archivo": "inicio/audio/origen.json",
+      "sha256": "11c923657be689a9e0d2e891a8240b8e3a63e821ebbd58fe55d941473b28a988"
+    },
+    {
+      "archivo": "inicio/audio/piezas/cierre-final.mp3",
+      "sha256": "b69c630f73ec9414a5024faa995684d8f09387ddada81fb90a6497fb0ca1ea25"
+    },
+    {
+      "archivo": "inicio/audio/piezas/desplazamiento.mp3",
+      "sha256": "ea9ca71a6a2b6bd426783dded1bedaaa2fa59f26aeabb1b0afb63dafdd1ff3c7"
+    },
+    {
+      "archivo": "inicio/audio/piezas/encaje-grande.mp3",
+      "sha256": "a572682e1e8191118dcc3d51edac28e7431528ec2bc091da15a0861aaf1f8c63"
+    },
+    {
+      "archivo": "inicio/audio/piezas/encaje-pequeno.mp3",
+      "sha256": "f92016a109f0b5d66dc3d46eb0d332cfd094152e4664c972ec0de3ae41095243"
+    },
+    {
+      "archivo": "inicio/audio/piezas/montaje.json",
+      "sha256": "0a2fcc7f3e9ab2a96e7d3e76a79129f6a4d9ef0b64774d74430c3c2854f9ba2d"
+    },
+    {
+      "archivo": "inicio/audio/trazo.mp3",
+      "sha256": "ed255a0b3b4d4607de5aa4d302a29ae927d8a2cafd44d4d6d5f38bcad04464d2"
+    },
+    {
+      "archivo": "inicio/audio.js",
+      "sha256": "a23d42603ed31a0c6916bdb903d2ddd2b866a2ee3f2ac2e1b98eb89b408a3cac"
+    },
+    {
+      "archivo": "inicio/index.html",
+      "sha256": "ccf82185f2afb9ab938b0048c9b3e8edda86348aaf203af55838174187953a85"
+    },
+    {
+      "archivo": "inicio/inicio.css",
+      "sha256": "435ac9e724fdca7d0297d10f818ebcfba79406f69acd795f3d0997569253fcc7"
+    },
+    {
+      "archivo": "inicio/player.js",
+      "sha256": "9484caaf77dee0ddaf6b43744707b34f48220e5bf65a339195047f0d6657ed6f"
+    },
+    {
+      "archivo": "inicio/pruebas/audio-escritorio-20261113.jpg",
+      "sha256": "4c0f51a25a6a53dd6a4427ceebd7a78fbb03d98f3304fc1f1658906055350c1f"
+    },
+    {
+      "archivo": "inicio/pruebas/audio-movil-20261113.jpg",
+      "sha256": "4879173a597da37e3d6a29583766049f694d70df93d890d46346a685e975c9f1"
+    },
+    {
+      "archivo": "inicio/pruebas/comparador-escritorio-20261113.jpg",
+      "sha256": "ce9245b08d6f31edebeb67057b604f49f423a83397af05b0432a41277a84a6e0"
+    },
+    {
+      "archivo": "inicio/pruebas/comparador-movil-20261113.jpg",
+      "sha256": "dd2d7a517d302e8795b22048910058a841b1cc3889d01bdc15f2fe73383b3415"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/final-movil.png",
+      "sha256": "7d19cc0f6f51d9422bfcc757bb5a9c8f3e89b69e6f9d935377244308fb4bf50c"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/final-movil.svg",
+      "sha256": "1e4cdbedea1d1fce4a95faac069a7a1d0b5c4611f1a852faf2e487f9605210d9"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/final-oscuro.png",
+      "sha256": "e6d5d144754acd43c099762a5a57d2bd0d5d2f8809fd33ffcd64edd89557b7a8"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/final-oscuro.svg",
+      "sha256": "5f7eaf4e42050366ed9fa80ae79133502210c8f7dc3cbb0fbbdce10e96c0882d"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/final-papel.png",
+      "sha256": "52d5962d35beb0ddb7e7108b0e2c3aca715291f56a37fc79dd0a7d417ffaafd6"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/final-papel.svg",
+      "sha256": "a54978e6bf5b15d7b9608910cc756cc07fde272630ef1481a7e8e9dab8e33446"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-1.png",
+      "sha256": "d2d8d5c3299bff9d6ce2e5d34c58877b699da55d4a073f947f43dd3890353c9b"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-1.svg",
+      "sha256": "113363e824b5e4fcd7c3216eab293c24465e9a1bf373c42870c2b2e7ab2f1784"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-2.png",
+      "sha256": "675f15f639395de85699e8f5a93be75ec2f7cce68603e11b5bfea87f215c3db2"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-2.svg",
+      "sha256": "b431112e55ff7c86dac4e7b2e0005d72cb7215d8d33471ab1bc6967a3d6bde88"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-3.png",
+      "sha256": "1833758e673c363eacd9e3f5f94a3b8f9ded5c1f80bd54474be60dfa7baafd11"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-3.svg",
+      "sha256": "ea5ca2e18fcf628e910b44b1a9df4f8a06d3283d1aad025b71c7ee6cafd9742e"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-4.png",
+      "sha256": "81e637bcc89fc42dca55fa3294ec135aac6bd11962f634f2e785735613b2787a"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-4.svg",
+      "sha256": "294fa7888b094d9bcfab025e11bde33b97c29a3fbe09c1470760739e655fab7a"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-5.png",
+      "sha256": "3f98e87b30482c7d0845f1251eeb3cadf1b49dcd8bc8ad3161756934e8f7ee3b"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-5.svg",
+      "sha256": "2f0f8e4ea6b37fd68b73f3eb9904b34938830537b846a9d2dd48d802d0079a08"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-6.png",
+      "sha256": "e6d5d144754acd43c099762a5a57d2bd0d5d2f8809fd33ffcd64edd89557b7a8"
+    },
+    {
+      "archivo": "inicio/pruebas/cursor/paso-6.svg",
+      "sha256": "5f7eaf4e42050366ed9fa80ae79133502210c8f7dc3cbb0fbbdce10e96c0882d"
+    },
+    {
+      "archivo": "inicio/pruebas/encastre-20261113.jpg",
+      "sha256": "8679bc406f9d2f60151a4e5409fa62f21735517adf525aecb9085f79a70e8233"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/final-movil.png",
+      "sha256": "7d19cc0f6f51d9422bfcc757bb5a9c8f3e89b69e6f9d935377244308fb4bf50c"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/final-movil.svg",
+      "sha256": "ce7ddf02a3a38955a427cd8279a1f6e790a853f452fbe7ce55781aa23a4f065c"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/final-oscuro.png",
+      "sha256": "e6d5d144754acd43c099762a5a57d2bd0d5d2f8809fd33ffcd64edd89557b7a8"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/final-oscuro.svg",
+      "sha256": "ffeff3b28af7c68f51095e1d0efd6edf2b6a75ddd486a3fb2fcddeccadd554bd"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/final-papel.png",
+      "sha256": "52d5962d35beb0ddb7e7108b0e2c3aca715291f56a37fc79dd0a7d417ffaafd6"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/final-papel.svg",
+      "sha256": "28e1c58676672442e64e4bc9ada7521d4f9dd0e8921e4fa4dd490b695bf0c1ac"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-1.png",
+      "sha256": "c399436701620c963fe3f5032164a2a28660202ded647788ac23006b2c056a08"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-1.svg",
+      "sha256": "9d0497dbe631c0ac58bacff5cb756855544fcf7b1dc1b5038f7a25adde3aefd8"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-2.png",
+      "sha256": "a090e46493a352e65311544e835c029ca7f0f9ef1f31c9f644fe5c8b340669a0"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-2.svg",
+      "sha256": "235d4e4750f9a1854b53d6b32ba4f2bf168b59914d8a0d91292a35a94f6ed10b"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-3.png",
+      "sha256": "af9850923b764096eb42b28cd946819368d7c31b633180911939f15d5bcd2a7a"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-3.svg",
+      "sha256": "56b5a7a3d91ea96c21c8cda3a9bd50c84136c59dcb51ff67901c4402502189e3"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-4.png",
+      "sha256": "c088a1bed14d9459c8b4a5ad21e951caaf8a1af18132905a5a3b4fde0b239b10"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-4.svg",
+      "sha256": "546cc3acd83888dbbb6c17d99c8d89ee7776c80f17cf50b4717223daac6c987c"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-5.png",
+      "sha256": "3f98e87b30482c7d0845f1251eeb3cadf1b49dcd8bc8ad3161756934e8f7ee3b"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-5.svg",
+      "sha256": "6811c1852b4a112e5c8abe13b47cb4cde60ad1b9c612679945c19ac25ba21af4"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-6.png",
+      "sha256": "e6d5d144754acd43c099762a5a57d2bd0d5d2f8809fd33ffcd64edd89557b7a8"
+    },
+    {
+      "archivo": "inicio/pruebas/ensamble/paso-6.svg",
+      "sha256": "ffeff3b28af7c68f51095e1d0efd6edf2b6a75ddd486a3fb2fcddeccadd554bd"
+    },
+    {
+      "archivo": "inicio/pruebas/final-movil.png",
+      "sha256": "7d19cc0f6f51d9422bfcc757bb5a9c8f3e89b69e6f9d935377244308fb4bf50c"
+    },
+    {
+      "archivo": "inicio/pruebas/final-movil.svg",
+      "sha256": "d1543c008c5d793df683f9dd9671866045afcd82ae7c876bc8303fe7cd67cfa2"
+    },
+    {
+      "archivo": "inicio/pruebas/final-oscuro.png",
+      "sha256": "e6d5d144754acd43c099762a5a57d2bd0d5d2f8809fd33ffcd64edd89557b7a8"
+    },
+    {
+      "archivo": "inicio/pruebas/final-oscuro.svg",
+      "sha256": "35dbcf2c92744c8a45194a9d46278bfa341413b9e6f88273a2e069d604b7c406"
+    },
+    {
+      "archivo": "inicio/pruebas/final-papel.png",
+      "sha256": "52d5962d35beb0ddb7e7108b0e2c3aca715291f56a37fc79dd0a7d417ffaafd6"
+    },
+    {
+      "archivo": "inicio/pruebas/final-papel.svg",
+      "sha256": "7a9537d0fe55153c758fbed4149971215f060d466e9ca7825cee677f14e29cbf"
+    },
+    {
+      "archivo": "inicio/pruebas/industrial-20261113.jpg",
+      "sha256": "5fdd3f7debb1cd3259787065aa6e5d42136eda73bc7eb28549a37f4e40a59e7a"
+    },
+    {
+      "archivo": "inicio/pruebas/navegador-movil.jpg",
+      "sha256": "45bd7b928510831452e252be3c87bad835487cd0fa056cc8c27cb4148d4b12aa"
+    },
+    {
+      "archivo": "inicio/pruebas/navegador-oscuro.jpg",
+      "sha256": "d6805b83898d807e391baadc0b3d7d953aa2d7d91473f6cb2a04cdffbde56507"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-1.png",
+      "sha256": "c45f1dcdc1c19e47481b90e2e53c36f764539bb07ff70b8be1b1b854df3a1aad"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-1.svg",
+      "sha256": "728609daa0fe40124ac0de75f39173532ed1016c468d069bba2ccc63ad6d6ba4"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-2.png",
+      "sha256": "6071c6ffacdfb8bb699a649396eeaca140c0ab5dc3e5710174fb4b2806a902c5"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-2.svg",
+      "sha256": "0968e7d60ea945399d30ae7d04a68a75edad2c184f6190f4f8d955705c6f6818"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-3.png",
+      "sha256": "b813e5cb1b45d4ef8412385bb44fe6fcfa337920c3874a3b53025b63a7375b5d"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-3.svg",
+      "sha256": "a6b578e2f391d3eb3b8f863226d90132fe7d678c2cb375532a7f9816706bae5a"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-4.png",
+      "sha256": "aaed406c162a49f5cb6db650e9639b8be39fd634e1f68ab5a0e09c1e1e2f046c"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-4.svg",
+      "sha256": "dc974236e0f9bc195d1565a77fd2412e875a287061e7ae9a85c2ae174e01c35e"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-5.png",
+      "sha256": "3f98e87b30482c7d0845f1251eeb3cadf1b49dcd8bc8ad3161756934e8f7ee3b"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-5.svg",
+      "sha256": "15f54cae39404e757b233f1ce98c9ffbc44d06c8d6790c575706c8733c240354"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-6.png",
+      "sha256": "e6d5d144754acd43c099762a5a57d2bd0d5d2f8809fd33ffcd64edd89557b7a8"
+    },
+    {
+      "archivo": "inicio/pruebas/paso-6.svg",
+      "sha256": "35dbcf2c92744c8a45194a9d46278bfa341413b9e6f88273a2e069d604b7c406"
+    },
+    {
+      "archivo": "inicio/review.js",
+      "sha256": "a0eed89f4911aff36e94fd7eccda13b6aa518270f316a9476e2bdf1da89e62cd"
+    },
+    {
+      "archivo": "inicio/scene-base.js",
+      "sha256": "5333aa56c72f92e492a573d943721d65e5c194720244b4e2ace788761b5479ad"
+    },
+    {
+      "archivo": "inicio/scene.js",
+      "sha256": "c2a69f1e9ffc0d85eb14cb4e919a5f99b741eceed9eed240c24f6ec35c16bcec"
+    },
+    {
+      "archivo": "inicio/secuencia-cursor.png",
+      "sha256": "4c15cfc694a1aef469499ac7719a5540f9aa0b0f7fc0532ce999f29600f15939"
+    },
+    {
+      "archivo": "inicio/secuencia-ensamble.png",
+      "sha256": "04127d4b84bbcda8dfe3770305f13074863c491fdf794828aabaffe8fb8c6402"
+    },
+    {
+      "archivo": "inicio/secuencia.png",
+      "sha256": "e40702dbba8b2a8dcd2615ee540aeb3e60525b3dd788cb4f0309c00bdf5f8bf7"
+    },
+    {
+      "archivo": "inicio/sonido-elevenlabs.md",
+      "sha256": "0289b3144445c0629fed3c7df2d96373ec5ad7c89333579955e83c6721ab96d7"
+    },
+    {
+      "archivo": "logotipos/a-paso-nombre.svg",
+      "sha256": "8e6bb9b2b895bd73b9f5b285f17b9a393a54114b2021594605151c431a63d022"
+    },
+    {
+      "archivo": "logotipos/a-paso.svg",
+      "sha256": "7dff425f744525385f080ba6041aa938ff9d29e5b27a9019cc349cae4d6631f4"
+    },
+    {
+      "archivo": "logotipos/b-registro-nombre.svg",
+      "sha256": "cc745a3f8eb88cdb4b7715ac952460499a37eac9d62a8cb376bd504048679dfd"
+    },
+    {
+      "archivo": "logotipos/b-registro.svg",
+      "sha256": "46139a4a0eb95b85543efef84ac5ce3d8585897d4df222cf452dd403f5fa8a9e"
+    },
+    {
+      "archivo": "logotipos/c-trama-nombre.svg",
+      "sha256": "50165ab9f4c21245fe0e4de3ec5a985444597a5a40b0def16c57391af7699740"
+    },
+    {
+      "archivo": "logotipos/c-trama.svg",
+      "sha256": "107479f014ccb74672c4c39a79837742ab45acea2b642f03c83b03a21bd3cf42"
+    },
+    {
+      "archivo": "logotipos/d-tipo-nombre.svg",
+      "sha256": "92f63ca70422317949455c091f6ab04900f1d6a052c6bf362b4be8a6eae8f18f"
+    },
+    {
+      "archivo": "logotipos/d-tipo.svg",
+      "sha256": "258db238eed5fd89064aa4524e61b3a1be87c4508fb64071e9eb4c5895d2df7d"
+    },
+    {
+      "archivo": "portada-ilustrada.png",
+      "sha256": "ece647d1b324b8bfacf040caf9b4feade3eac536876fd78552a7b6abd019035d"
+    },
+    {
+      "archivo": "propuestas.json",
+      "sha256": "6282f84b32525a18bdf857685445c7103154cb2bf0fa9e3d6985ff19644621aa"
+    },
+    {
+      "archivo": "pruebas/aplicacion.jpg",
+      "sha256": "3aea2a094a29d660278b006722cb16450b22ff21c8a0c04eff965210238af5fd"
+    },
+    {
+      "archivo": "pruebas/auditoria-logotipos.txt",
+      "sha256": "0f231d2e6c10a5b8fd10c856cb41747276e50fc80fd357a67303e3d888e2fce0"
+    },
+    {
+      "archivo": "pruebas/auditoria-simbolos.txt",
+      "sha256": "fad490ebaed001182f95d7895db85f3093bd713e1d240808e584e702def12177"
+    },
+    {
+      "archivo": "pruebas/contraste.json",
+      "sha256": "5fe29dc0de306cdd416997d0ec2095b557479415af97a2820ed7fff667bc72b0"
+    },
+    {
+      "archivo": "pruebas/escritorio.jpg",
+      "sha256": "65f52091b7c394f11965d5fd406af9a97e73c42e02e934d1aebac7767a748348"
+    },
+    {
+      "archivo": "pruebas/integracion-20261113/app-macos.png",
+      "sha256": "66eabea02f979f9cd8448ef973dddde01ab18757acb51f2338751f82327ce2ab"
+    },
+    {
+      "archivo": "pruebas/integracion-20261113/portafolio.png",
+      "sha256": "5e8bd2fcaa976d3cef7cd94e45f2de3f8b47bc40c59ef3f40da2d566a1cf79d4"
+    },
+    {
+      "archivo": "pruebas/movil.jpg",
+      "sha256": "82b31fd1dbceffcdfb15aa5f61e5031985a20b38146eb50df75c74f530bfb30b"
+    },
+    {
+      "archivo": "pruebas/preview.html",
+      "sha256": "888b40b4b616784e9ae1b3b2d640a35606e03d1462cd814235e6d4d4a8e2c242"
+    },
+    {
+      "archivo": "pruebas/v1/a-paso.svg",
+      "sha256": "e315da8ca1dde489a81914cf92aa8b97e70fe9887adefdb266dee4040283fb50"
+    },
+    {
+      "archivo": "pruebas/v1/b-registro.svg",
+      "sha256": "d2a823a0b30b86728c7abebaf6010a1851d7a8686dcc70405963a7d9e321fef2"
+    },
+    {
+      "archivo": "pruebas/v1/c-trama.svg",
+      "sha256": "4cf87bed9bf4f4f6d3a022053b76958d4457af33bee1004e9665f1904d571e4b"
+    },
+    {
+      "archivo": "pruebas/v1/d-tipo.svg",
+      "sha256": "142e47eb4c2005d0fb41d328db2de79f96917614bf28636afb315f18fd097b78"
+    },
+    {
+      "archivo": "pruebas/v1/overview.png",
+      "sha256": "29ba317f6f1f49a739d53ab11351f2e2447733cc87ead4f12125a21ddee9df0d"
+    },
+    {
+      "archivo": "renders/a-paso-horizontal.png",
+      "sha256": "aa7ec9f06edd840ab954eacde61d0d0ad881e9450c737b08e2412cc4bb4e4f30"
+    },
+    {
+      "archivo": "renders/a-paso-nombre.png",
+      "sha256": "18a5436c00a74f4639dc4ab158162fb40c5663b3ba19274f6e24d1dadf0ad751"
+    },
+    {
+      "archivo": "renders/a-paso.png",
+      "sha256": "2a3ce3bb12c129a1a4a10b906345dad2b17e331bbf66815d81a00f963a91074e"
+    },
+    {
+      "archivo": "renders/b-registro-horizontal.png",
+      "sha256": "26b67672ed2b8917dd9c14a2928170ded06218d92a522f1b9330176abc60cf52"
+    },
+    {
+      "archivo": "renders/b-registro-nombre.png",
+      "sha256": "520e2e434c7434c8ff2ca2ee3a4b116520d27eae1e0c582cee876d530434c70a"
+    },
+    {
+      "archivo": "renders/b-registro.png",
+      "sha256": "51f822c40ae6244adee6d4271e13853690a68cdb3207f79167146c0f81fc6e9b"
+    },
+    {
+      "archivo": "renders/c-trama-horizontal.png",
+      "sha256": "784f11d4e2e78015422f411080df8fafb6e2e8c7c1aaa24878b17f6c1404a878"
+    },
+    {
+      "archivo": "renders/c-trama-nombre.png",
+      "sha256": "41c777a3a0625002a924ba0d15e7a73892bf229fca78e44db450a9e9d4db7558"
+    },
+    {
+      "archivo": "renders/c-trama.png",
+      "sha256": "120659199bc9323ed584ec0bcc5369e5de12a9e471eb006f4cf0e620d50ee5ec"
+    },
+    {
+      "archivo": "renders/d-tipo-horizontal.png",
+      "sha256": "74ff97b61c66bb7b424c352bc6c4ad3b9acd4f7267d52b86993294b09d1a62ae"
+    },
+    {
+      "archivo": "renders/d-tipo-nombre.png",
+      "sha256": "59ffdfdf0d1834fe41d7f8c484cb4fb44d929a9d451379c90b40b44db9be5a08"
+    },
+    {
+      "archivo": "renders/d-tipo.png",
+      "sha256": "4717af921a26afa0052c7a9510fbfe0768138ce815a0ba1913dc89a09663f5d7"
+    },
+    {
+      "archivo": "review.css",
+      "sha256": "0bf8db326ea0794b4e036219cf059881db6f88a8c305fe1bc20182c34d4d84ec"
+    },
+    {
+      "archivo": "review.js",
+      "sha256": "59ca1dee9b2666e4c42c8ba33c56d47ab621ea7883390bbaac070a86c69f5e73"
+    },
+    {
+      "archivo": "simbolos/a-paso.svg",
+      "sha256": "32182cb5cbfd882b22311b2a1a176a9d8f2fa6fd648c6ba69316c4b7efd48c23"
+    },
+    {
+      "archivo": "simbolos/b-registro.svg",
+      "sha256": "e8b8584a99775002022540e000cec8ca927d2cfb5875d88cfa789c46ed4991e2"
+    },
+    {
+      "archivo": "simbolos/c-trama.svg",
+      "sha256": "d82c4e94914672157c83672d459071fd2d40f6f4081f7acc0fdc6dc9497803a9"
+    },
+    {
+      "archivo": "simbolos/d-tipo.svg",
+      "sha256": "142e47eb4c2005d0fb41d328db2de79f96917614bf28636afb315f18fd097b78"
+    }
+  ]
+}

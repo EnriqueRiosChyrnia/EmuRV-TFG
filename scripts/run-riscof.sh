@@ -54,7 +54,7 @@ setup() {
     git -C "$ARCH_TEST" log -1 --format="arch-test: %H (%ad)" --date=short
 
     # runner DUT en release (el core C de Unicorn en debug es lentísimo)
-    (cd "$REPO_ROOT/src-tauri" && cargo build --release --bin riscof_runner)
+    (cd "$REPO_ROOT/src-tauri" && cargo build --release --features riscof-runner --bin riscof_runner)
     echo "setup OK"
 }
 

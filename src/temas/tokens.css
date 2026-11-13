@@ -1,7 +1,6 @@
 /* Design tokens de EmuRV (RP17 Parte A). TODA la estética temable vive
    acá como variables CSS. `:root` = tema «Educativo» (default), con los
-   valores EXACTOS que tenía la app antes del refactor (la Fase 1 es
-   invisible). Un tema nuevo = un bloque `[data-tema="x"]` que sobrescribe
+   colores de la identidad vigente, con acentos accesibles. Un tema nuevo = un bloque `[data-tema="x"]` que sobrescribe
    estas variables — cero CSS duplicado (ver styles.css, que solo usa
    var(--…)). */
 
@@ -39,14 +38,14 @@
 :root,
 [data-tema="educativo"] {
   /* superficies */
-  --fondo: #1e2227;
-  --fondo-panel: #23282f;
-  --fondo-claro: #2b323b;
-  --borde: #3a424d;
+  --fondo: #151612;
+  --fondo-panel: #20211c;
+  --fondo-claro: #292b24;
+  --borde: #44473d;
 
   /* texto */
-  --texto: #d7dde5;
-  --texto-suave: #8b97a5;
+  --texto: #f7f4e6;
+  --texto-suave: #aaa99b;
   /* texto sobre el color de acento (botón principal). RP19: oscuro violáceo
      para el acento violeta del Educativo (AA: 6.57 sobre el acento). */
   --texto-sobre-acento: #16122b;
@@ -86,7 +85,7 @@
      variables, así el código RECOLOREA con el tema. Verificado AA (≥4.5)
      sobre --fondo (= fondo del editor) por contraste.test.ts.
      --sx-com mirror de --texto-suave (comentarios = texto secundario). */
-  --sx-com: #8b97a5;
+  --sx-com: #aaa99b;
   --sx-dir: #7fcf8f; /* directivas (.data/.text…) */
   --sx-lbl: #a99bff; /* etiquetas (main:) — RP19: tono violeta (AA 6.72) */
   --sx-ins: #c4b6ff; /* instrucciones/mnemónicos — RP19: violeta (AA 8.74) */

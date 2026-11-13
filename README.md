@@ -372,3 +372,11 @@ scripts/ci-local.sh --skip-bundle  # solo tests y clippy (el bundle tarda)
 ## Licencia / alcance
 
 Prototipo académico (v0.1). Primera iteración: macOS Apple Silicon; la base es multiplataforma (Tauri) pero los builds de Windows/Linux quedan fuera de esta versión.
+
+## Marca y presentación de inicio
+
+El logo A / Paso, los SVG y las animaciones están en [marca/emurv](marca/emurv/LEEME.md). La app reproduce Ensamble mecánico al abrir la ventana principal. Se puede omitir con el botón o con Escape y repetir al pulsar la marca de la barra. Respeta la preferencia de movimiento reducido y continúa sin sonido si el sistema bloquea la reproducción. La presentación dura 5,4 s; el editor se inicializa detrás y la salida de seguridad elimina la presentación a los 6,5 s. Esa duración visible es deliberada y no constituye una medición del requisito histórico de arranque inferior a 2 s.
+
+Las fuentes, los efectos renombrados y los scripts de reconstrucción están incluidos en el repositorio. La copia del portafolio conserva la misma marca en su rama de revisión.
+
+La compilación local de esta entrega se encuentra en `compilados/EmuRV.app` (ignorada por Git). Para reconstruirla: `npm ci` y `npm run tauri build -- --bundles app`. El runner RISCOF se compila por separado con `cargo build --manifest-path src-tauri/Cargo.toml --release --features riscof-runner --bin riscof_runner`.

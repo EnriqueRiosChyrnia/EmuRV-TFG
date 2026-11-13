@@ -40,3 +40,9 @@ tests-riscv/.tools/
 tests-riscv/.riscof-work/
 __pycache__/
 bench/out/
+
+# Recursos runtime generados desde marca/emurv por npm dev/build
+/public/marca/
+
+# App macOS compilada para revisión local
+/compilados/

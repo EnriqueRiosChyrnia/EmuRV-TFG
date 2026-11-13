@@ -92,7 +92,7 @@ test("normalizarTema: no-objeto → default completo", () => {
 test("temaUsuarioPorDefecto devuelve copia (no la constante)", () => {
   const a = temaUsuarioPorDefecto();
   a.fondo = "#111111";
-  assert.equal(DEFAULT_USUARIO.fondo, "#1e2227", "no muta la constante");
+  assert.equal(DEFAULT_USUARIO.fondo, "#151612", "no muta la constante");
 });
 
 test("guardar + leer hace round-trip; lee default si no hay nada", () => {

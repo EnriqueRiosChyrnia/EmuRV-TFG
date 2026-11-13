@@ -161,7 +161,7 @@ html, body {
 /* Wordmark de marca en la toolbar (RP19-F3): SVG bi-tono que se adapta al
    tema — «Emu» en el acento, «RV» en el color de texto. */
 .toolbar-marca { display: inline-flex; align-items: center; padding: 0 2px; }
-.logo-emurv { height: 21px; width: auto; flex: none; display: block; }
+.logo-emurv { height: 25px; width: auto; flex: none; display: block; }
 .logo-emu { fill: var(--acento); }
 .logo-rv { fill: var(--texto); }
 
