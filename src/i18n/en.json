@@ -294,7 +294,6 @@
   "pestana.reensamblar": "Assemble this tab to run it (the session belongs to another tab).",
   "archivo.recientes": "Recent",
   "ayuda.pestanas": "You can keep several files open at once in tabs (the bar above the editor): «+» opens a blank one, «Open» opens the file in its own tab (or jumps to it if it was already open) and «×» closes it (it warns if there are unsaved changes, marked with «•»). The «File» menu lists the most recently used files under «Recent». Closing and reopening EmuRV restores the tabs and which one was active. Only the active tab runs: the session follows the front tab.",
-  "inicio.omitir": "Skip animation",
   "inicio.titulo": "EmuRV: startup",
   "inicio.reproducir": "Replay introduction"
 }

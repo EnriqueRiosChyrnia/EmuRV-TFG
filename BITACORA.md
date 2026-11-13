@@ -4755,3 +4755,9 @@ sobra para el uso educativo (16–72× RNF-03, 26× margen en Tetris).
 **Verificación [Seguro]:** `npm run build` y 119 pruebas de interfaz completadas sin fallos; contraste AA en los cinco temas incluido. `cargo test` completó 271 pruebas sin fallos; `cargo clippy --all-targets -- -D warnings` finalizó sin advertencias. La app macOS abrió la presentación y después el editor, conservando el workspace y el tema guardados. La revisión automática no completó una ejecución manual del programa cargado y no se atribuye una comprobación de audio nativo por escucha. Se verificaron 21 entregables por SHA-256 frente a la copia del portafolio y los ocho recursos runtime frente a sus fuentes. La `.app` compilada queda en `compilados/EmuRV.app`, fuera de Git.
 
 **Entrega local [Seguro]:** el paquete final pesa 23 MiB según `du -sm`, por debajo de la compuerta de 30 MB, contiene únicamente el ejecutable `emurv` y lleva firma ad hoc local verificada con `codesign --verify --deep --strict`. No es una release notarizada. El runner optativo pasó `cargo check --features riscof-runner --bin riscof_runner`.
+
+## 2026-11-13 · Presentación sin botón de omisión
+
+**Decisión [Seguro]:** por solicitud del autor, se retira el botón «Omitir animación». La presentación termina automáticamente; se conservan Escape, movimiento reducido y el límite de seguridad para liberar el editor. El foco permanece en la presentación durante la reproducción y vuelve al editor o al control anterior al finalizar. La identidad y los tiempos de Ensamble no cambian.
+
+**Verificación [Seguro]:** frontend compilado, 119 pruebas de interfaz sin fallos y bundle macOS reconstruido. Se actualiza `compilados/EmuRV.app`, con firma ad hoc local verificada. La secuencia SVG y el montaje sonoro se conservan; solo se retiran el botón y sus estilos/traducciones.

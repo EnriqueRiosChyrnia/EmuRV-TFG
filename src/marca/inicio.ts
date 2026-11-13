@@ -16,7 +16,7 @@ export async function mostrarInicio(): Promise<void> {
   const alTeclado = (e: KeyboardEvent) => {
     if (e.key === "Escape") { e.preventDefault(); cerrar(); }
     if (e.key === "Tab" && overlay) {
-      e.preventDefault(); overlay.querySelector<HTMLButtonElement>("button")?.focus();
+      e.preventDefault(); overlay.focus();
     }
   };
   const cerrar = () => {
@@ -43,14 +43,12 @@ export async function mostrarInicio(): Promise<void> {
     overlay.setAttribute("aria-label", t("inicio.titulo"));
     const scene = document.createElement("div");
     scene.className = "marca-inicio-escena";
-    const omitir = document.createElement("button");
-    omitir.textContent = t("inicio.omitir");
-    omitir.addEventListener("click", cerrar);
-    overlay.append(scene, omitir);
+    overlay.tabIndex = -1;
+    overlay.append(scene);
     document.body.append(overlay);
     if (app) app.inert = true;
     document.addEventListener("keydown", alTeclado, true);
-    omitir.focus();
+    overlay.focus();
     intro = new EmuRVIntro(scene, {
       theme: "dark", variant: "ensamble", soundEnabled: true,
       onComplete: cerrar,
